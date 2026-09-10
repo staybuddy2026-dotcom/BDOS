@@ -1,0 +1,137 @@
+/* Re-engagement Engine Dark SaaS Styles */
+
+.reengagement-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 120px);
+}
+
+.reengagement-workspace {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 992px) {
+  .reengagement-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reengagement-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.reengagement-items-scroll {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.reengagement-card-item {
+  background: #111726;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.reengagement-card-item:hover {
+  background: #161e30;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.reengagement-card-item.active-item {
+  background: rgba(99, 102, 241, 0.08);
+  border-left-color: #6366f1;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.reengagement-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.comparison-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .comparison-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+.comparison-card {
+  padding: 14px;
+  background: var(--bg-primary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comparison-card.highlight {
+  border-color: rgba(6, 182, 212, 0.3);
+  background: rgba(6, 182, 212, 0.03);
+}
+
+.comparison-card .card-title-lbl {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+}
+
+.comparison-card p {
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+.badge-reengage {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.badge-reengage.pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.badge-reengage.approved {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.badge-reengage.dismissed {
+  background: rgba(255, 255, 255, 0.05);
+  color: #64748b;
+}

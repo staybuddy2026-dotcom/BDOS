@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Fonts */
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Theme Tones (Light Clean Palette) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f7fb; /* Minor blue tone matching the theme */
+  --bg-tertiary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9fafb;
+  
+  /* Text Tones */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  
+  /* Accents */
+  --accent-indigo: #00d09c;
+  --accent-indigo-hover: #00b386;
+  --accent-indigo-glow: rgba(0, 208, 156, 0.1);
+  --accent-cyan: #00d09c;
+  --accent-cyan-glow: rgba(0, 208, 156, 0.1);
+  --accent-violet: #0052ff;
+  --accent-violet-glow: rgba(0, 82, 255, 0.1);
+  
+  /* Semantic Tones */
+  --color-success: #00d09c;
+  --color-success-bg: rgba(0, 208, 156, 0.1);
+  --color-warning: #f59e0b;
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-danger: #eb5b3c;
+  --color-danger-bg: rgba(235, 91, 60, 0.1);
+
+  /* Clean Borders & Shadows */
+  --border-subtle: #e2e8f0;
+  --border-focus: rgba(0, 208, 156, 0.5);
+  --glass-bg: #ffffff;
+  --glass-border: #e2e8f0;
+  --glass-border-hover: #cbd5e1;
+  --glass-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  --glass-blur: blur(0px);
+  
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Spacing system */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Layout Constants */
+  --sidebar-width: 250px;
+  --header-height: 64px;
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

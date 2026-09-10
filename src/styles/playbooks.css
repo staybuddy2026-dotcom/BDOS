@@ -1,0 +1,198 @@
+/* Outreach Playbook Dark SaaS Styles */
+
+.playbooks-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 120px);
+}
+
+.playbooks-workspace {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 992px) {
+  .playbooks-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Playbooks list card on the left */
+.playbooks-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.playbooks-scroll {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.playbook-list-card {
+  background: #111726;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.playbook-list-card:hover {
+  background: #161e30;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.playbook-list-card.active-card {
+  background: rgba(99, 102, 241, 0.08);
+  border-left-color: #6366f1;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.playbook-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.playbook-card-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.playbook-card-desc {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.35;
+  margin-top: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.playbook-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 10px;
+}
+
+/* Playbooks editor on the right */
+.playbook-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.editor-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 12px;
+}
+
+/* Step cards */
+.steps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.step-edit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.15s ease;
+}
+
+.step-edit-card.disabled-step {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.step-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.step-badge {
+  background: #6366f1;
+  color: white;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.step-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .step-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step-textarea {
+  min-height: 70px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 10px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  resize: vertical;
+  outline: none;
+}
+
+.step-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.add-step-btn-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}

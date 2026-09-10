@@ -1,0 +1,321 @@
+@import 'tailwindcss';
+@import './variables.css';
+/* CSS reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 87.5%;
+  /* Reduces base rem from 16px to 14px for executive B2B SaaS density across ALL screens */
+}
+
+html,
+body {
+  height: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: 1.08rem;
+  line-height: 1.3;
+}
+
+h3 {
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+h4 {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+/* App Shell Layout */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-secondary);
+  position: relative;
+  width: 100%;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin-left: 250px;
+  width: calc(100% - 250px);
+  max-width: calc(100% - 250px);
+  box-sizing: border-box;
+  transition: margin-left var(--transition-normal);
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+.page-container {
+  flex: 1;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) forwards;
+}
+
+/* Utility styles */
+.card-glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.card-glass:hover {
+  border-color: var(--glass-border-hover);
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-indigo), var(--accent-violet));
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  font-family: var(--font-heading);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.btn-secondary:hover {
+  background: 'var(--bg-secondary)';
+  border-color: #cbd5e1;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-success {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.badge-warning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.badge-danger {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.badge-indigo {
+  background-color: var(--accent-indigo-glow);
+  color: var(--accent-indigo);
+}
+
+input,
+textarea,
+select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+.input-glow,
+.select-glow,
+.input-field,
+.search-input,
+.draft-editor-textarea,
+.step-textarea {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  border-radius: 8px !important;
+  font-size: 0.88rem !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+.input-glow:focus,
+.select-glow:focus,
+.input-field:focus,
+.search-input:focus,
+.draft-editor-textarea:focus,
+.step-textarea:focus {
+  border-color: var(--accent-indigo) !important;
+  box-shadow: 0 0 0 3px rgba(0, 208, 156, 0.2) !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+  font-size: 0.85rem;
+}
+
+select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+input[type="checkbox"].checkbox-glow {
+  accent-color: var(--accent-indigo) !important;
+  width: 16px !important;
+  height: 16px !important;
+  cursor: pointer !important;
+  border-radius: 4px !important;
+}
+
+input[type="text"].universal-search-override {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+input[type="text"].universal-search-override:focus {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}

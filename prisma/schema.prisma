@@ -1,0 +1,268 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum KeywordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PostStatus {
+  DISCOVERED
+  REVIEW_QUEUE
+  APPROVED
+  DISMISSED
+}
+
+enum DraftStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  SENT
+  FOLLOW_UP_DUE
+  COMPLETED
+  REPLIED
+  MEETING
+  PROPOSAL
+  WON
+  LOST
+  REJECTED
+}
+
+enum FollowUpStatus {
+  PENDING
+  SENT
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  SENT
+  DISMISSED
+}
+
+model Keyword {
+  id             String        @id @default(uuid())
+  keyword        String        @unique
+  category       String
+  priority       Priority      @default(MEDIUM)
+  status         KeywordStatus @default(ACTIVE)
+  isFavorite     Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  lastSearchedAt DateTime?
+  matchesFound   Int           @default(0)
+
+  @@index([status])
+  @@index([category])
+  @@index([isFavorite])
+}
+
+model LinkedInPost {
+  id               String        @id @default(uuid())
+  postUrl          String        @unique
+  authorName       String
+  authorHeadline   String?
+  companyName      String?
+  postPreview      String        @db.Text
+  postContent      String?       @db.Text
+  postedAt         DateTime?
+  discoveredAt     DateTime      @default(now())
+  matchedKeyword   String
+  keywordCategory  String?
+  engagementCount  Int           @default(0)
+  opportunityScore Int?
+  status           PostStatus    @default(DISCOVERED)
+  isFavorite       Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  
+  // Relations
+  analysis         PostAnalysis?
+  drafts           OutreachDraft[]
+  apolloEnrichment ApolloEnrichment?
+
+  @@index([status])
+  @@index([opportunityScore])
+  @@index([matchedKeyword])
+  @@index([isFavorite])
+}
+
+enum EnrichmentStatus {
+  NOT_ENRICHED
+  PENDING
+  ENRICHED
+  NO_MATCH
+  FAILED
+}
+
+model ApolloEnrichment {
+  id                   String           @id @default(uuid())
+  linkedPostId         String           @unique
+  linkedPost           LinkedInPost     @relation(fields: [linkedPostId], references: [id], onDelete: Cascade)
+  personName           String
+  linkedinUrl          String?
+  organizationName     String?
+  organizationDomain   String?
+  jobTitle             String?
+  workEmail            String?
+  personalEmail        String?
+  phone                String?
+  apolloPersonId       String?
+  apolloOrganizationId String?
+  enrichmentStatus     EnrichmentStatus @default(NOT_ENRICHED)
+  creditsUsed          Int              @default(0)
+  enrichedAt           DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+}
+
+model PostAnalysis {
+  id                     String       @id @default(uuid())
+  postId                 String       @unique
+  post                   LinkedInPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  summary                String       @db.Text
+  buyingSignals          String[]     // Array of text labels
+  opportunityScore       Int
+  suggestedOutreachAngle String?      @db.Text
+  valueReason            String?      @db.Text
+  aiMetadata             String?      @db.Text // JSON string for extended metrics
+  promptTokens           Int?
+  completionTokens       Int?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+}
+
+model OutreachPlaybook {
+  id          String         @id @default(uuid())
+  name        String
+  description String?        @db.Text
+  status      String         @default("ACTIVE") // "ACTIVE" or "INACTIVE"
+  defaultTone String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  // Relations
+  steps       OutreachStep[]
+  drafts      OutreachDraft[]
+  learning    AILearningData[]
+}
+
+model OutreachStep {
+  id             String           @id @default(uuid())
+  playbookId     String
+  playbook       OutreachPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  stepName       String
+  delay          Int              @default(0) // Delay in days
+  objective      String?          @db.Text
+  tone           String?
+  aiInstructions String?          @db.Text
+  enabled        Boolean          @default(true)
+  order          Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  
+  // Relations
+  drafts         OutreachDraft[]
+
+  @@index([playbookId, order])
+}
+
+model OutreachDraft {
+  id             String            @id @default(uuid())
+  postId         String
+  post           LinkedInPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  playbookId     String?
+  playbook       OutreachPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
+  stepId         String?
+  step           OutreachStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  originalAiDraft String           @db.Text
+  editedDraft    String?           @db.Text
+  status         DraftStatus       @default(DRAFT)
+  generatedAt    DateTime          @default(now())
+  approvedAt     DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  
+  // Relations
+  history        OutreachHistory[]
+  followUps      FollowUp[]
+  reEngagements  ReEngagementEvent[]
+
+  @@index([status])
+  @@index([postId])
+  @@index([playbookId])
+}
+
+model OutreachHistory {
+  id         String        @id @default(uuid())
+  draftId    String
+  draft      OutreachDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  status     DraftStatus
+  notes      String?       @db.Text
+  timestamp  DateTime      @default(now())
+
+  @@index([draftId])
+}
+
+model FollowUp {
+  id        String         @id @default(uuid())
+  draftId   String
+  draft     OutreachDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  dueDate   DateTime
+  status    FollowUpStatus @default(PENDING)
+  content   String?        @db.Text
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model ReEngagementEvent {
+  id              String         @id @default(uuid())
+  outreachDraftId String?
+  outreachDraft   OutreachDraft? @relation(fields: [outreachDraftId], references: [id], onDelete: SetNull)
+  prospectName    String
+  newBuyingSignal String         @db.Text
+  detectionDate   DateTime       @default(now())
+  analysis        String         @db.Text
+  generatedDraft  String?        @db.Text
+  approvalStatus  ApprovalStatus @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([approvalStatus])
+}
+
+model AILearningData {
+  id                String            @id @default(uuid())
+  playbookId        String?
+  playbook          OutreachPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
+  originalDraft     String            @db.Text
+  userEditedVersion String?           @db.Text
+  selectedTones     String[]          // List of tones
+  outcome           String?
+  createdAt         DateTime          @default(now())
+}
+
+model ApplicationSettings {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
