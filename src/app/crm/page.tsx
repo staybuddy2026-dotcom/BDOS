@@ -748,7 +748,7 @@ export default function EnterpriseCrmPage() {
                       <select
                         value={selectedAccount.stage}
                         onChange={(e) => handleStageChange(selectedAccount, e.target.value as CrmStage)}
-                        style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.78rem', background: '#ffffff', color: '#0f172a', border: '1px solid var(--border-subtle)', fontWeight: 800, outline: 'none' }}
+                        style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.78rem', background: '#ffffff', color: '#0f172a', border: '1px solid var(--border-subtle)', fontWeight: 800, outline: 'none', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
                       >
                         {CRM_STAGES.map((stg) => (
                           <option key={stg} value={stg}>{stg}</option>
@@ -758,24 +758,30 @@ export default function EnterpriseCrmPage() {
 
                     <button
                       onClick={() => setShowMeetingModal(true)}
-                      className="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] font-bold text-[0.78rem] border border-[var(--border-subtle)] cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-[var(--bg-card)] hover:border-[var(--accent-indigo)]"
-                      style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+                      className="inline-flex items-center gap-1.5 rounded-lg font-bold cursor-pointer transition-all duration-200 whitespace-nowrap"
+                      style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#334155', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent-indigo)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.1)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
                     >
                       <Video size={14} style={{ color: 'var(--accent-indigo)' }} /> Log Meeting
                     </button>
 
                     <button
                       onClick={() => setShowProposalModal(true)}
-                      className="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] font-bold text-[0.78rem] border border-[var(--border-subtle)] cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-[var(--bg-card)] hover:border-[var(--accent-indigo)]"
-                      style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+                      className="inline-flex items-center gap-1.5 rounded-lg font-bold cursor-pointer transition-all duration-200 whitespace-nowrap"
+                      style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#334155', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0284c7'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(2, 132, 199, 0.1)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
                     >
                       <FileText size={14} style={{ color: '#0284c7' }} /> Proposal
                     </button>
 
                     <button
                       onClick={() => setShowTaskModal(true)}
-                      className="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] font-bold text-[0.78rem] border border-[var(--border-subtle)] cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-[var(--bg-card)] hover:border-[var(--accent-indigo)]"
-                      style={{ padding: '6px 12px', fontSize: '0.78rem' }}
+                      className="inline-flex items-center gap-1.5 rounded-lg font-bold cursor-pointer transition-all duration-200 whitespace-nowrap"
+                      style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#334155', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-success)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.1)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
                     >
                       <Plus size={14} style={{ color: 'var(--color-success)' }} /> Task
                     </button>
@@ -783,22 +789,42 @@ export default function EnterpriseCrmPage() {
                 </div>
 
                 {/* Tabs Navigation */}
-                <div className="flex gap-1.5 border-b-[1.5px] border-[var(--border-subtle)] pb-2 overflow-x-auto scrollbar-hide">
+                <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-hide" style={{ background: '#f8fafc', padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   {[
                     { id: 'overview', label: 'Overview & Contacts', count: selectedAccount.decisionMakers.length },
                     { id: 'meetings', label: 'Meetings', count: selectedAccount.meetings.length },
                     { id: 'proposals', label: 'Proposals', count: selectedAccount.proposals.length },
                     { id: 'tasks', label: 'Tasks', count: selectedAccount.tasks.length },
                     { id: 'timeline', label: 'Activity Timeline', count: selectedAccount.timeline.length },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setActiveCenterTab(t.id as 'overview' | 'meetings' | 'proposals' | 'tasks' | 'timeline')}
-                      className={`py-1.5 px-2.5 rounded-md text-[0.74rem] font-bold border border-transparent bg-transparent text-[var(--text-secondary)] cursor-pointer inline-flex items-center gap-1 transition-all duration-150 whitespace-nowrap shrink-0 hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] ${activeCenterTab === t.id ? 'active' : ''}`}
-                    >
-                      {t.label} <span style={{ fontSize: '0.68rem', background: activeCenterTab === t.id ? 'var(--accent-indigo)' : 'var(--bg-secondary)', color: activeCenterTab === t.id ? '#ffffff' : 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>{t.count}</span>
-                    </button>
-                  ))}
+                  ].map((t) => {
+                    const isActive = activeCenterTab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setActiveCenterTab(t.id as any)}
+                        className={`py-2 px-3 rounded-md text-[0.78rem] font-bold cursor-pointer inline-flex items-center gap-2 transition-all duration-200 whitespace-nowrap shrink-0`}
+                        style={{
+                          background: isActive ? '#ffffff' : 'transparent',
+                          color: isActive ? 'var(--accent-indigo)' : '#64748b',
+                          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                          border: isActive ? '1px solid #e2e8f0' : '1px solid transparent'
+                        }}
+                      >
+                        {t.label} 
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          background: isActive ? 'var(--accent-indigo)' : '#e2e8f0', 
+                          color: isActive ? '#ffffff' : '#64748b', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px', 
+                          fontWeight: 800,
+                          transition: 'all 0.2s'
+                        }}>
+                          {t.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* TAB 1: OVERVIEW & CONTACTS */}
@@ -806,55 +832,81 @@ export default function EnterpriseCrmPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                     {/* Decision Makers Section */}
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                          Key Decision Makers & Stakeholders ({selectedAccount.decisionMakers.length})
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                          Key Decision Makers & Stakeholders
                         </h4>
+                        <span style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                          {selectedAccount.decisionMakers.length} Contacts
+                        </span>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '10px' }}>
-                        {selectedAccount.decisionMakers.map((dm, idx) => (
-                          <div key={idx} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              {dm.name}
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>
-                              {dm.title}
-                            </div>
-                            {dm.email && (
-                              <a href={`mailto:${dm.email}`} style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                                <Mail size={12} style={{ color: 'var(--color-success)' }} /> {dm.email}
-                              </a>
-                            )}
-                            {dm.phone && (
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Phone size={12} /> {dm.phone}
+                      {selectedAccount.decisionMakers.length === 0 ? (
+                        <div style={{ background: '#f8fafc', border: '1.5px dashed #cbd5e1', borderRadius: '12px', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '2rem', marginBottom: '4px' }}>👥</span>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155' }}>No contacts linked yet</span>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center', maxWidth: '300px' }}>Sync leads from Apollo Discovery to automatically populate decision makers here.</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                          {selectedAccount.decisionMakers.map((dm, idx) => (
+                            <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'default' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.02)'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>{dm.name}</div>
+                                  <div style={{ fontSize: '0.8rem', color: '#4f46e5', fontWeight: 700, marginTop: '2px' }}>{dm.title}</div>
+                                </div>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 800, color: '#4338ca' }}>
+                                  {dm.name.charAt(0)}
+                                </div>
                               </div>
-                            )}
-                            {dm.linkedinUrl && (
-                              <a href={dm.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.72rem', color: '#0077b5', fontWeight: 700, marginTop: '2px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                LinkedIn Profile ➔
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
+                                {dm.email && (
+                                  <a href={`mailto:${dm.email}`} style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                                    <Mail size={14} style={{ color: '#10b981' }} /> {dm.email}
+                                  </a>
+                                )}
+                                {dm.phone && (
+                                  <div style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Phone size={14} style={{ color: '#64748b' }} /> {dm.phone}
+                                  </div>
+                                )}
+                                {dm.linkedinUrl && (
+                                  <a href={dm.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#0ea5e9', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', marginTop: '2px' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                    LinkedIn Profile ➔
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Tech Stack & Enterprise Signals */}
-                    <div>
-                      <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                        Technologies & Enterprise Signals
-                      </h4>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                          Technologies & Enterprise Signals
+                        </h4>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        {selectedAccount.technologies.length === 0 && selectedAccount.tags.length === 0 && (
+                          <span style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>No technical signals recorded.</span>
+                        )}
                         {selectedAccount.technologies.map((tech, idx) => (
-                          <span key={idx} style={{ fontSize: '0.76rem', padding: '4px 10px', borderRadius: '6px', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: '1px solid var(--border-subtle)', fontWeight: 700 }}>
-                            {tech}
+                          <span key={`tech-${idx}`} style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 4px rgba(67, 56, 202, 0.05)' }}>
+                            <Zap size={12} /> {tech}
                           </span>
                         ))}
                         {selectedAccount.tags.map((tag, idx) => (
-                          <span key={idx} style={{ fontSize: '0.76rem', padding: '4px 10px', borderRadius: '6px', background: 'var(--color-success-bg)', color: 'var(--color-success)', border: '1px solid rgba(16, 185, 129, 0.2)', fontWeight: 700 }}>
-                            #{tag}
+                          <span key={`tag-${idx}`} style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', background: '#dcfce7', color: '#059669', border: '1px solid #a7f3d0', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 4px rgba(5, 150, 105, 0.05)' }}>
+                            <Sparkles size={12} /> #{tag}
                           </span>
                         ))}
                       </div>

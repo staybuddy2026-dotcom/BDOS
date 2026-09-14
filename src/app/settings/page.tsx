@@ -278,9 +278,9 @@ export default function SettingsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
       {/* Notifications */}
       {notification && (
-        <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000, background: notification.type === 'success' ? '#10b981' : '#ef4444', color: 'white', padding: '12px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-          {notification.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{notification.message}</span>
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: `2px solid ${notification.type === 'success' ? 'var(--accent-indigo)' : 'var(--color-warning)'}`, padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
+          {notification.type === 'success' ? <CheckCircle size={20} style={{ color: 'var(--accent-indigo)' }} /> : <AlertTriangle size={20} style={{ color: 'var(--color-warning)' }} />}
+          <span>{notification.message}</span>
         </div>
       )}
 

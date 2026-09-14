@@ -107,21 +107,27 @@ h4 {
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: transparent;
+  margin: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: rgba(99, 102, 241, 0.6);
+}
+
+html, body, .custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
 }
 
 /* Animations */
@@ -282,7 +288,7 @@ input[type="search"]:focus,
 .draft-editor-textarea:focus,
 .step-textarea:focus {
   border-color: var(--accent-indigo) !important;
-  box-shadow: 0 0 0 3px rgba(0, 208, 156, 0.2) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
   background: #ffffff !important;
   color: #0f172a !important;
 }

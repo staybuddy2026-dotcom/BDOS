@@ -28,15 +28,15 @@ export function RecommendationPanel({
   const getTierStyle = (tier: PriorityTier) => {
     switch (tier) {
       case 'IMMEDIATE':
-        return { label: '🔥 Immediate (Contact Today)', bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.4)' };
+        return { label: '🚀 Immediate (Contact Today)', bg: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: 'var(--border-focus)' };
       case 'HIGH':
-        return { label: '🟢 High Priority (Within 24 Hours)', bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: 'rgba(16, 185, 129, 0.4)' };
+        return { label: '⚡ High Priority (Within 24 Hours)', bg: 'var(--accent-violet-glow)', color: 'var(--accent-violet)', border: 'rgba(139, 92, 246, 0.3)' };
       case 'MEDIUM':
-        return { label: '🟡 Medium Tier (Outreach Sequence)', bg: 'rgba(234, 179, 8, 0.12)', color: '#f59e0b', border: 'rgba(234, 179, 8, 0.4)' };
+        return { label: '✨ Medium Tier (Outreach Sequence)', bg: 'var(--accent-cyan-glow)', color: 'var(--accent-cyan)', border: 'rgba(14, 165, 233, 0.3)' };
       case 'MONITOR':
-        return { label: '🔵 Active Monitor (Track Signals)', bg: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: 'rgba(99, 102, 241, 0.4)' };
+        return { label: '👀 Active Monitor (Track Signals)', bg: 'rgba(100, 116, 139, 0.08)', color: 'var(--text-muted)', border: 'var(--border-subtle)' };
       default:
-        return { label: '⚪ Archive', bg: 'rgba(148, 163, 184, 0.12)', color: '#64748b', border: 'rgba(148, 163, 184, 0.4)' };
+        return { label: '⚪ Archive', bg: 'rgba(148, 163, 184, 0.08)', color: '#64748b', border: 'var(--border-subtle)' };
     }
   };
 
@@ -55,9 +55,9 @@ export function RecommendationPanel({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: 'var(--color-danger-bg)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '8px 16px', borderRadius: '10px', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.64rem', color: 'var(--color-danger)', fontWeight: 800, textTransform: 'uppercase' }}>Buying Readiness Score</div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--color-danger)', lineHeight: 1.1 }}>{account.buyingReadinessScore}<span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>/100</span></div>
+          <div style={{ background: tierStyle.bg, border: `1px solid ${tierStyle.border}`, padding: '8px 16px', borderRadius: '10px', textAlign: 'right' }}>
+            <div style={{ fontSize: '0.64rem', color: tierStyle.color, fontWeight: 800, textTransform: 'uppercase' }}>Buying Readiness Score</div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: tierStyle.color, lineHeight: 1.1 }}>{account.buyingReadinessScore}<span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>/100</span></div>
           </div>
         </div>
       </div>
@@ -83,10 +83,10 @@ export function RecommendationPanel({
             fontFamily: 'inherit',
           }}
         >
-          <option value="IMMEDIATE">🔥 Immediate (Contact Today)</option>
-          <option value="HIGH">🟢 High Priority (Within 24 Hours)</option>
-          <option value="MEDIUM">🟡 Medium Tier (Outreach Sequence)</option>
-          <option value="MONITOR">🔵 Active Monitor (Track Signals)</option>
+          <option value="IMMEDIATE">🚀 Immediate (Contact Today)</option>
+          <option value="HIGH">⚡ High Priority (Within 24 Hours)</option>
+          <option value="MEDIUM">✨ Medium Tier (Outreach Sequence)</option>
+          <option value="MONITOR">👀 Active Monitor (Track Signals)</option>
           <option value="ARCHIVE">⚪ Archive</option>
         </select>
       </div>
@@ -109,7 +109,7 @@ export function RecommendationPanel({
           {account.nextBestActions.map((act) => (
             <div key={act.id} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <span style={{ fontSize: '0.64rem', background: 'var(--color-danger-bg)', color: 'var(--color-danger)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.64rem', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: '1px solid var(--border-focus)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>
                   {act.executionPriority}
                 </span>
                 <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '6px' }}>{act.title}</div>

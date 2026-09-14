@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ApprovalStatus } from '@prisma/client';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+import blob from '@/assets/blob.png';
 import '@/styles/globals.css';
 import '@/styles/re-engagement.css';
 
@@ -103,10 +104,12 @@ export default function ReEngagementPage() {
       const res = await scanForReEngagements();
       triggerNotification('success', `Scan complete. Found ${res.count} potential buying signal opportunities.`);
       await loadData(false);
-    } catch {
-      // Local sandbox mock simulation
-      triggerNotification('success', 'Scan complete. Discovered 2 re-engagement opportunities (Sandbox Mode).');
-      await loadData(false);
+    } catch (err: any) {
+      if (err.message === 'APOLLO_RATE_LIMIT') {
+        triggerNotification('error', 'Apollo API rate limit reached. Try again later.');
+      } else {
+        triggerNotification('error', 'Failed to scan for signals. Check API config.');
+      }
     } finally {
       setScanLoading(false);
     }
@@ -192,32 +195,79 @@ export default function ReEngagementPage() {
   };
 
   return (
-    <div className="reengagement-page">
+    <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box' }}>
+      
       {/* Notifications */}
       {notification && (
-        <div className={`notification ${notification.type === 'success' ? 'success' : 'error'}`}>
-          {notification.type === 'success' ? <CheckCircle className="notif-icon" /> : <AlertTriangle className="notif-icon" />}
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: `2px solid ${notification.type === 'success' ? 'var(--accent-indigo)' : 'var(--color-warning)'}`, padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
+          {notification.type === 'success' ? <CheckCircle size={20} style={{ color: 'var(--accent-indigo)' }} /> : <AlertTriangle size={20} style={{ color: 'var(--color-warning)' }} />}
           <span>{notification.message}</span>
         </div>
       )}
 
-      {/* Warning */}
-      {dbWarning && (
-        <div className="db-warning-banner">
-          <Info size={16} />
-          <span>Local database warning: No PostgreSQL server running on localhost. Triggering mock scanning fallbacks.</span>
+
+
+      {/* HEADER BANNER */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid var(--border-subtle)',
+        height: '65px',
+        flexShrink: 0,
+        padding: '0 28px',
+        background: 'var(--bg-primary)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)' }}>
+            <Calendar size={18} style={{ color: 'var(--bg-primary)' }} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '1.3rem', fontWeight: 800, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+              Automated Re-engagement Sequences
+            </h1>
+            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+              Scan social feeds, track buying intent, and orchestrate automated multi-channel follow-ups
+            </p>
+          </div>
         </div>
-      )}
 
-      {/* Top Navigation & Breadcrumb */}
-      <BreadcrumbHeader
-        currentTitle="Automated Re-engagement Sequences"
-        stepNumber={6}
-        totalSteps={7}
-        badge="Follow-up Schedules"
-      />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ fontSize: '0.72rem', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: '1px solid var(--border-focus)', padding: '6px 12px', borderRadius: '8px', fontWeight: 800 }}>
+            {events.filter(e => e.approvalStatus === ApprovalStatus.PENDING).length} Follow-ups Pending Review 🔔
+          </div>
+        </div>
+      </div>
 
-      <div className="reengagement-workspace">
+      {/* SCROLLABLE MAIN CONTENT */}
+      <div
+        className="dashboard-scrollable-content"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px 28px 24px 28px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          position: 'relative',
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'top right',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed'
+        }}
+      >
+        {/* Top Navigation & Breadcrumb */}
+        <BreadcrumbHeader
+          currentTitle="Automated Re-engagement Sequences"
+          stepNumber={6}
+          totalSteps={7}
+          badge="Follow-up Schedules"
+        />
+
+        <div className="reengagement-workspace">
         {/* Left Opportunity Master Panel */}
         <div className="reengagement-list-panel">
           <div className="panel-header card-glass" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -267,9 +317,9 @@ export default function ReEngagementPage() {
             ))}
 
             {!pageLoading && events.length === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)', gap: '8px', border: '1px dashed rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)' }}>
-                <Sparkles size={24} style={{ strokeWidth: 1.5 }} />
-                <p style={{ fontSize: '0.8rem' }}>No re-engagement events found. Run a new scan.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)', gap: '8px', border: '2px dashed var(--border-subtle)', borderRadius: '12px', background: 'var(--bg-card)' }}>
+                <Sparkles size={24} style={{ strokeWidth: 1.5, color: 'var(--accent-indigo)' }} />
+                <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>No re-engagement events found. Run a new scan.</p>
               </div>
             )}
           </div>
@@ -380,6 +430,7 @@ export default function ReEngagementPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

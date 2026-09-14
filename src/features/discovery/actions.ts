@@ -48,21 +48,26 @@ export async function getUniversalLeadDiscoveryDataAction(
       include: { apolloEnrichment: true, analysis: true },
     }).catch(() => []);
 
-    // Purge & filter out legacy test placeholders
+    // Purge & filter out legacy test placeholders using a centralized function
+    const isDummyLead = (orgName: string, personName: string = '') => {
+      const lowerOrg = orgName.toLowerCase().trim();
+      const lowerPerson = personName.toLowerCase().trim();
+      return (
+        lowerOrg === 'organization' ||
+        lowerOrg === 'target account' ||
+        lowerOrg.includes('likesoft') ||
+        lowerOrg.includes('99ideas') ||
+        lowerOrg.includes('99ideas saas') ||
+        lowerPerson === 'chris lyn' ||
+        lowerPerson === 'executive lead' ||
+        lowerPerson === 'jane doe'
+      );
+    };
+
     const validDbPosts = dbPosts.filter((post) => {
-      const orgName = (post.apolloEnrichment?.organizationName || post.companyName || '').toLowerCase().trim();
-      const personName = (post.apolloEnrichment?.personName || post.authorName || '').toLowerCase().trim();
-      if (
-        orgName === 'organization' ||
-        orgName === 'target account' ||
-        orgName.includes('likesoft') ||
-        personName === 'chris lyn' ||
-        personName === 'executive lead' ||
-        personName === 'jane doe'
-      ) {
-        return false;
-      }
-      return true;
+      const orgName = post.apolloEnrichment?.organizationName || post.companyName || '';
+      const personName = post.apolloEnrichment?.personName || post.authorName || '';
+      return !isDummyLead(orgName, personName);
     });
 
     let liveLeads: DiscoveryLeadItem[] = validDbPosts.map((post) => {
@@ -114,6 +119,7 @@ export async function getUniversalLeadDiscoveryDataAction(
     });
 
     let apolloTotalCount = 0;
+    let apolloApiError = undefined;
 
     // Try executing live Apollo REST API search using saved Apollo key if apollo provider is active
     if (!providers || providers.apollo) {
@@ -147,11 +153,11 @@ export async function getUniversalLeadDiscoveryDataAction(
               employeeCount: empVal,
               buyingScore: score,
               icpScore: Math.min(100, score + 3),
-              tier: score >= 90 ? 'IMMEDIATE' : 'HIGH',
+              tier: (score >= 90 ? 'IMMEDIATE' : 'HIGH') as DiscoveryLeadItem['tier'],
               primaryTechStack: p.technologies?.length ? p.technologies : [],
               fundingSummary: p.searchMatches?.find(m => m.type === 'hiring')?.label || '',
               hiringSummary: p.searchMatches?.find(m => m.type === 'hiring')?.label || '',
-              matchedProviders: ['apollo'],
+              matchedProviders: ['apollo'] as DiscoveryLeadItem['matchedProviders'],
               whyContactReason: `Verified Apollo B2B Contact: ${cleanName} (${cleanTitle}). Email: ${p.workEmail ? 'Available' : 'Unverified'}`,
               recommendedContactName: cleanName,
               recommendedContactTitle: cleanTitle,
@@ -164,12 +170,13 @@ export async function getUniversalLeadDiscoveryDataAction(
               conversionProbabilityPercent: 85,
               recommendedServices: ['Enterprise Web Architecture', 'Node.js Microservices', 'Cloud Security Audit'],
             };
-          });
+          }).filter(p => !isDummyLead(p.companyName, p.recommendedContactName)); // Filter live Apollo results too
 
           liveLeads = apolloMapped;
         }
       } catch (e) {
         logger.info('Live Apollo API fetch error in Lead Discovery', { error: String(e) });
+        apolloApiError = 'Apollo API Error: ' + (e instanceof Error ? e.message : String(e));
       }
     }
 
@@ -239,7 +246,7 @@ export async function getUniversalLeadDiscoveryDataAction(
     const watchlist: WatchlistItem[] = [];
 
     // Match total count and page calculation
-    const totalContactsCount = apolloTotalCount > 0 ? apolloTotalCount : Math.max(results.length, 189);
+    const totalContactsCount = apolloTotalCount > 0 ? apolloTotalCount : Math.max(results.length, 1);
     const totalCompaniesCount = totalContactsCount;
 
     // Calculate actual total pages for live results
@@ -305,6 +312,7 @@ export async function getUniversalLeadDiscoveryDataAction(
       migratedLeadsMap: finalServerLeads,
       migratedCompanyIds: Array.from(finalServerIds),
       removedCompanyIds: dbRemovedIds,
+      apiError: apolloApiError,
     };
   } catch (err: unknown) {
     logger.error('Universal Lead Discovery Action failed', { error: String(err) });

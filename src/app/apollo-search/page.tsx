@@ -1129,7 +1129,7 @@ export default function ApolloSearchPage() {
                       value={jobTitle}
                       onChange={(e) => setJobTitle(e.target.value)}
                       placeholder="e.g. Founder, CTO, CEO, VP Engineering"
-                      
+
                     />
                     <span className="text-[0.68rem] text-[var(--text-muted)] leading-[1.3]">Target executive job titles.</span>
                   </div>
@@ -1158,7 +1158,7 @@ export default function ApolloSearchPage() {
                       value={personLocation}
                       onChange={(e) => setPersonLocation(e.target.value)}
                       placeholder="e.g. United States, Remote, UK"
-                      
+
                     />
                   </div>
 
@@ -1170,7 +1170,7 @@ export default function ApolloSearchPage() {
                       value={personCompanyName}
                       onChange={(e) => setPersonCompanyName(e.target.value)}
                       placeholder="e.g. Microsoft, Stripe, Cloudflare"
-                      
+
                     />
                     <span className="text-[0.68rem] text-[var(--text-muted)] leading-[1.3]">Filter decision makers by company name.</span>
                   </div>
@@ -1182,7 +1182,7 @@ export default function ApolloSearchPage() {
                       value={keywords}
                       onChange={(e) => setKeywords(e.target.value)}
                       placeholder="SaaS, fintech, healthtech, ecommerce"
-                      
+
                     />
                   </div>
 
@@ -1193,7 +1193,7 @@ export default function ApolloSearchPage() {
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
                       placeholder="e.g. logicflow.io"
-                      
+
                     />
                   </div>
 
@@ -1205,7 +1205,7 @@ export default function ApolloSearchPage() {
                       value={techUsage}
                       onChange={(e) => setTechUsage(e.target.value)}
                       placeholder="React, Node.js, Flutter, AWS"
-                      
+
                     />
                   </div>
 
@@ -1217,7 +1217,7 @@ export default function ApolloSearchPage() {
                       value={hiringActivity}
                       onChange={(e) => setHiringActivity(e.target.value)}
                       placeholder="Hiring developers, hiring CTO"
-                      
+
                     />
                   </div>
 
@@ -1241,7 +1241,7 @@ export default function ApolloSearchPage() {
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="e.g. Acme Tech"
-                      
+
                     />
                   </div>
 
@@ -1252,7 +1252,7 @@ export default function ApolloSearchPage() {
                       value={companyDomain}
                       onChange={(e) => setCompanyDomain(e.target.value)}
                       placeholder="e.g. acme.com"
-                      
+
                     />
                   </div>
 
@@ -1263,7 +1263,7 @@ export default function ApolloSearchPage() {
                       value={companyKeywords}
                       onChange={(e) => setCompanyKeywords(e.target.value)}
                       placeholder="SaaS, fintech, healthtech, edtech"
-                      
+
                     />
                   </div>
 
@@ -1274,7 +1274,7 @@ export default function ApolloSearchPage() {
                       value={companyLocation}
                       onChange={(e) => setCompanyLocation(e.target.value)}
                       placeholder="e.g. San Francisco, CA, USA"
-                      
+
                     />
                   </div>
 
@@ -1306,7 +1306,7 @@ export default function ApolloSearchPage() {
                       value={companyTechUsage}
                       onChange={(e) => setCompanyTechUsage(e.target.value)}
                       placeholder="React, Node.js, Python, Flutter, AWS"
-                      
+
                     />
                   </div>
 
@@ -1336,7 +1336,7 @@ export default function ApolloSearchPage() {
                       value={companyHiringKeywords}
                       onChange={(e) => setCompanyHiringKeywords(e.target.value)}
                       placeholder="Software Engineer, CTO, React Developer"
-                      
+
                     />
                   </div>
 

@@ -9,10 +9,8 @@ import { getMigratedCompaniesFromDbAction } from '../discovery/actions';
 import { calculateAiOpportunityScore, generateRecommendedServices, generateExecutiveBriefing } from './scoring';
 import { createCrmDealFromMarketplaceOpportunity } from '@/features/crm/actions';
 import { sendMarketplaceProjectToReviewQueue } from '@/features/marketplace/actions';
-import { getCrunchbaseOrgData } from '../crunchbase/client';
 import { getProductHuntProductData } from '../producthunt/client';
 import { getRedditCompanyDiscussions } from '../reddit/client';
-import { getLinkedInCompanyData } from '../linkedin/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
 // Curated Master Company Store
@@ -35,37 +33,59 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
     const cleaned = normalizeCompanyDomain(companyIdOrDomain);
     const existing = masterCompanyStore.get(companyIdOrDomain) || masterCompanyStore.get(cleaned);
 
+    const { DefaultApolloProvider } = await import('@/features/apollo/provider');
+    const apolloProvider = new DefaultApolloProvider();
+
+    // Fetch actual Apollo Data
+    const apolloRes = await apolloProvider.searchOrganizationsAdvanced({
+      name: cleaned, // fallback
+      perPage: 1
+    }).catch(() => null);
+
+    let orgData: any = null;
+    if (apolloRes && apolloRes.organizations && apolloRes.organizations.length > 0) {
+       orgData = apolloRes.organizations[0];
+    }
+
     if (existing) {
-      if (!existing.growth) {
-        existing.growth = await getCrunchbaseOrgData(existing.domain);
-        existing.provenance.growth = 'Crunchbase';
-      }
-      if (!existing.productHunt) {
-        existing.productHunt = await getProductHuntProductData(existing.domain);
-        existing.provenance.productHunt = 'Product Hunt';
-      }
-      if (!existing.reddit) {
-        existing.reddit = await getRedditCompanyDiscussions(existing.domain);
-        existing.provenance.reddit = 'Reddit';
-      }
-      if (!existing.linkedin) {
-        existing.linkedin = await getLinkedInCompanyData(existing.domain);
-        existing.provenance.linkedin = 'LinkedIn';
+      if (orgData) {
+        existing.growth = {
+          latestRoundName: orgData.latestFundingStage || 'Undisclosed',
+          latestRoundAmountUsd: orgData.latestFundingAmount ? `$${orgData.latestFundingAmount.toLocaleString()}` : 'Undisclosed',
+          growthOpportunityScore: orgData.latestFundingDate ? 95 : 75
+        } as any;
+        existing.linkedin = {
+          activeJobOpeningsCount: orgData.openJobsCount || 0,
+          engineeringExpansionIndex: (orgData.openJobsCount || 0) > 0 ? 90 : 70
+        } as any;
       }
       return existing;
     }
 
     // Dynamic identity resolution fallback for unknown query
-    const companyName = companyIdOrDomain.replace(/comp_/, '').replace(/-/g, ' ').toUpperCase();
+    const companyName = orgData?.name || companyIdOrDomain.replace(/comp_/, '').replace(/-/g, ' ').toUpperCase();
     
     // Fetch actual migrated data from Universal Search
     const dbLeadsData = await getMigratedCompaniesFromDbAction().catch(() => null);
     const migratedLead = dbLeadsData?.migratedLeadsMap?.[cleaned] || dbLeadsData?.migratedLeadsMap?.[companyIdOrDomain];
 
-    const growth = await getCrunchbaseOrgData(cleaned);
+    let growth: any = null;
+    let linkedin: any = null;
+
+    if (orgData) {
+      growth = {
+        latestRoundName: orgData.latestFundingStage || 'Undisclosed',
+        latestRoundAmountUsd: orgData.latestFundingAmount ? `$${orgData.latestFundingAmount.toLocaleString()}` : 'Undisclosed',
+        growthOpportunityScore: orgData.latestFundingDate ? 95 : 75
+      } as any;
+      linkedin = {
+        activeJobOpeningsCount: orgData.openJobsCount || 0,
+        engineeringExpansionIndex: (orgData.openJobsCount || 0) > 0 ? 90 : 70
+      } as any;
+    }
+
     const productHunt = await getProductHuntProductData(cleaned);
     const reddit = await getRedditCompanyDiscussions(cleaned);
-    const linkedin = await getLinkedInCompanyData(cleaned);
 
     const apolloSeed: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[] } = {
       companyName: migratedLead?.companyName || companyName,
@@ -93,6 +113,10 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
           }
         ];
       }
+    }
+
+    if (orgData && !apolloSeed.employeeCount) {
+        apolloSeed.employeeCount = orgData.estimatedNumEmployees ? parseInt(orgData.estimatedNumEmployees) : 0;
     }
 
     const fused = fuseCompanyProfiles(apolloSeed, undefined, growth, productHunt, reddit, linkedin);

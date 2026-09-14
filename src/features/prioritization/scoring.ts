@@ -56,40 +56,81 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
   const priorityTier = determinePriorityTier(totalScore);
   const nextBestActions = generateNextBestActions(profile.companyId, profile.domain, priorityTier, totalScore);
 
-  const keySignals = [
-    {
+  const today = new Date();
+  const daysAgo = (n: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - n);
+    return d.toISOString().split('T')[0];
+  };
+
+  const keySignals: any[] = [];
+  
+  if (profile.growth && profile.growth.growthOpportunityScore > 75) {
+    keySignals.push({
       id: 'sig_prio_1',
-      provider: 'Crunchbase' as const,
-      title: profile.growth ? `${profile.growth.latestRoundName} (${profile.growth.latestRoundAmountUsd})` : 'Series B ($32M USD)',
-      description: 'Capital allocated for scaling engineering team.',
-      impactScore: 25,
-      detectedDate: '2026-02-15',
-    },
-    {
+      provider: 'Crunchbase',
+      title: `${profile.growth.latestRoundName} (${profile.growth.latestRoundAmountUsd})`,
+      description: 'Recent capital injection detected.',
+      impactScore: 24,
+      detectedDate: daysAgo(2),
+    });
+  }
+
+  if (profile.linkedin && profile.linkedin.activeJobOpeningsCount > 0) {
+    keySignals.push({
       id: 'sig_prio_2',
-      provider: 'Product Hunt' as const,
-      title: profile.productHunt ? `${profile.productHunt.primaryProduct.name} (#1 Product of Day)` : 'Product Hunt Launch',
-      description: '1,420 upvotes with high post-MVP scaling intent.',
+      provider: 'LinkedIn',
+      title: `${profile.linkedin.activeJobOpeningsCount} Active Roles Open`,
+      description: 'Hiring engineering talent.',
       impactScore: 22,
-      detectedDate: '2026-02-10',
-    },
-    {
-      id: 'sig_prio_3',
-      provider: 'LinkedIn' as const,
-      title: profile.linkedin ? `${profile.linkedin.activeJobOpeningsCount} Engineering Roles Open` : '8 Active Roles Open',
-      description: 'Hiring React 19, Next.js, and Python FastAPI engineers.',
-      impactScore: 20,
-      detectedDate: '2026-02-18',
-    },
-    {
-      id: 'sig_prio_4',
-      provider: 'Reddit' as const,
-      title: profile.reddit ? `${profile.reddit.totalDiscussionsCount} Subreddit Buying Intent Posts` : 'Active Subreddit Posts',
-      description: 'Outsourcing requests in r/reactjs & r/artificial.',
+      detectedDate: daysAgo(1),
+    });
+  }
+  
+  // Fallback signals if real ones are missing
+  if (keySignals.length === 0) {
+    keySignals.push({
+      id: 'sig_prio_fallback_1',
+      provider: 'Product Hunt',
+      title: profile.productHunt ? `${profile.productHunt.primaryProduct.name} (#1 Product of Day)` : 'Recent Feature Update',
+      description: 'Active development pipeline.',
       impactScore: 18,
-      detectedDate: '2026-02-14',
-    },
+      detectedDate: daysAgo(3),
+    });
+  }
+
+  // Derive base deal value from employee count if possible
+  let employeeCountEst = 50;
+  if (profile.overview.employeeCount) {
+    const parsed = parseInt(profile.overview.employeeCount.replace(/[^0-9]/g, ''));
+    if (!isNaN(parsed) && parsed > 0) employeeCountEst = parsed;
+  }
+  
+  const baseInr = Math.min(5000000, 1000000 + (employeeCountEst * 20000));
+  const maxInr = baseInr + 1500000;
+  const formatMoney = (val: number, isUsd: boolean) => isUsd ? `$${val.toLocaleString()}` : `₹${val.toLocaleString('en-IN')}`;
+
+  const cycleWeeksMin = 2;
+  const cycleWeeksMax = 4;
+
+  const squads = [
+    '2-Senior React 19 + 2-Node.js Microservices Squad',
+    '1-Lead Next.js + 2-Python FastAPI Engineers',
+    '3-Full-stack React & TypeScript Developers',
+    '1-Architect + 2-Senior Go/React Developers',
+    '2-React Native + 1-Node.js Backend Squad'
   ];
+
+  const pitches = [
+    `Offer Tiny Script's senior engineering squad as an immediate delivery accelerator for CTO.`,
+    `Propose a dedicated migration squad to clear frontend technical debt rapidly.`,
+    `Pitch our elite developers to help their team hit the Q3 product roadmap.`,
+    `Position Tiny Script as a strategic partner to scale their architecture instantly.`,
+    `Highlight our rapid MVP delivery capability with a 2-week trial sprint.`
+  ];
+
+  // Pick deterministic but non-hash based squad/pitch (using length of domain as simple seed)
+  const seed = profile.domain.length;
 
   return {
     companyId: profile.companyId,
@@ -98,9 +139,9 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     buyingReadinessScore: totalScore,
     priorityTier,
     winProbabilityPercent: Math.min(98, Math.round(totalScore * 0.96)),
-    estimatedDealValueInr: '₹25,00,000 – ₹45,00,000',
-    estimatedDealValueUsd: '$30,000 – $55,000',
-    expectedSalesCycle: '1 – 2 Weeks',
+    estimatedDealValueInr: `${formatMoney(baseInr, false)} – ${formatMoney(maxInr, false)}`,
+    estimatedDealValueUsd: `${formatMoney(Math.round(baseInr / 83), true)} – ${formatMoney(Math.round(maxInr / 83), true)}`,
+    expectedSalesCycle: `${cycleWeeksMin} – ${cycleWeeksMax} Weeks`,
     technicalMatchScore: Math.min(99, Math.round(githubScore * 1.05)),
     budgetConfidence: 94,
     growthVelocityScore: growthScore,
@@ -108,8 +149,8 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     executiveEngagementScore: apolloScore,
     nextBestActions,
     keySignals,
-    recommendedPitch: `Offer Tiny Script's senior React 19 & Python FastAPI squad as the immediate delivery accelerator for CTO.`,
-    suggestedSquad: '2-Senior React 19 + 2-Node.js Microservices Squad',
+    recommendedPitch: pitches[seed % pitches.length],
+    suggestedSquad: squads[(seed + 1) % squads.length],
     lastEvaluatedDate: new Date().toISOString().split('T')[0],
   };
 }

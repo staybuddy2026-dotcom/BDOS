@@ -18,25 +18,25 @@
   --text-muted: #64748b;
   
   /* Accents */
-  --accent-indigo: #00d09c;
-  --accent-indigo-hover: #00b386;
-  --accent-indigo-glow: rgba(0, 208, 156, 0.1);
-  --accent-cyan: #00d09c;
-  --accent-cyan-glow: rgba(0, 208, 156, 0.1);
-  --accent-violet: #0052ff;
-  --accent-violet-glow: rgba(0, 82, 255, 0.1);
+  --accent-indigo: #6366f1;
+  --accent-indigo-hover: #4f46e5;
+  --accent-indigo-glow: rgba(99, 102, 241, 0.1);
+  --accent-cyan: #0ea5e9;
+  --accent-cyan-glow: rgba(14, 165, 233, 0.1);
+  --accent-violet: #8b5cf6;
+  --accent-violet-glow: rgba(139, 92, 246, 0.1);
   
   /* Semantic Tones */
-  --color-success: #00d09c;
-  --color-success-bg: rgba(0, 208, 156, 0.1);
+  --color-success: #10b981;
+  --color-success-bg: rgba(16, 185, 129, 0.1);
   --color-warning: #f59e0b;
   --color-warning-bg: rgba(245, 158, 11, 0.1);
-  --color-danger: #eb5b3c;
-  --color-danger-bg: rgba(235, 91, 60, 0.1);
+  --color-danger: #ef4444;
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
 
   /* Clean Borders & Shadows */
   --border-subtle: #e2e8f0;
-  --border-focus: rgba(0, 208, 156, 0.5);
+  --border-focus: rgba(99, 102, 241, 0.5);
   --glass-bg: #ffffff;
   --glass-border: #e2e8f0;
   --glass-border-hover: #cbd5e1;

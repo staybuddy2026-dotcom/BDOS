@@ -21,7 +21,7 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
     if (customMeetingUrl.trim()) return customMeetingUrl.trim();
     if (platform === 'ZOOM') return `https://zoom.us/j/987${mtgId.replace(/\D/g, '').slice(-7)}`;
     if (platform === 'TEAMS') return `https://teams.microsoft.com/l/meetup-join/tinyscript_${mtgId}`;
-    return `https://meet.google.com/bdos-${mtgId.slice(-7)}`;
+    return `https://meet.google.com/new`;
   };
 
   const handleBookMeeting = () => {
@@ -86,8 +86,8 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
   return (
     <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {successToast && (
-        <div style={{ background: '#064e3b', color: '#ffffff', padding: '10px 14px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', border: '1.5px solid #10b981', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
-          <CheckCircle size={16} style={{ color: '#34d399' }} /> {successToast}
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-card)', color: 'var(--text-primary)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', border: '2px solid var(--accent-indigo)', boxShadow: '0 12px 32px rgba(99,102,241,0.2)' }}>
+          <CheckCircle size={18} style={{ color: 'var(--accent-indigo)' }} /> {successToast}
         </div>
       )}
 

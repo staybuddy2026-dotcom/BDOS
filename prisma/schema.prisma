@@ -266,3 +266,113 @@ model ApplicationSettings {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Task {
+  id                String       @id @default(uuid())
+  title             String
+  priority          TaskPriority @default(NORMAL)
+  dueDate           DateTime     @default(now())
+  dueCategory       String?
+  linkedOpportunity String?
+  assignedOwner     String       @default("BDE Team")
+  status            TaskStatus   @default(PENDING)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+enum MeetingType {
+  DISCOVERY_CALL
+  DEMO
+  PROPOSAL_REVIEW
+  FOLLOW_UP_REMINDER
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model Meeting {
+  id          String        @id @default(uuid())
+  title       String
+  meetingType MeetingType   @default(DISCOVERY_CALL)
+  startTime   DateTime
+  endTime     DateTime?
+  clientName  String
+  clientEmail String?
+  companyName String
+  meetingUrl  String?       // Google Meet / Teams / Zoom URL
+  status      MeetingStatus @default(SCHEDULED)
+  notes       String?       @db.Text
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([startTime])
+  @@index([status])
+}
+
+enum ProposalStage {
+  DRAFT
+  SENT
+  VIEWED
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Proposal {
+  id          String        @id @default(uuid())
+  title       String
+  clientName  String
+  companyName String
+  budget      String
+  stage       ProposalStage @default(DRAFT)
+  probability Int           @default(50)
+  scope       String?       @db.Text
+  validUntil  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([stage])
+}
+
+enum ActivityType {
+  LEAD_DISCOVERED
+  APOLLO_ENRICHED
+  DRAFT_CREATED
+  EMAIL_SENT
+  PROPOSAL_SENT
+  MEETING_SCHEDULED
+  DEAL_WON
+  TASK_COMPLETED
+}
+
+model ActivityLog {
+  id        String       @id @default(uuid())
+  type      ActivityType @default(LEAD_DISCOVERED)
+  title     String
+  details   String       @db.Text
+  entityId  String?
+  actor     String       @default("AI Agent")
+  createdAt DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([type])
+}

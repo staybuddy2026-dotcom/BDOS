@@ -18,7 +18,7 @@ export async function universalSearchAction(
   try {
     await AuthService.verifySession();
     logger.info(`Server Action: Universal Search executed for query: '${query}'`);
-    return executeUniversalCrossProviderSearch(query, filters);
+    return await executeUniversalCrossProviderSearch(query, filters);
   } catch (err: unknown) {
     logger.error('Universal Search Action failed', { error: String(err) });
     throw new AppError('Universal Search failed.', 500);
@@ -70,7 +70,7 @@ export async function getMorningCommandCenterAction(): Promise<MorningCommandMet
   try {
     await AuthService.verifySession();
 
-    const topCompanies = executeUniversalCrossProviderSearch('');
+    const topCompanies = await executeUniversalCrossProviderSearch('');
     const dbCount = topCompanies.length;
 
     return {

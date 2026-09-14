@@ -67,4 +67,5 @@ export type LeadDiscoveryData = {
   migratedLeadsMap?: Record<string, DiscoveryLeadItem>;
   migratedCompanyIds?: string[];
   removedCompanyIds?: string[];
+  apiError?: string;
 };

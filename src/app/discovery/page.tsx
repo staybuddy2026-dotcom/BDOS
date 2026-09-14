@@ -84,6 +84,11 @@ export default function LeadDiscoveryPage() {
   const [expandedContactCompanyId, setExpandedContactCompanyId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [migrationPromptCompany, setMigrationPromptCompany] = useState<DiscoveryLeadItem | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Persist V1 Provider Checkboxes in localStorage
   const [providerToggles, setProviderToggles] = useState<ProviderSelection>(getInitialProviders);
@@ -367,6 +372,10 @@ export default function LeadDiscoveryPage() {
       const res = await getUniversalLeadDiscoveryDataAction(query, providerToggles, pageNum, perPage);
       setData(res);
 
+      if (res.apiError) {
+        triggerNotification('error', res.apiError);
+      }
+
       if (typeof window !== 'undefined') {
         if (res.migratedLeadsMap && Object.keys(res.migratedLeadsMap).length > 0) {
           const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
@@ -537,6 +546,10 @@ export default function LeadDiscoveryPage() {
 
     return Array.from(uniqueMap.values());
   })();
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="discovery-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box', color: 'var(--text-primary)' }}>

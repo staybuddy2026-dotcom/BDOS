@@ -112,8 +112,8 @@ export function OutreachEditor({
     <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
       {/* Toast Notification */}
       {notification && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 99999, background: '#065f46', color: '#ffffff', border: '1.5px solid #10b981', padding: '12px 20px', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem', fontWeight: 800 }}>
-          <CheckCircle2 size={18} style={{ color: '#34d399' }} /> {notification}
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '2px solid var(--accent-indigo)', padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
+          <CheckCircle2 size={20} style={{ color: 'var(--accent-indigo)' }} /> {notification}
         </div>
       )}
 

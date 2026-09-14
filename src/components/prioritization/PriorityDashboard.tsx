@@ -65,45 +65,46 @@ export function PriorityDashboard({
     HIGH: accounts.filter(a => a.priorityTier === 'HIGH').length,
     MEDIUM: accounts.filter(a => a.priorityTier === 'MEDIUM').length,
     MONITOR: accounts.filter(a => a.priorityTier === 'MONITOR').length,
+    ARCHIVE: accounts.filter(a => a.priorityTier === 'ARCHIVE').length,
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {toastMsg && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 999999, background: '#064e3b', color: '#ffffff', border: '1.5px solid #10b981', padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: 800 }}>
-          <CheckCircle2 size={18} style={{ color: '#34d399' }} /> {toastMsg}
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '2px solid var(--accent-indigo)', padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
+          <CheckCircle2 size={20} style={{ color: 'var(--accent-indigo)' }} /> {toastMsg}
         </div>
       )}
 
       {/* Sales Command Center KPI Header */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '14px' }}>
-        <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '14px', padding: '16px' }}>
-          <div style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contact Today</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ef4444', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderTop: '3px solid var(--accent-indigo)', borderRadius: '14px', padding: '16px', boxShadow: 'var(--glass-shadow)' }}>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contact Today</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Flame size={22} /> {telemetry.companiesToContactToday} Accounts
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 600 }}>Immediate 95+ score tier</div>
         </div>
 
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '14px', padding: '16px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderTop: '3px solid var(--accent-violet)', borderRadius: '14px', padding: '16px', boxShadow: 'var(--glass-shadow)' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>High-Priority Accounts</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--color-success)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Target size={20} style={{ color: 'var(--color-success)' }} /> {telemetry.highPriorityAccountsCount} Companies
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-violet)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Target size={20} /> {telemetry.highPriorityAccountsCount} Companies
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 600 }}>Contact within 24 hours</div>
         </div>
 
-        <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '14px', padding: '16px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
-          <div style={{ fontSize: '0.68rem', color: '#eab308', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pipeline Value</div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#eab308', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderTop: '3px solid var(--accent-cyan)', borderRadius: '14px', padding: '16px', boxShadow: 'var(--glass-shadow)' }}>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pipeline Value</div>
+          <div style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--accent-cyan)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <DollarSign size={18} /> {telemetry.estimatedPipelineValueInr}
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 600 }}>{telemetry.estimatedPipelineValueUsd}</div>
         </div>
 
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-focus)', borderRadius: '14px', padding: '16px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Predicted Revenue</div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderTop: '3px solid var(--text-primary)', borderRadius: '14px', padding: '16px', boxShadow: 'var(--glass-shadow)' }}>
+          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Predicted Revenue</div>
+          <div style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <TrendingUp size={18} /> {telemetry.predictedMonthlyRevenue} / Mo
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 600 }}>AI Win Prob {telemetry.aiWinProbabilityPercent}%</div>
@@ -119,11 +120,12 @@ export function PriorityDashboard({
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
-            { id: 'ALL' as const, label: 'All Accounts', badgeColor: '#6366f1', count: counts.ALL },
-            { id: 'IMMEDIATE' as const, label: '🔥 Immediate (95+)', badgeColor: '#ef4444', count: counts.IMMEDIATE },
-            { id: 'HIGH' as const, label: '🟢 High (85-94)', badgeColor: '#10b981', count: counts.HIGH },
-            { id: 'MEDIUM' as const, label: '🟡 Medium (70-84)', badgeColor: '#f59e0b', count: counts.MEDIUM },
-            { id: 'MONITOR' as const, label: '🔵 Monitor (<70)', badgeColor: '#3b82f6', count: counts.MONITOR },
+            { id: 'ALL' as const, label: 'All Accounts', badgeColor: 'var(--text-primary)', count: counts.ALL },
+            { id: 'IMMEDIATE' as const, label: '🚀 Immediate (95+)', badgeColor: 'var(--accent-indigo)', count: counts.IMMEDIATE },
+            { id: 'HIGH' as const, label: '⚡ High (85-94)', badgeColor: 'var(--accent-violet)', count: counts.HIGH },
+            { id: 'MEDIUM' as const, label: '✨ Medium (70-84)', badgeColor: 'var(--accent-cyan)', count: counts.MEDIUM },
+            { id: 'MONITOR' as const, label: '👀 Monitor (<70)', badgeColor: 'var(--text-muted)', count: counts.MONITOR },
+            { id: 'ARCHIVE' as const, label: '⚪ Archive', badgeColor: '#64748b', count: counts.ARCHIVE },
           ].map(tier => {
             const isSelected = selectedFilter === tier.id;
             return (
@@ -181,7 +183,8 @@ export function PriorityDashboard({
               <PriorityCard 
                 key={acc.companyId} 
                 account={acc} 
-                rank={idx + 1} 
+                rank={idx + 1}
+                isSelected={selectedAccount?.companyId === acc.companyId}
                 onSelect={(account) => setSelectedAccount(account)} 
                 onTierChange={handleTierChange}
               />

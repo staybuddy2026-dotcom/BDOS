@@ -1,18 +1,20 @@
 'use client';
 
 import { AiOpportunityScoreDetails, RecommendedServiceItem, ExecutiveAiBriefing } from '@/features/company360/types';
-import { Sparkles, TrendingUp, Send, Briefcase } from 'lucide-react';
+import { Sparkles, TrendingUp, Send, Briefcase, CheckCircle } from 'lucide-react';
 
 export function AIInsightsPanel({
   scoring,
   recommendedServices,
   briefing,
+  hasDeal,
   onCreateCrmDeal,
   onSendToReviewQueue
 }: {
   scoring: AiOpportunityScoreDetails;
   recommendedServices: RecommendedServiceItem[];
   briefing: ExecutiveAiBriefing;
+  hasDeal?: boolean;
   onCreateCrmDeal: (serviceName?: string) => void;
   onSendToReviewQueue: () => void;
 }) {
@@ -137,13 +139,23 @@ export function AIInsightsPanel({
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  <button 
-                    onClick={() => onCreateCrmDeal(service.serviceName)}
-                    className="btn-primary"
-                    style={{ padding: '5px 11px', fontSize: '0.74rem', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <Briefcase size={12} /> Create CRM Deal
-                  </button>
+                  {hasDeal ? (
+                    <button 
+                      className="btn-primary"
+                      style={{ padding: '5px 11px', fontSize: '0.74rem', background: '#94a3b8', color: '#ffffff', border: '1px solid #94a3b8', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'default' }}
+                      disabled
+                    >
+                      <CheckCircle size={12} /> Deal Created
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => onCreateCrmDeal(service.serviceName)}
+                      className="btn-primary"
+                      style={{ padding: '5px 11px', fontSize: '0.74rem', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Briefcase size={12} /> Create CRM Deal
+                    </button>
+                  )}
                   <button 
                     onClick={onSendToReviewQueue}
                     className="btn-secondary"

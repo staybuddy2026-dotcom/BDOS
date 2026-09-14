@@ -17,27 +17,29 @@ function formatCleanCompanyName(rawName: string, domain: string): string {
 
 export function PriorityCard({ 
   account, 
-  rank, 
+  rank,
+  isSelected,
   onSelect,
   onTierChange
 }: { 
   account: BuyingReadinessDetails; 
-  rank: number; 
+  rank: number;
+  isSelected?: boolean;
   onSelect: (acc: BuyingReadinessDetails) => void;
   onTierChange?: (companyId: string, newTier: PriorityTier) => void;
 }) {
   const getTierStyle = (tier: PriorityTier) => {
     switch (tier) {
       case 'IMMEDIATE':
-        return { label: '🔥 Immediate', bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.4)', glow: 'rgba(239, 68, 68, 0.2)' };
+        return { label: '🚀 Immediate', bg: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: 'var(--border-focus)', glow: 'rgba(99, 102, 241, 0.15)' };
       case 'HIGH':
-        return { label: '🟢 High Priority', bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: 'rgba(16, 185, 129, 0.4)', glow: 'rgba(16, 185, 129, 0.2)' };
+        return { label: '⚡ High Priority', bg: 'var(--accent-violet-glow)', color: 'var(--accent-violet)', border: 'rgba(139, 92, 246, 0.3)', glow: 'rgba(139, 92, 246, 0.15)' };
       case 'MEDIUM':
-        return { label: '🟡 Medium Tier', bg: 'rgba(234, 179, 8, 0.12)', color: '#f59e0b', border: 'rgba(234, 179, 8, 0.4)', glow: 'rgba(234, 179, 8, 0.2)' };
+        return { label: '✨ Medium Tier', bg: 'var(--accent-cyan-glow)', color: 'var(--accent-cyan)', border: 'rgba(14, 165, 233, 0.3)', glow: 'rgba(14, 165, 233, 0.15)' };
       case 'MONITOR':
-        return { label: '🔵 Active Monitor', bg: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: 'rgba(99, 102, 241, 0.4)', glow: 'rgba(99, 102, 241, 0.2)' };
+        return { label: '👀 Active Monitor', bg: 'rgba(100, 116, 139, 0.08)', color: 'var(--text-muted)', border: 'var(--border-subtle)', glow: 'transparent' };
       default:
-        return { label: '⚪ Archive', bg: 'rgba(148, 163, 184, 0.12)', color: '#64748b', border: 'rgba(148, 163, 184, 0.4)', glow: 'transparent' };
+        return { label: '⚪ Archive', bg: 'rgba(148, 163, 184, 0.08)', color: '#64748b', border: 'var(--border-subtle)', glow: 'transparent' };
     }
   };
 
@@ -49,18 +51,17 @@ export function PriorityCard({
       onClick={() => onSelect(account)}
       className="card-glass"
       style={{
-        background: 'var(--bg-card)',
-        border: `1px solid ${tierStyle.border}`,
+        background: isSelected ? 'var(--bg-primary)' : 'var(--bg-card)',
+        border: isSelected ? `2px solid ${tierStyle.color}` : `1px solid ${tierStyle.border}`,
         borderRadius: '16px',
-        padding: '20px',
+        padding: '19px', // adjust padding by 1px to compensate for 2px border
         cursor: 'pointer',
         transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',
-        boxShadow: '0 6px 24px rgba(0,0,0,0.04)',
-        position: 'relative',
-        overflow: 'hidden',
+        boxShadow: isSelected ? `0 8px 32px ${tierStyle.glow}, 0 0 0 1px ${tierStyle.color}` : 'var(--glass-shadow)',
+        transform: isSelected ? 'translateY(-2px)' : 'none',
       }}
     >
       {/* Top Header Row */}
@@ -118,10 +119,10 @@ export function PriorityCard({
               fontFamily: 'inherit',
             }}
           >
-            <option value="IMMEDIATE">🔥 Immediate</option>
-            <option value="HIGH">🟢 High Priority</option>
-            <option value="MEDIUM">🟡 Medium Tier</option>
-            <option value="MONITOR">🔵 Active Monitor</option>
+            <option value="IMMEDIATE">🚀 Immediate</option>
+            <option value="HIGH">⚡ High Priority</option>
+            <option value="MEDIUM">✨ Medium Tier</option>
+            <option value="MONITOR">👀 Active Monitor</option>
             <option value="ARCHIVE">⚪ Archive</option>
           </select>
         </div>

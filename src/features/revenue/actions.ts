@@ -47,7 +47,7 @@ function initializeMockDeals() {
         attendees: ['nikitabhabani@saaslabs.com', 'akash@tiny-script.com'],
         notes: 'Google Meet: Technical Architecture & Squad Blueprint Review',
         outcome: 'Positive interest in Senior React 19 + Python FastAPI squad.',
-        recordingUrl: 'https://meet.google.com/bdos-saaslabs-demo',
+        recordingUrl: 'https://meet.google.com/new',
         nextAction: 'Review commercial proposal and schedule MSA sign-off.'
       }
     ],

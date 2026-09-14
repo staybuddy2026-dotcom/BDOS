@@ -151,7 +151,7 @@ function getCleanOrganizationName(
   }
 
   if (!candidateName) {
-    if (fallbackIndustry && fallbackIndustry !== 'Software & Tech') {
+    if (fallbackIndustry) {
       candidateName = `${fallbackIndustry} Organization`;
     } else {
       candidateName = 'Organization';
@@ -464,7 +464,7 @@ export class DefaultApolloProvider implements ApolloProvider {
           seniority: (p.seniority as string) || undefined,
           organizationName: cleanOrgName,
           organizationDomain: orgDomain || undefined,
-          organizationIndustry: realIndustry || 'Software & Tech',
+          organizationIndustry: realIndustry || undefined,
           workEmail: (p.email as string) || undefined,
           creditsUsed: 0,
           location: locationStr,

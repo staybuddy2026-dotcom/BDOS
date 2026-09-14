@@ -4,6 +4,7 @@ import { AuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { safeRevalidatePath } from '@/lib/revalidate';
+import { db } from '@/lib/db';
 import { getUniversalLeadDiscoveryDataAction } from '@/features/discovery/actions';
 
 export type CrmStage = 
@@ -110,8 +111,32 @@ export type CrmAiBriefing = {
   upsellSuggestions: string[];
 };
 
-// Clean Live In-Memory Store (Empty by default - populated by user actions or Apollo Sync)
+// Clean Live In-Memory Store
 let crmAccountsStore: CrmAccount[] = [];
+
+async function loadCrmStoreFromDb() {
+  try {
+    const record = await db.applicationSettings.findUnique({ where: { key: 'crm_accounts_store' } }).catch(() => null);
+    if (record && record.value) {
+      crmAccountsStore = JSON.parse(record.value);
+    }
+  } catch (err) {
+    logger.error('Failed to load CRM store from DB', err);
+  }
+}
+
+async function saveCrmStoreToDb() {
+  try {
+    const val = JSON.stringify(crmAccountsStore);
+    await db.applicationSettings.upsert({
+      where: { key: 'crm_accounts_store' },
+      update: { value: val },
+      create: { key: 'crm_accounts_store', value: val }
+    });
+  } catch (err) {
+    logger.error('Failed to save CRM store to DB', err);
+  }
+}
 
 /**
  * Fetch all Enterprise CRM Accounts with filtering and recalculated KPIs.
@@ -125,6 +150,7 @@ export async function getCrmAccounts(params?: {
   try {
     await AuthService.verifySession();
     logger.info('Querying Enterprise CRM Accounts & LifeCycle Data...');
+    await loadCrmStoreFromDb();
 
     let filtered = [...crmAccountsStore];
     if (params?.search) {
@@ -178,6 +204,7 @@ export async function clearAllCrmAccounts() {
   try {
     await AuthService.verifySession();
     crmAccountsStore = [];
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return { success: true, message: 'All CRM accounts cleared.' };
   } catch (err: unknown) {
@@ -253,7 +280,9 @@ export async function createCrmAccount(data: {
       createdDate: new Date().toISOString().split('T')[0],
     };
 
+    await loadCrmStoreFromDb();
     crmAccountsStore.unshift(newAccount);
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return newAccount;
   } catch (err: unknown) {
@@ -269,6 +298,7 @@ export async function updateAccountStage(accountId: string, newStage: CrmStage):
   try {
     await AuthService.verifySession();
     logger.info(`Updating CRM Account #${accountId} stage to '${newStage}'...`);
+    await loadCrmStoreFromDb();
 
     const acc = crmAccountsStore.find(a => a.id === accountId);
     if (!acc) throw new AppError('Account not found', 404);
@@ -293,6 +323,7 @@ export async function updateAccountStage(accountId: string, newStage: CrmStage):
       details: `Account transitioned from ${prevStage} to ${newStage} in CRM pipeline.`,
     });
 
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return acc;
   } catch (err: unknown) {
@@ -308,6 +339,7 @@ export async function addAccountMeeting(accountId: string, meetingData: Omit<Crm
   try {
     await AuthService.verifySession();
     logger.info(`Logging meeting for account #${accountId}...`);
+    await loadCrmStoreFromDb();
 
     const acc = crmAccountsStore.find(a => a.id === accountId);
     if (!acc) throw new AppError('Account not found', 404);
@@ -326,6 +358,7 @@ export async function addAccountMeeting(accountId: string, meetingData: Omit<Crm
       details: `Date: ${meetingData.date}. Attendees: ${meetingData.attendees.join(', ')}. Outcome: ${meetingData.outcome}`,
     });
 
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return acc;
   } catch (err: unknown) {
@@ -341,6 +374,7 @@ export async function addAccountProposal(accountId: string, proposalData: Omit<C
   try {
     await AuthService.verifySession();
     logger.info(`Attaching proposal to account #${accountId}...`);
+    await loadCrmStoreFromDb();
 
     const acc = crmAccountsStore.find(a => a.id === accountId);
     if (!acc) throw new AppError('Account not found', 404);
@@ -359,6 +393,7 @@ export async function addAccountProposal(accountId: string, proposalData: Omit<C
       details: `Value: ${proposalData.value}, Status: ${proposalData.status}, Valid Until: ${proposalData.expiryDate}`,
     });
 
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return acc;
   } catch (err: unknown) {
@@ -374,6 +409,7 @@ export async function addAccountTask(accountId: string, taskData: Omit<CrmTask, 
   try {
     await AuthService.verifySession();
     logger.info(`Adding task for account #${accountId}...`);
+    await loadCrmStoreFromDb();
 
     const acc = crmAccountsStore.find(a => a.id === accountId);
     if (!acc) throw new AppError('Account not found', 404);
@@ -393,6 +429,7 @@ export async function addAccountTask(accountId: string, taskData: Omit<CrmTask, 
       details: `Priority: ${taskData.priority}, Due: ${taskData.dueDate}`,
     });
 
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return acc;
   } catch (err: unknown) {
@@ -408,6 +445,7 @@ export async function toggleAccountTask(accountId: string, taskId: string): Prom
   try {
     await AuthService.verifySession();
     logger.info(`Toggling task #${taskId} for account #${accountId}...`);
+    await loadCrmStoreFromDb();
 
     const acc = crmAccountsStore.find(a => a.id === accountId);
     if (!acc) throw new AppError('Account not found', 404);
@@ -424,6 +462,7 @@ export async function toggleAccountTask(accountId: string, taskId: string): Prom
       details: `Marked by Akash.`,
     });
 
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return acc;
   } catch (err: unknown) {
@@ -439,6 +478,7 @@ export async function addAccountNote(accountId: string, noteContent: string): Pr
   try {
     await AuthService.verifySession();
     logger.info(`Adding quick note to account #${accountId}...`);
+    await loadCrmStoreFromDb();
 
     const acc = crmAccountsStore.find(a => a.id === accountId);
     if (!acc) throw new AppError('Account not found', 404);
@@ -451,6 +491,7 @@ export async function addAccountNote(accountId: string, noteContent: string): Pr
       details: noteContent,
     });
 
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return acc;
   } catch (err: unknown) {
@@ -519,6 +560,8 @@ export async function importLeadsFromDiscovery() {
       25
     );
     const rawLeads = discoveryData.leads || [];
+
+    await loadCrmStoreFromDb();
 
     // Filter out leads that already exist in CRM by domain or company name (case-insensitive deduplication)
     const existingDomains = new Set(crmAccountsStore.map(a => a.domain.toLowerCase().trim()));
@@ -595,6 +638,7 @@ export async function importLeadsFromDiscovery() {
     });
 
     crmAccountsStore = [...newlyCreated, ...crmAccountsStore];
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
 
     return {
@@ -667,7 +711,9 @@ export async function createCrmDealFromMarketplaceOpportunity(data: {
       createdDate: new Date().toISOString().split('T')[0],
     };
 
+    await loadCrmStoreFromDb();
     crmAccountsStore.unshift(newDeal);
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return {
       success: true,
@@ -692,6 +738,7 @@ export async function linkOutreachToCrmActivity(data: {
   try {
     await AuthService.verifySession();
     logger.info(`CRM Activity Integration: Linking outreach draft #${data.draftId} (${data.channel}) to account '${data.companyDomain}'...`);
+    await loadCrmStoreFromDb();
     
     const acc = crmAccountsStore.find(a => a.domain.toLowerCase() === data.companyDomain.toLowerCase() || a.name.toLowerCase().includes(data.companyDomain.toLowerCase()));
     if (acc) {
@@ -704,6 +751,7 @@ export async function linkOutreachToCrmActivity(data: {
       });
     }
     
+    await saveCrmStoreToDb();
     safeRevalidatePath('/crm');
     return { success: true, message: `Linked outreach draft #${data.draftId} to CRM activity timeline.` };
   } catch (err: unknown) {

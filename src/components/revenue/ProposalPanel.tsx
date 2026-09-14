@@ -61,8 +61,8 @@ export function ProposalPanel({
   return (
     <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {toastMsg && (
-        <div style={{ background: '#064e3b', color: '#ffffff', padding: '10px 14px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', border: '1.5px solid #10b981' }}>
-          <CheckCircle size={16} style={{ color: '#34d399' }} /> {toastMsg}
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-card)', color: 'var(--text-primary)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', border: '2px solid var(--accent-indigo)', boxShadow: '0 12px 32px rgba(99,102,241,0.2)' }}>
+          <CheckCircle size={18} style={{ color: 'var(--accent-indigo)' }} /> {toastMsg}
         </div>
       )}
 

@@ -59,8 +59,10 @@ import {
   SearchHistoryItem,
   SavedSearchItem
 } from '@/features/marketplace/intelligence';
-import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+
+import blob from '@/assets/blob.png';
 import '@/styles/globals.css';
+import '@/styles/dashboard.css';
 
 const PRESET_SEARCHES = [
   { id: 'm_preset_react', name: 'React 19 & Next.js', tech: 'React', badge: 'High Intent' },
@@ -456,7 +458,7 @@ export default function ProjectMarketplacePage() {
   };
 
   return (
-    <main className="apollo-search-workspace">
+    <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box' }}>
       {/* Toast Notification */}
       {notification && (
         <div className={`notification-toast ${notification.type}`} style={{ zIndex: 99999 }}>
@@ -465,24 +467,30 @@ export default function ProjectMarketplacePage() {
         </div>
       )}
 
-      {/* Top Navigation & Breadcrumb */}
-      <BreadcrumbHeader
-        currentTitle="Marketplace RFPs & Proposals"
-        badge="Bid Intelligence Platform"
-      />
-
-      {/* Header Banner */}
-      <div className="flex justify-between items-center flex-wrap gap-4 border-b border-[var(--border-subtle)] pb-4">
+      {/* HEADER BANNER */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid rgba(255,255,255,0.4)',
+        height: '65px',
+        flexShrink: 0,
+        padding: '0 28px',
+        background: 'rgba(255, 255, 255, 0.4)',
+        backdropFilter: 'blur(16px)'
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)' }}>
-            <Briefcase size={26} style={{ color: 'var(--bg-primary)' }} />
+          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)' }}>
+            <Briefcase size={18} style={{ color: 'var(--bg-primary)' }} />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 900, background: 'linear-gradient(135deg, #f8fafc, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
-              AI Opportunity Intelligence & Bid Decision Platform
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+              Marketplace RFPs & Proposals
             </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '3px', margin: 0 }}>
-              Automated Bid Decisioning: Evaluates opportunity score, gross margin %, cost estimation & client risk signals.
+            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+              AI Opportunity Intelligence & Bid Decision Platform
             </p>
           </div>
         </div>
@@ -491,137 +499,257 @@ export default function ProjectMarketplacePage() {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button 
             onClick={() => setShowCsvModal(true)}
-            className="btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem', color: 'var(--color-success)', borderColor: 'var(--color-success-bg)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={{ padding: '8px 14px', fontSize: '0.76rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
           >
-            <FileSpreadsheet size={13} /> Import CSV
+            <FileSpreadsheet size={14} /> Import CSV
           </button>
           <button 
             onClick={() => setShowWebhookModal(true)}
-            className="btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem', color: 'var(--color-warning)', borderColor: 'var(--color-warning-bg)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={{ padding: '8px 14px', fontSize: '0.76rem', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
           >
-            <Zap size={13} /> Webhook Endpoint
+            <Zap size={14} /> Webhook Endpoint
           </button>
           <button 
             onClick={handleRefreshRss}
-            className="btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem', color: 'var(--accent-indigo)', borderColor: 'var(--border-focus)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={{ padding: '8px 14px', fontSize: '0.76rem', color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
           >
-            <Radio size={13} /> Refresh RSS
+            <Radio size={14} /> Refresh RSS
           </button>
           <button 
             onClick={runIngestionPipeline}
-            className="btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.76rem', color: 'var(--accent-violet)', borderColor: 'rgba(129,140,248,0.3)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={{ padding: '8px 16px', fontSize: '0.76rem', color: '#ffffff', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Run Collection
           </button>
         </div>
       </div>
 
+      {/* SCROLLABLE MAIN CONTENT */}
+      <div
+        className="dashboard-scrollable-content"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px 28px 24px 28px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          position: 'relative',
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'top right',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed'
+        }}
+      >
+
       {/* TOP AI OPPORTUNITY INTELLIGENCE DASHBOARD BAR */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today&apos;s RFPs</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>{totalCount} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>RFPs</span></div>
+      <style>{`
+        .premium-kpi-card {
+          background: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 1);
+          border-radius: 12px;
+          padding: 20px;
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          box-shadow: 
+            0 10px 30px -5px rgba(15, 23, 42, 0.04),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+          position: relative;
+          overflow: hidden;
+          cursor: pointer;
+        }
+        .premium-kpi-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(135deg, var(--glow-color) 0%, transparent 50%);
+          opacity: 0.3;
+          transition: opacity 0.4s ease;
+          pointer-events: none;
+        }
+        .premium-kpi-card:hover {
+          transform: translateY(-6px) scale(1.02);
+          box-shadow: 
+            0 20px 40px -10px rgba(15, 23, 42, 0.08),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+          border-color: transparent;
+        }
+        .premium-kpi-card:hover::before {
+          opacity: 0.6;
+        }
+        .kpi-glow {
+          position: absolute;
+          bottom: -30px;
+          right: -30px;
+          width: 140px;
+          height: 140px;
+          border-radius: 50%;
+          background: var(--glow-color);
+          filter: blur(40px);
+          opacity: 0.5;
+          transition: all 0.5s ease;
+          pointer-events: none;
+        }
+        .premium-kpi-card:hover .kpi-glow {
+          transform: scale(1.3);
+          opacity: 0.8;
+        }
+        .market-tab {
+          padding: 8px 16px;
+          border-radius: 8px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.3s ease;
+          border: none;
+        }
+        .market-tab.active {
+          background: #ffffff;
+          color: var(--accent-indigo);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+          border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        .market-tab.inactive {
+          background: transparent;
+          color: var(--text-muted);
+          border: 1px solid transparent;
+        }
+        .market-tab.inactive:hover {
+          background: rgba(255, 255, 255, 0.5);
+          color: var(--text-secondary);
+        }
+        .market-tabs-container {
+          display: flex;
+          gap: 6px;
+          background: rgba(241, 245, 249, 0.6);
+          padding: 6px;
+          border-radius: 12px;
+          border: 1px solid var(--border-subtle);
+          margin-bottom: 20px;
+          backdrop-filter: blur(10px);
+        }
+      `}</style>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        
+        {/* Card 1 */}
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(59, 130, 246, 0.15)' } as React.CSSProperties}>
+          <div className="kpi-glow"></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '50%', color: '#3b82f6', display: 'flex' }}>
+                <FileText size={16} strokeWidth={2.5} />
+              </div>
+              <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Today's RFPs</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalCount}</div>
+              <div style={{ fontSize: '0.8rem', color: '#3b82f6', marginTop: '8px', fontWeight: 600 }}>Active project listings</div>
+            </div>
+            <div style={{ border: '1px solid #dbeafe', borderRadius: '50%', padding: '6px', color: '#3b82f6', display: 'flex', background: '#eff6ff' }}>
+              <ExternalLink size={14} strokeWidth={2.5} />
+            </div>
+          </div>
         </div>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--color-success)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recommended to BID</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--color-success)', marginTop: '2px' }}>12 <span style={{ fontSize: '0.75rem', color: 'var(--color-success)', fontWeight: 500 }}>BID</span></div>
+
+        {/* Card 2 */}
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(16, 185, 129, 0.15)' } as React.CSSProperties}>
+          <div className="kpi-glow"></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: '#ecfdf5', padding: '10px', borderRadius: '50%', color: '#10b981', display: 'flex' }}>
+                <Target size={16} strokeWidth={2.5} />
+              </div>
+              <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Recommended BID</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>12</div>
+              <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '8px', fontWeight: 600 }}>High win probability</div>
+            </div>
+            <div style={{ border: '1px solid #d1fae5', borderRadius: '50%', padding: '6px', color: '#10b981', display: 'flex', background: '#ecfdf5' }}>
+              <CheckCircle size={14} strokeWidth={2.5} />
+            </div>
+          </div>
         </div>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--color-warning)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Consider / Caution</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--color-warning)', marginTop: '2px' }}>4 <span style={{ fontSize: '0.75rem', color: 'var(--color-warning)', fontWeight: 500 }}>Review</span></div>
+
+        {/* Card 3 */}
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(245, 158, 11, 0.15)' } as React.CSSProperties}>
+          <div className="kpi-glow"></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: '#fffbeb', padding: '10px', borderRadius: '50%', color: '#f59e0b', display: 'flex' }}>
+                <AlertTriangle size={16} strokeWidth={2.5} />
+              </div>
+              <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Consider / Caution</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>4</div>
+              <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '8px', fontWeight: 600 }}>Requires manual review</div>
+            </div>
+            <div style={{ border: '1px solid #fef3c7', borderRadius: '50%', padding: '6px', color: '#f59e0b', display: 'flex', background: '#fffbeb' }}>
+              <AlertTriangle size={14} strokeWidth={2.5} />
+            </div>
+          </div>
         </div>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Gross Margin</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-success)', marginTop: '2px' }}>52% <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>Net</span></div>
-        </div>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expected Net Profit</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-indigo)', marginTop: '2px' }}>$71,250</div>
-        </div>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expected Revenue</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#a5b4fc', marginTop: '2px' }}>$142,500</div>
+
+        {/* Card 4 */}
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(139, 92, 246, 0.15)' } as React.CSSProperties}>
+          <div className="kpi-glow"></div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: '#f3e8ff', padding: '10px', borderRadius: '50%', color: '#8b5cf6', display: 'flex' }}>
+                <DollarSign size={16} strokeWidth={2.5} />
+              </div>
+              <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expected Revenue</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>$142.5k</div>
+              <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 600 }}>52% Avg Gross Margin</div>
+            </div>
+            <div style={{ border: '1px solid #e9d5ff', borderRadius: '50%', padding: '6px', color: '#8b5cf6', display: 'flex', background: '#f3e8ff' }}>
+              <DollarSign size={14} strokeWidth={2.5} />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* TAB NAVIGATION BAR */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+      <div className="market-tabs-container">
         <button
           onClick={() => setActiveTab('opportunities')}
-          style={{
-            padding: '7px 14px',
-            borderRadius: '6px',
-            fontSize: '0.78rem',
-            fontWeight: 700,
-            border: activeTab === 'opportunities' ? '1px solid #818cf8' : '1px solid transparent',
-            background: activeTab === 'opportunities' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-            color: activeTab === 'opportunities' ? '#ffffff' : '#94a3b8',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className={`market-tab ${activeTab === 'opportunities' ? 'active' : 'inactive'}`}
         >
           <Briefcase size={14} /> Opportunity Ranking Feed ({opportunities.length})
         </button>
 
         <button
           onClick={() => setActiveTab('analytics')}
-          style={{
-            padding: '7px 14px',
-            borderRadius: '6px',
-            fontSize: '0.78rem',
-            fontWeight: 700,
-            border: activeTab === 'analytics' ? '1px solid #818cf8' : '1px solid transparent',
-            background: activeTab === 'analytics' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-            color: activeTab === 'analytics' ? '#ffffff' : '#94a3b8',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className={`market-tab ${activeTab === 'analytics' ? 'active' : 'inactive'}`}
         >
           <BarChart3 size={14} /> Provider Analytics & Success Rates ({analyticsList.length})
         </button>
 
         <button
           onClick={() => setActiveTab('history')}
-          style={{
-            padding: '7px 14px',
-            borderRadius: '6px',
-            fontSize: '0.78rem',
-            fontWeight: 700,
-            border: activeTab === 'history' ? '1px solid #818cf8' : '1px solid transparent',
-            background: activeTab === 'history' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-            color: activeTab === 'history' ? '#ffffff' : '#94a3b8',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className={`market-tab ${activeTab === 'history' ? 'active' : 'inactive'}`}
         >
           <Clock size={14} /> Search History Audit ({searchHistory.length})
         </button>
 
         <button
           onClick={() => setActiveTab('saved-searches')}
-          style={{
-            padding: '7px 14px',
-            borderRadius: '6px',
-            fontSize: '0.78rem',
-            fontWeight: 700,
-            border: activeTab === 'saved-searches' ? '1px solid #818cf8' : '1px solid transparent',
-            background: activeTab === 'saved-searches' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
-            color: activeTab === 'saved-searches' ? '#ffffff' : '#94a3b8',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className={`market-tab ${activeTab === 'saved-searches' ? 'active' : 'inactive'}`}
         >
           <Bookmark size={14} /> Saved Search Presets ({savedSearches.length})
         </button>
@@ -631,14 +759,14 @@ export default function ProjectMarketplacePage() {
       {activeTab === 'opportunities' && (
         <div>
           {/* PRESET SEARCH TOOLBAR */}
-          <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <Sparkles size={16} style={{ color: 'var(--accent-violet)' }} />
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255, 255, 255, 0.8)', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 4px 24px rgba(15, 23, 42, 0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Sparkles size={18} style={{ color: '#6366f1' }} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>
                 BDE Opportunity Presets
               </span>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
               {PRESET_SEARCHES.map((preset) => {
                 const isSelected = activePresetId === preset.id;
                 return (
@@ -650,21 +778,23 @@ export default function ProjectMarketplacePage() {
                       triggerNotification('success', `Applied Preset: ${preset.name}`);
                     }}
                     style={{
-                      padding: '5px 11px',
-                      borderRadius: '20px',
-                      fontSize: '0.74rem',
-                      fontWeight: 600,
-                      border: isSelected ? '1px solid #818cf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                      background: isSelected ? 'rgba(99, 102, 241, 0.25)' : 'var(--bg-secondary)',
-                      color: isSelected ? '#ffffff' : '#cbd5e1',
+                      padding: '6px 14px',
+                      borderRadius: '24px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      border: isSelected ? '1px solid #818cf8' : '1px solid #e2e8f0',
+                      background: isSelected ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#ffffff',
+                      color: isSelected ? '#ffffff' : '#475569',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
+                      gap: '8px',
+                      boxShadow: isSelected ? '0 4px 12px rgba(99, 102, 241, 0.3)' : '0 2px 4px rgba(15, 23, 42, 0.02)',
+                      transition: 'all 0.2s ease'
                     }}
                   >
                     <span>{preset.name}</span>
-                    <span style={{ fontSize: '0.62rem', background: 'rgba(129, 140, 248, 0.2)', color: '#a5b4fc', padding: '1px 5px', borderRadius: '8px' }}>
+                    <span style={{ fontSize: '0.65rem', background: isSelected ? 'rgba(255, 255, 255, 0.2)' : '#f1f5f9', color: isSelected ? '#ffffff' : '#64748b', padding: '2px 6px', borderRadius: '8px', fontWeight: 800 }}>
                       {preset.badge}
                     </span>
                   </button>
@@ -674,25 +804,25 @@ export default function ProjectMarketplacePage() {
           </div>
 
           {/* MAIN WORKSPACE GRID */}
-          <div className="apollo-workspace-layout">
+          <div className="apollo-workspace-layout" style={{ gap: '20px' }}>
             {/* LEFT COLUMN: Dynamic Filter Sidebar */}
-            <div className="apollo-filter-sidebar">
-              <div className="filter-panel-header">
+            <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255, 255, 255, 0.8)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(15, 23, 42, 0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(15, 23, 42, 0.05)', paddingBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Filter size={16} style={{ color: 'var(--accent-violet)' }} />
-                  <h3 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Ingestion Filters</h3>
+                  <Filter size={18} style={{ color: '#6366f1' }} />
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Ingestion Filters</h3>
                 </div>
                 <button 
                   onClick={handleResetFilters}
-                  style={{ background: 'none', border: 'none', color: 'var(--accent-violet)', cursor: 'pointer', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
+                  style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', color: '#6366f1', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px' }}
                 >
                   <RotateCcw size={12} /> Reset
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Keywords / RFP Title
                   </label>
                   <input
@@ -701,12 +831,14 @@ export default function ProjectMarketplacePage() {
                     onChange={(e) => setKeywords(e.target.value)}
                     placeholder="e.g. React 19, Flutter..."
                     className="input-field"
-                    style={{ width: '100%', fontSize: '0.78rem', padding: '7px 10px' }}
+                    style={{ width: '100%', fontSize: '0.85rem', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', boxShadow: 'inset 0 2px 4px rgba(15, 23, 42, 0.02)', outline: 'none', transition: 'border-color 0.2s' }}
+                    onFocus={(e) => e.target.style.borderColor = '#818cf8'}
+                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                   />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Technology Stack
                   </label>
                   <input
@@ -715,27 +847,32 @@ export default function ProjectMarketplacePage() {
                     onChange={(e) => setTechnology(e.target.value)}
                     placeholder="e.g. React, Node.js..."
                     className="input-field"
-                    style={{ width: '100%', fontSize: '0.78rem', padding: '7px 10px' }}
+                    style={{ width: '100%', fontSize: '0.85rem', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', boxShadow: 'inset 0 2px 4px rgba(15, 23, 42, 0.02)', outline: 'none', transition: 'border-color 0.2s' }}
+                    onFocus={(e) => e.target.style.borderColor = '#818cf8'}
+                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                   />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                    Save Current Search Preset
+                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Save Current Preset
                   </label>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="text"
                       value={newPresetName}
                       onChange={(e) => setNewPresetName(e.target.value)}
                       placeholder="Preset Name..."
                       className="input-field"
-                      style={{ fontSize: '0.74rem', padding: '5px 8px', flex: 1 }}
+                      style={{ fontSize: '0.85rem', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', flex: 1, boxShadow: 'inset 0 2px 4px rgba(15, 23, 42, 0.02)', outline: 'none', transition: 'border-color 0.2s' }}
+                      onFocus={(e) => e.target.style.borderColor = '#818cf8'}
+                      onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                     />
                     <button 
                       onClick={handleSaveSearchPreset}
-                      className="btn-secondary"
-                      style={{ padding: '5px 8px', fontSize: '0.7rem', color: 'var(--accent-violet)' }}
+                      style={{ padding: '10px 14px', fontSize: '0.78rem', fontWeight: 700, background: '#f1f5f9', color: '#6366f1', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#f1f5f9'}
                     >
                       Save
                     </button>
@@ -745,11 +882,11 @@ export default function ProjectMarketplacePage() {
             </div>
 
             {/* CENTER MAIN GRID: Opportunity Cards Container */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Collected Opportunities (<span style={{ color: 'var(--accent-violet)' }}>{opportunities.length}</span>) • Filtered Duplicates: <span style={{ color: 'var(--color-warning)' }}>{duplicatesFiltered}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ background: 'transparent', padding: '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', padding: '0 4px' }}>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b' }}>
+                    Collected Opportunities <span style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>{opportunities.length}</span> <span style={{ color: '#94a3b8', margin: '0 8px', fontWeight: 400 }}>|</span> Filtered Duplicates: <span style={{ color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>{duplicatesFiltered}</span>
                   </div>
                 </div>
 
@@ -767,7 +904,8 @@ export default function ProjectMarketplacePage() {
                     {opportunities.map((opp) => (
                       <div 
                         key={opp.id}
-                        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', transition: 'all 0.15s ease' }}
+                        className="priority-account-row"
+                        style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}
                       >
                         {/* Header Row with AI Recommendation Verdict Badge */}
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
@@ -820,7 +958,7 @@ export default function ProjectMarketplacePage() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
                             {opp.technologyStack.map((tech, idx) => (
-                              <span key={idx} style={{ fontSize: '0.66rem', padding: '2px 7px', borderRadius: '4px', background: 'var(--accent-indigo-glow)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.3)', fontWeight: 600 }}>
+                              <span key={idx} style={{ fontSize: '0.66rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5', border: '1px solid rgba(99, 102, 241, 0.2)', fontWeight: 700 }}>
                                 {tech}
                               </span>
                             ))}
@@ -832,25 +970,23 @@ export default function ProjectMarketplacePage() {
                           </div>
                         </div>
 
-                        {/* Card Action Toolbar (6 Buttons) */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', marginTop: '2px' }}>
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {/* Card Action Toolbar */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '4px' }}>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {/* 1. AI Bid Intelligence */}
                             <button 
                               onClick={() => handleOpenIntelligence(opp)}
-                              className="btn-primary"
-                              style={{ padding: '5px 11px', fontSize: '0.72rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
                             >
-                              <Zap size={12} /> AI Intelligence
+                              <Zap size={14} /> AI Intelligence
                             </button>
 
                             {/* 2. AI Qualify Breakdown */}
                             <button 
                               onClick={() => handleOpenAiAnalysis(opp)}
-                              className="btn-secondary"
-                              style={{ padding: '5px 9px', fontSize: '0.72rem', color: 'var(--color-success)', borderColor: 'var(--color-success-bg)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                             >
-                              <Sparkles size={12} /> AI Qualify
+                              <Sparkles size={14} /> AI Qualify
                             </button>
 
                             {/* 3. View Original */}
@@ -858,49 +994,41 @@ export default function ProjectMarketplacePage() {
                               href={opp.projectUrl} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="btn-secondary"
-                              style={{ padding: '5px 9px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
                             >
-                              <ExternalLink size={12} /> View Original
+                              <ExternalLink size={14} /> View Original
                             </a>
 
                             {/* 4. Generate Proposal */}
                             <button 
                               onClick={() => handleOpenProposalModal(opp)}
-                              className="btn-secondary"
-                              style={{ padding: '5px 11px', fontSize: '0.72rem', color: 'var(--accent-violet)', borderColor: 'rgba(129,140,248,0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.2)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                             >
-                              <FileText size={12} /> Proposal Generator
+                              <FileText size={14} /> Proposal Generator
                             </button>
                           </div>
 
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                            {/* 4. Send to Review Queue */}
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <button 
                               onClick={() => handleSendToReviewQueue(opp)}
-                              className="btn-secondary"
-                              style={{ padding: '5px 10px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: '#f8fafc', color: '#1e293b', border: '1px solid #cbd5e1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                             >
-                              <Send size={12} /> Review Queue
+                              <Send size={14} /> Review Queue
                             </button>
 
-                            {/* 5. Create CRM Deal */}
                             <button 
                               onClick={() => handleCreateCrmDeal(opp)}
-                              className="btn-primary"
-                              style={{ padding: '5px 11px', fontSize: '0.72rem', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#ffffff', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
                             >
-                              <Building size={12} /> Create CRM Deal
+                              <Building size={14} /> Create CRM Deal
                             </button>
 
-                            {/* 6. Dismiss */}
                             <button 
                               onClick={() => handleDismissOpportunity(opp.id)}
-                              className="btn-secondary"
-                              style={{ padding: '5px 8px', fontSize: '0.72rem', color: 'var(--color-danger)', borderColor: 'rgba(239,68,68,0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                               title="Dismiss Opportunity"
                             >
-                              <XCircle size={12} /> Dismiss
+                              <XCircle size={14} /> Dismiss
                             </button>
                           </div>
                         </div>
@@ -912,12 +1040,12 @@ export default function ProjectMarketplacePage() {
             </div>
 
             {/* RIGHT COLUMN: AI Ingestion Telemetry & Recommendation Panel */}
-            <div style={{ background: 'rgba(17, 23, 38, 0.85)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRight: '4px solid #818cf8', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-                <Sparkles size={18} style={{ color: 'var(--accent-violet)' }} />
+            <div style={{ background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRight: '4px solid #818cf8', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '14px' }}>
+                <Sparkles size={20} style={{ color: '#818cf8' }} />
                 <div>
-                  <h3 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>AI Qualification Telemetry</h3>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Ingestion Signal Intelligence</span>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>AI Qualification Telemetry</h3>
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Ingestion Signal Intelligence</span>
                 </div>
               </div>
 
@@ -1414,6 +1542,7 @@ export default function ProjectMarketplacePage() {
           </div>
         </div>
       )}
-    </main>
+      </div>
+    </div>
   );
 }

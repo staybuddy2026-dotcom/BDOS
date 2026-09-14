@@ -11,9 +11,24 @@ export function LeadExplanationModal({
   onClose: () => void;
 }) {
   return (
-    <div style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '660px', height: '100vh', background: '#ffffff', borderLeft: '1px solid var(--border-subtle)', zIndex: 1000, overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '-15px 0 50px rgba(0,0,0,0.08)' }}>
+    <>
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', zIndex: 999, animation: 'fadeIn 0.5s ease-out' }}
+        onClick={onClose}
+      />
+      <div className="custom-scrollbar" style={{ position: 'fixed', top: 0, right: 0, width: '100%', maxWidth: '660px', height: '100vh', background: '#ffffff', borderLeft: '1px solid var(--border-subtle)', zIndex: 1000, overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '-15px 0 50px rgba(0,0,0,0.08)', animation: 'slideInRightSmooth 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)' }}>
+        <style>{`
+          @keyframes slideInRightSmooth {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', padding: '12px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
 
         {/* Left Side: Icon + Text Block */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
@@ -139,5 +154,6 @@ export function LeadExplanationModal({
         </a>
       </div>
     </div>
+    </>
   );
 }

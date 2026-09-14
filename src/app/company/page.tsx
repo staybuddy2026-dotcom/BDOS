@@ -91,6 +91,9 @@ export default function Company360WorkspacePage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  // Created Deals State
+  const [createdDealIds, setCreatedDealIds] = useState<string[]>([]);
+
   // Migrated Company 360 IDs persistent state
   const [migratedCompanyIds, setMigratedCompanyIds] = useState<string[]>(DEFAULT_MIGRATED_IDS);
 
@@ -98,6 +101,11 @@ export default function Company360WorkspacePage() {
 
   const syncFromLocalStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
+
+    const savedDeals = localStorage.getItem('bdos_created_deals');
+    if (savedDeals) {
+      try { setCreatedDealIds(JSON.parse(savedDeals)); } catch {}
+    }
 
     let removedList: string[] = [];
     const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
@@ -319,6 +327,14 @@ export default function Company360WorkspacePage() {
     try {
       if (confirmModal.type === 'create_deal') {
         const res = await createCrmDealFromCompany360(targetId);
+        
+        // Track the newly created deal
+        const newCreatedIds = Array.from(new Set([...createdDealIds, (company.domain || '').toLowerCase().trim(), (company.companyId || '').toLowerCase().trim()]));
+        setCreatedDealIds(newCreatedIds);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('bdos_created_deals', JSON.stringify(newCreatedIds));
+        }
+
         triggerNotification('success', `✓ ${res.message} Migrated to CRM Pipeline!`);
         await runSearch();
       } else if (confirmModal.type === 'review_queue') {
@@ -338,6 +354,13 @@ export default function Company360WorkspacePage() {
   const handleCreateCrmDeal = async (companyId: string, serviceName?: string) => {
     try {
       const res = await createCrmDealFromCompany360(companyId, serviceName);
+      
+      const newCreatedIds = Array.from(new Set([...createdDealIds, companyId.toLowerCase().trim()]));
+      setCreatedDealIds(newCreatedIds);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('bdos_created_deals', JSON.stringify(newCreatedIds));
+      }
+
       triggerNotification('success', `✓ ${res.message} Migrated to CRM Pipeline!`);
       await runSearch();
     } catch {
@@ -858,13 +881,26 @@ export default function Company360WorkspacePage() {
                         <Building size={13} /> Open 360
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => promptCreateCrmDeal(company)}
-                        style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 800, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10b981', color: '#047857', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                      >
-                        <Briefcase size={13} /> Create Deal
-                      </button>
+                      {(() => {
+                        const hasDeal = createdDealIds.includes((company.domain || '').toLowerCase().trim()) || createdDealIds.includes((company.companyId || '').toLowerCase().trim());
+                        return hasDeal ? (
+                          <button
+                            type="button"
+                            style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 800, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', cursor: 'default' }}
+                            disabled
+                          >
+                            <CheckCircle size={13} /> Deal Created
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => promptCreateCrmDeal(company)}
+                            style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 800, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10b981', color: '#047857', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                          >
+                            <Briefcase size={13} /> Create Deal
+                          </button>
+                        );
+                      })()}
 
                       <button
                         type="button"
@@ -891,36 +927,53 @@ export default function Company360WorkspacePage() {
 
         {/* FULL UNIFIED COMPANY 360 MODAL / DRAWER */}
         {showDrawer && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-focus)', borderRadius: '16px', width: '100%', maxWidth: '960px', padding: '24px', boxShadow: '0 12px 40px rgba(0,0,0,0.7)', maxHeight: '92vh', overflowY: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Building size={24} style={{ color: 'var(--accent-indigo)' }} />
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', animation: 'fadeIn 0.2s ease-out' }}>
+            <div style={{ background: '#ffffff', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '20px', width: '100%', maxWidth: '960px', boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.05)', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {/* FIXED MODAL HEADER */}
+              <div style={{ padding: '24px 28px', background: '#ffffff', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 10, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ background: 'var(--accent-indigo-glow)', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Building size={22} style={{ color: 'var(--accent-indigo)' }} />
+                  </div>
                   <div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 4px 0', letterSpacing: '-0.02em' }}>
                       {selectedProfile ? selectedProfile.overview.companyName : 'Loading Company 360...'}
                     </h3>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                      {selectedProfile ? `Domain: ${selectedProfile.domain} • ID: ${selectedProfile.companyId}` : ''}
-                    </span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.72rem', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                        {selectedProfile ? selectedProfile.domain : 'domain.com'}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>•</span>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontFamily: 'monospace' }}>
+                        ID: {selectedProfile ? selectedProfile.companyId : '...'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {selectedProfile && (
                     <button
                       type="button"
                       onClick={() => handleRemoveFromCompany360({ companyId: selectedProfile.companyId, companyName: selectedProfile.overview.companyName, domain: selectedProfile.domain, industry: '', headquarters: '', employeeCount: 0, opportunityScore: 0, engineeringMaturity: 0, sourcesAvailable: [] })}
-                      style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '0.76rem', background: 'var(--color-danger-bg)', border: '1px solid rgba(239, 68, 68, 0.35)', color: 'var(--color-danger)', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '0.78rem', background: '#fff1f2', border: '1px solid #fecdd3', color: '#e11d48', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ffe4e6'; e.currentTarget.style.borderColor = '#fda4af'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fff1f2'; e.currentTarget.style.borderColor = '#fecdd3'; }}
                     >
-                      <Trash2 size={13} /> Remove Company
+                      <Trash2 size={14} /> Remove
                     </button>
                   )}
-                  <button onClick={() => setShowDrawer(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
-                    <X size={20} />
+                  <button onClick={() => setShowDrawer(false)} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#64748b', cursor: 'pointer', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}
+                  >
+                    <X size={18} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
+
+              {/* SCROLLABLE MODAL BODY */}
+              <div className="custom-scrollbar" style={{ overflowY: 'auto', padding: '24px 28px', flex: 1 }}>
 
               {profileLoading || !selectedProfile ? (
                 <div style={{ padding: '50px', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -930,139 +983,48 @@ export default function Company360WorkspacePage() {
               ) : (
                 <div>
                   {/* DRAWER TAB BAR */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-                    <button
-                      onClick={() => setDrawerTab('overview')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'overview' ? '1px solid #38bdf8' : '1px solid transparent',
-                        background: drawerTab === 'overview' ? 'var(--accent-indigo-glow)' : 'transparent',
-                        color: drawerTab === 'overview' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🏢 Company Overview
-                    </button>
-
-                    <button
-                      onClick={() => setDrawerTab('decision-makers')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'decision-makers' ? '1px solid #38bdf8' : '1px solid transparent',
-                        background: drawerTab === 'decision-makers' ? 'var(--accent-indigo-glow)' : 'transparent',
-                        color: drawerTab === 'decision-makers' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      👥 Decision Makers ({selectedProfile.decisionMakers.length})
-                    </button>
-
-                    <button
-                      onClick={() => setDrawerTab('engineering')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'engineering' ? '1px solid #38bdf8' : '1px solid transparent',
-                        background: drawerTab === 'engineering' ? 'var(--accent-indigo-glow)' : 'transparent',
-                        color: drawerTab === 'engineering' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ⚡ Engineering Intelligence
-                    </button>
-
-                    <button
-                      onClick={() => setDrawerTab('growth')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'growth' ? '1px solid #fef08a' : '1px solid transparent',
-                        background: drawerTab === 'growth' ? 'rgba(234, 179, 8, 0.2)' : 'transparent',
-                        color: drawerTab === 'growth' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📈 Growth & Funding
-                    </button>
-
-                    {/* Product Hunt & Reddit tabs commented out for lightweight V1 release:
-                  <button onClick={() => setDrawerTab('producthunt')}>🚀 Product Launch</button>
-                  <button onClick={() => setDrawerTab('reddit')}>💬 Reddit Buying Intent</button>
-                  */}
-
-                    <button
-                      onClick={() => setDrawerTab('linkedin')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'linkedin' ? '1px solid #0a66c2' : '1px solid transparent',
-                        background: drawerTab === 'linkedin' ? 'rgba(10, 102, 194, 0.2)' : 'transparent',
-                        color: drawerTab === 'linkedin' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🔗 LinkedIn Activity
-                    </button>
-
-                    <button
-                      onClick={() => setDrawerTab('ai-insights')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'ai-insights' ? '1px solid #38bdf8' : '1px solid transparent',
-                        background: drawerTab === 'ai-insights' ? 'var(--accent-indigo-glow)' : 'transparent',
-                        color: drawerTab === 'ai-insights' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🤖 AI Sales Insights & Pitch
-                    </button>
-
-                    <button
-                      onClick={() => setDrawerTab('playbook')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'playbook' ? '1px solid #38bdf8' : '1px solid transparent',
-                        background: drawerTab === 'playbook' ? 'var(--accent-indigo-glow)' : 'transparent',
-                        color: drawerTab === 'playbook' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📘 Opportunity Playbook
-                    </button>
-
-                    <button
-                      onClick={() => setDrawerTab('timeline')}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.76rem',
-                        fontWeight: 700,
-                        border: drawerTab === 'timeline' ? '1px solid #38bdf8' : '1px solid transparent',
-                        background: drawerTab === 'timeline' ? 'var(--accent-indigo-glow)' : 'transparent',
-                        color: drawerTab === 'timeline' ? '#ffffff' : '#94a3b8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📜 Cross-Provider Timeline
-                    </button>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px', overflowX: 'auto', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'overview', label: '🏢 Company Overview' },
+                      { id: 'decision-makers', label: `👥 Decision Makers (${selectedProfile.decisionMakers.length})` },
+                      { id: 'engineering', label: '⚡ Engineering Intelligence' },
+                      { id: 'growth', label: '📈 Growth & Funding' },
+                      { id: 'linkedin', label: '🔗 LinkedIn Activity' },
+                      { id: 'ai-insights', label: '🤖 AI Sales Insights & Pitch' },
+                      { id: 'playbook', label: '📘 Opportunity Playbook' },
+                      { id: 'timeline', label: '📜 Cross-Provider Timeline' }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setDrawerTab(tab.id as any)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: drawerTab === tab.id ? 700 : 600,
+                          border: drawerTab === tab.id ? '1px solid var(--accent-indigo)' : '1px solid transparent',
+                          background: drawerTab === tab.id ? 'var(--accent-indigo-glow)' : 'transparent',
+                          color: drawerTab === tab.id ? 'var(--accent-indigo)' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (drawerTab !== tab.id) {
+                            e.currentTarget.style.background = 'rgba(226, 232, 240, 0.4)';
+                            e.currentTarget.style.color = 'var(--text-secondary)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (drawerTab !== tab.id) {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = 'var(--text-muted)';
+                          }
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
 
                   {/* TAB CONTENT PANELS */}
@@ -1172,6 +1134,7 @@ export default function Company360WorkspacePage() {
                   )}
                 </div>
               )}
+              </div>
             </div>
           </div>
         )}

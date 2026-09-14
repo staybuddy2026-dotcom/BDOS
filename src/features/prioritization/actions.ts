@@ -32,14 +32,6 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
       }
     });
 
-    // Seed comprehensive multi-tier enterprise target accounts
-    const seedDomains = [
-      'vercel.com', 'stripe.com', 'supabase.com', 'cloudflare.com', 
-      'linear.app', 'github.com', 'datadoghq.com', 'postman.com', 
-      'sentry.io', 'notion.so', 'figma.com', 'mongodb.com'
-    ];
-    seedDomains.forEach(d => targetDomains.add(d));
-
     const domainsList = Array.from(targetDomains);
     const accounts: BuyingReadinessDetails[] = [];
 
@@ -49,23 +41,14 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
         const profile = await getCompany360Profile(domain);
         const readiness = calculateBuyingReadiness(profile);
 
-        // Assign distinct multi-tier scores for rich tier distribution
-        let targetScore = readiness.buyingReadinessScore;
-        if (i === 0 || i === 1 || i === 2 || i === 3) {
-          targetScore = 98 - i * 1; // IMMEDIATE (95+)
-        } else if (i === 4 || i === 5 || i === 6 || i === 7) {
-          targetScore = 93 - (i - 4) * 2; // HIGH (85-94)
-        } else if (i === 8 || i === 9 || i === 10) {
-          targetScore = 82 - (i - 8) * 4; // MEDIUM (70-84)
-        } else {
-          targetScore = 64 - (i - 11) * 3; // MONITOR (<70)
-        }
+        const targetScore = readiness.buyingReadinessScore;
 
         const tier = determinePriorityTier(targetScore);
         const updatedReadiness: BuyingReadinessDetails = {
           ...readiness,
           buyingReadinessScore: targetScore,
           priorityTier: tier,
+          winProbabilityPercent: Math.min(98, Math.round(targetScore * 0.96)),
         };
 
         if (!filterTier || updatedReadiness.priorityTier === filterTier) {
@@ -115,8 +98,8 @@ export async function getPrioritizationTelemetryAction(): Promise<Prioritization
     const monthlyRevInr = Math.round(totalValInr * 0.28);
 
     return {
-      companiesToContactToday: immediateCount || 4,
-      highPriorityAccountsCount: highCount || 4,
+      companiesToContactToday: immediateCount,
+      highPriorityAccountsCount: highCount,
       estimatedPipelineValueUsd: `$${(totalValUsd / 1000).toFixed(0)}K`,
       estimatedPipelineValueInr: `₹${(totalValInr / 100000).toFixed(1)} Lakhs`,
       predictedMonthlyRevenue: `₹${(monthlyRevInr / 100000).toFixed(1)} Lakhs`,

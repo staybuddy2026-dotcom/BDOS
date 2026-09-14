@@ -4,7 +4,12 @@ import { useState, useCallback, useEffect } from 'react';
 import blob from '@/assets/blob.png';
 import {
   getBdeCommandCenterData,
-  BdeCommandCenterData
+  BdeCommandCenterData,
+  updateBdeTaskStatus,
+  updateMeetingStatus,
+  scheduleNewMeeting,
+  updateProposalStage,
+  createProposal
 } from '@/features/command-center/actions';
 import { getMorningCommandCenterAction } from '@/features/refinement/actions';
 import { MorningDashboard } from '@/components/refinement/MorningDashboard';
@@ -28,11 +33,84 @@ import {
   DollarSign,
   ChevronRight,
   Bell,
-  Activity
+  Activity,
+  Video,
+  Plus,
+  X,
+  Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import '@/styles/globals.css';
 import '@/styles/dashboard.css';
+
+function getActivityVisuals(type: string) {
+  switch (type) {
+    case 'Deal Won':
+      return {
+        icon: <Trophy size={14} />,
+        bg: '#ecfdf5',
+        color: '#10b981',
+        borderColor: '#a7f3d0',
+        badgeBg: '#d1fae5',
+        badgeColor: '#065f46',
+      };
+    case 'Proposal Sent':
+      return {
+        icon: <FileText size={14} />,
+        bg: '#f5f3ff',
+        color: '#8b5cf6',
+        borderColor: '#ddd6fe',
+        badgeBg: '#ede9fe',
+        badgeColor: '#5b21b6',
+      };
+    case 'Meeting Scheduled':
+      return {
+        icon: <Calendar size={14} />,
+        bg: '#eff6ff',
+        color: '#2563eb',
+        borderColor: '#bfdbfe',
+        badgeBg: '#dbeafe',
+        badgeColor: '#1e40af',
+      };
+    case 'Email Sent':
+      return {
+        icon: <Mail size={14} />,
+        bg: '#fffbeb',
+        color: '#f59e0b',
+        borderColor: '#fde68a',
+        badgeBg: '#fef3c7',
+        badgeColor: '#92400e',
+      };
+    case 'Task Completed':
+      return {
+        icon: <CheckCircle size={14} />,
+        bg: '#f0fdfa',
+        color: '#0d9488',
+        borderColor: '#99f6e4',
+        badgeBg: '#ccfbf1',
+        badgeColor: '#115e59',
+      };
+    case 'Apollo Research':
+      return {
+        icon: <Sparkles size={14} />,
+        bg: '#fdf4ff',
+        color: '#d946ef',
+        borderColor: '#f5d0fe',
+        badgeBg: '#fae8ff',
+        badgeColor: '#86198f',
+      };
+    case 'LinkedIn Discovery':
+    default:
+      return {
+        icon: <Search size={14} />,
+        bg: '#eef2ff',
+        color: '#4f46e5',
+        borderColor: '#c7d2fe',
+        badgeBg: '#e0e7ff',
+        badgeColor: '#3730a3',
+      };
+  }
+}
 
 export default function BdeCommandCenterHome() {
   const [data, setData] = useState<BdeCommandCenterData | null>(null);
@@ -41,6 +119,26 @@ export default function BdeCommandCenterHome() {
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(1);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [morningMetrics, setMorningMetrics] = useState<MorningCommandMetrics | null>(null);
+
+  // Activity Timeline Filter State
+  const [timelineFilter, setTimelineFilter] = useState<'All' | 'Deals' | 'Meetings' | 'Proposals' | 'Leads' | 'Outreach'>('All');
+
+  // Schedule Meeting Modal State
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [newMeetingTitle, setNewMeetingTitle] = useState('');
+  const [newMeetingClient, setNewMeetingClient] = useState('');
+  const [newMeetingCompany, setNewMeetingCompany] = useState('');
+  const [newMeetingEmail, setNewMeetingEmail] = useState('');
+  const [newMeetingType, setNewMeetingType] = useState<'Discovery Call' | 'Demo' | 'Proposal Review' | 'Follow-up Reminder'>('Discovery Call');
+  const [newMeetingTime, setNewMeetingTime] = useState('14:00');
+
+  // Proposal Modal State
+  const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
+  const [newPropTitle, setNewPropTitle] = useState('');
+  const [newPropClient, setNewPropClient] = useState('');
+  const [newPropCompany, setNewPropCompany] = useState('');
+  const [newPropBudget, setNewPropBudget] = useState('$50,000');
+  const [newPropStage, setNewPropStage] = useState<'Draft' | 'Sent' | 'Viewed' | 'Negotiation' | 'Won' | 'Lost'>('Draft');
 
   const triggerNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -74,18 +172,226 @@ export default function BdeCommandCenterHome() {
     return () => { active = false; };
   }, [loadCommandCenter]);
 
-  // Handle task status toggle
-  const handleToggleTaskStatus = (taskId: string) => {
+  // Handle task status toggle with live DB persistence & optimistic UI
+  const handleToggleTaskStatus = async (taskId: string) => {
     if (!data) return;
+    const targetTask = data.tasks.find(t => t.id === taskId);
+    if (!targetTask) return;
+
+    const previousStatus = targetTask.status;
+    const nextStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' = previousStatus === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+
+    // Optimistic UI state update
     const updatedTasks = data.tasks.map(t => {
       if (t.id === taskId) {
-        const nextStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' = t.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-        return { ...t, status: nextStatus };
+        return {
+          ...t,
+          status: nextStatus,
+          dueCategory: nextStatus === 'COMPLETED' ? ('Completed' as const) : t.dueCategory,
+        };
       }
       return t;
     });
     setData({ ...data, tasks: updatedTasks });
-    triggerNotification('success', 'Task status updated.');
+
+    try {
+      const result = await updateBdeTaskStatus(taskId, nextStatus);
+      if (result.success) {
+        triggerNotification(
+          'success',
+          nextStatus === 'COMPLETED' ? 'Task completed and saved to database.' : 'Task reopened and updated in database.'
+        );
+        if (result.task) {
+          setData(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              tasks: prev.tasks.map(t => (t.id === taskId ? result.task! : t)),
+            };
+          });
+        }
+      } else {
+        throw new Error(result.error || 'Database rejected task update.');
+      }
+    } catch (err: unknown) {
+      // Revert optimistic update on database error
+      setData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          tasks: prev.tasks.map(t => (t.id === taskId ? { ...t, status: previousStatus } : t)),
+        };
+      });
+      const msg = err instanceof Error ? err.message : 'Failed to save task update to database.';
+      triggerNotification('error', msg);
+    }
+  };
+
+  // Handle meeting status toggle (Scheduled -> Confirmed -> Completed)
+  const handleToggleMeetingStatus = async (meetingId: string) => {
+    if (!data) return;
+    const target = data.calendarEvents.find(e => e.id === meetingId);
+    if (!target) return;
+
+    const nextStatus: 'Scheduled' | 'Confirmed' | 'Completed' =
+      target.status === 'Scheduled' ? 'Confirmed' : target.status === 'Confirmed' ? 'Completed' : 'Scheduled';
+
+    // Optimistic UI update
+    setData({
+      ...data,
+      calendarEvents: data.calendarEvents.map(e =>
+        e.id === meetingId ? { ...e, status: nextStatus } : e
+      ),
+    });
+
+    try {
+      const res = await updateMeetingStatus(meetingId, nextStatus);
+      if (res.success) {
+        triggerNotification('success', `Meeting status updated to ${nextStatus}.`);
+      } else {
+        throw new Error(res.error || 'Failed to update meeting status.');
+      }
+    } catch (err: unknown) {
+      // Revert on error
+      setData({
+        ...data,
+        calendarEvents: data.calendarEvents.map(e =>
+          e.id === meetingId ? { ...e, status: target.status } : e
+        ),
+      });
+      const msg = err instanceof Error ? err.message : 'Error updating meeting status.';
+      triggerNotification('error', msg);
+    }
+  };
+
+  // Handle schedule new meeting
+  const handleScheduleMeetingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMeetingTitle || !newMeetingClient || !newMeetingCompany) {
+      triggerNotification('error', 'Please enter Title, Client Name, and Company.');
+      return;
+    }
+
+    try {
+      const now = new Date();
+      let startTime = new Date();
+      if (newMeetingTime) {
+        const [hours, mins] = newMeetingTime.split(':').map(Number);
+        startTime.setHours(hours || 12, mins || 0, 0, 0);
+      } else {
+        startTime.setHours(now.getHours() + 1, 0, 0, 0);
+      }
+
+      const res = await scheduleNewMeeting({
+        title: newMeetingTitle,
+        clientName: newMeetingClient,
+        companyName: newMeetingCompany,
+        clientEmail: newMeetingEmail || undefined,
+        startTime,
+        meetingType: newMeetingType,
+      });
+
+      if (res.success && res.event) {
+        setData(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            calendarEvents: [res.event!, ...prev.calendarEvents],
+          };
+        });
+        triggerNotification('success', 'New meeting scheduled and synced to Google Meet!');
+        setIsScheduleModalOpen(false);
+        setNewMeetingTitle('');
+        setNewMeetingClient('');
+        setNewMeetingCompany('');
+        setNewMeetingEmail('');
+        setNewMeetingTime('14:00');
+      } else {
+        throw new Error(res.error || 'Failed to schedule meeting.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error scheduling meeting.';
+      triggerNotification('error', msg);
+    }
+  };
+
+  // Handle Proposal Stage Transition
+  const handleProposalStageChange = async (
+    proposalId: string,
+    nextStage: 'Draft' | 'Sent' | 'Viewed' | 'Negotiation' | 'Won' | 'Lost'
+  ) => {
+    if (!data) return;
+    const previousProposals = [...data.proposals];
+
+    // Optimistic UI update
+    setData({
+      ...data,
+      proposals: data.proposals.map(p =>
+        p.id === proposalId
+          ? {
+            ...p,
+            stage: nextStage,
+            probability: nextStage === 'Won' ? 100 : nextStage === 'Negotiation' ? 85 : nextStage === 'Viewed' ? 70 : nextStage === 'Sent' ? 60 : nextStage === 'Draft' ? 30 : 0,
+            lastUpdated: 'Just now',
+          }
+          : p
+      ),
+    });
+
+    try {
+      const res = await updateProposalStage(proposalId, nextStage);
+      if (res.success && res.proposal) {
+        triggerNotification('success', `Proposal stage updated to ${nextStage}.`);
+      } else {
+        throw new Error(res.error || 'Failed to update proposal stage.');
+      }
+    } catch (err: unknown) {
+      // Revert on failure
+      setData({ ...data, proposals: previousProposals });
+      const msg = err instanceof Error ? err.message : 'Error updating proposal stage.';
+      triggerNotification('error', msg);
+    }
+  };
+
+  // Handle Create Proposal Submit
+  const handleCreateProposalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPropTitle || !newPropClient || !newPropCompany || !newPropBudget) {
+      triggerNotification('error', 'Please fill in all required proposal fields.');
+      return;
+    }
+
+    try {
+      const res = await createProposal({
+        title: newPropTitle,
+        clientName: newPropClient,
+        companyName: newPropCompany,
+        budget: newPropBudget,
+        stage: newPropStage,
+      });
+
+      if (res.success && res.proposal) {
+        setData(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            proposals: [res.proposal!, ...prev.proposals],
+          };
+        });
+        triggerNotification('success', 'New proposal created and saved to database!');
+        setIsProposalModalOpen(false);
+        setNewPropTitle('');
+        setNewPropClient('');
+        setNewPropCompany('');
+        setNewPropBudget('$50,000');
+        setNewPropStage('Draft');
+      } else {
+        throw new Error(res.error || 'Failed to create proposal.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error creating proposal.';
+      triggerNotification('error', msg);
+    }
   };
 
   if (loading || !data) {
@@ -98,7 +404,11 @@ export default function BdeCommandCenterHome() {
     );
   }
 
-  const filteredTasks = data.tasks.filter(t => t.dueCategory === activeTaskTab || (activeTaskTab === 'Completed' && t.status === 'COMPLETED'));
+  const filteredTasks = data.tasks.filter(t =>
+    activeTaskTab === 'Completed'
+      ? t.status === 'COMPLETED'
+      : (t.status !== 'COMPLETED' && t.dueCategory === activeTaskTab)
+  );
 
   return (
     <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box' }}>
@@ -577,26 +887,46 @@ export default function BdeCommandCenterHome() {
             <div style={{ height: '1px', background: 'linear-gradient(to right, #cbd5e1 0%, rgba(203, 213, 225, 0.1) 100%)', width: '100%', marginBottom: '4px' }}></div>
 
             {/* Task Category Tabs */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {(['Today', 'Overdue', 'Upcoming', 'Completed'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTaskTab(tab)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '20px',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    border: activeTaskTab === tab ? '1px solid #818cf8' : '1px solid #e2e8f0',
-                    background: activeTaskTab === tab ? '#eef2ff' : '#f8fafc',
-                    color: activeTaskTab === tab ? '#4f46e5' : '#64748b',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {(['Today', 'Overdue', 'Upcoming', 'Completed'] as const).map((tab) => {
+                const count = data.tasks.filter(t =>
+                  tab === 'Completed'
+                    ? t.status === 'COMPLETED'
+                    : (t.status !== 'COMPLETED' && t.dueCategory === tab)
+                ).length;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTaskTab(tab)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      border: activeTaskTab === tab ? '1px solid #818cf8' : '1px solid #e2e8f0',
+                      background: activeTaskTab === tab ? '#eef2ff' : '#f8fafc',
+                      color: activeTaskTab === tab ? '#4f46e5' : '#64748b',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>{tab}</span>
+                    <span style={{
+                      fontSize: '0.68rem',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      background: activeTaskTab === tab ? '#c7d2fe' : '#e2e8f0',
+                      color: activeTaskTab === tab ? '#3730a3' : '#475569',
+                      fontWeight: 800,
+                    }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
@@ -641,14 +971,36 @@ export default function BdeCommandCenterHome() {
           {/* ROW 4: Calendar & Meetings Today */}
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ marginBottom: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ padding: '8px', background: '#eff6ff', borderRadius: '8px', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bfdbfe' }}>
-                  <Calendar size={20} strokeWidth={2.5} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ padding: '8px', background: '#eff6ff', borderRadius: '8px', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bfdbfe' }}>
+                    <Calendar size={20} strokeWidth={2.5} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Today&apos;s Calendar & Meetings ({data.calendarEvents.length})</h2>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Your scheduled engagements for today.</p>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Today&apos;s Calendar & Meetings ({data.calendarEvents.length})</h2>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Your scheduled engagements for today.</p>
-                </div>
+
+                <button
+                  onClick={() => setIsScheduleModalOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    background: '#eff6ff',
+                    color: '#2563eb',
+                    border: '1px solid #bfdbfe',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Plus size={14} /> Schedule Meeting
+                </button>
               </div>
             </div>
             <div style={{ height: '1px', background: 'linear-gradient(to right, #cbd5e1 0%, rgba(203, 213, 225, 0.1) 100%)', width: '100%', marginBottom: '4px' }}></div>
@@ -664,23 +1016,90 @@ export default function BdeCommandCenterHome() {
                 data.calendarEvents.map((evt) => (
                   <div
                     key={evt.id}
-                    style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderLeft: '4px solid #3b82f6', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderLeft: evt.status === 'Completed' ? '4px solid #10b981' : evt.status === 'Confirmed' ? '4px solid #3b82f6' : '4px solid #f59e0b',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                      flexWrap: 'wrap',
+                    }}
                   >
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
-                        {evt.title}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: '220px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: evt.status === 'Completed' ? '#64748b' : '#0f172a', textDecoration: evt.status === 'Completed' ? 'line-through' : 'none' }}>
+                          {evt.title}
+                        </span>
+                        <span style={{
+                          fontSize: '0.68rem',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: '#f1f5f9',
+                          color: '#475569',
+                          fontWeight: 700,
+                        }}>
+                          {evt.type}
+                        </span>
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: '#4f46e5', marginTop: '4px', fontWeight: 700 }}>
-                        🕒 {evt.time}
+
+                      <div style={{ fontSize: '0.78rem', color: '#4f46e5', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={13} /> {evt.time}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px', fontWeight: 500 }}>
+
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
                         Client: <strong style={{ color: '#334155' }}>{evt.clientName}</strong> ({evt.companyName})
                       </div>
                     </div>
 
-                    <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '6px', background: '#dcfce7', color: '#16a34a', fontWeight: 800, textTransform: 'uppercase' }}>
-                      {evt.status}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      {evt.meetingUrl && (
+                        <a
+                          href={evt.meetingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            background: '#f0fdf4',
+                            color: '#15803d',
+                            border: '1px solid #bbf7d0',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Video size={14} /> Join Call
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleToggleMeetingStatus(evt.id)}
+                        title="Click to toggle status: Scheduled -> Confirmed -> Completed"
+                        style={{
+                          fontSize: '0.7rem',
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          background: evt.status === 'Completed' ? '#dcfce7' : evt.status === 'Confirmed' ? '#dbeafe' : '#fef3c7',
+                          color: evt.status === 'Completed' ? '#16a34a' : evt.status === 'Confirmed' ? '#1d4ed8' : '#d97706',
+                          border: evt.status === 'Completed' ? '1px solid #86efac' : evt.status === 'Confirmed' ? '1px solid #93c5fd' : '1px solid #fde68a',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {evt.status}
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -691,99 +1110,350 @@ export default function BdeCommandCenterHome() {
         {/* ROW 5 — PROPOSAL TRACKER STAGE FUNNEL */}
         <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ marginBottom: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ padding: '8px', background: '#f5f3ff', borderRadius: '8px', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ede9fe' }}>
                   <FileText size={20} strokeWidth={2.5} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Active Proposal Tracker ({data.proposals.length})</h2>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Monitor the status of your sent proposals and active RFPs.</p>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Monitor live customer proposals, deal stages, and win probabilities.</p>
                 </div>
               </div>
-              <Link href="/marketplace" style={{ fontSize: '0.8rem', color: '#ffffff', background: '#8b5cf6', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)', transition: 'all 0.2s ease' }}>
-                Open Generator <ChevronRight size={14} />
-              </Link>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => setIsProposalModalOpen(true)}
+                  style={{
+                    fontSize: '0.78rem',
+                    color: '#6d28d9',
+                    background: '#f5f3ff',
+                    border: '1px solid #ddd6fe',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Plus size={14} /> New Proposal
+                </button>
+                <Link href="/marketplace" style={{ fontSize: '0.78rem', color: '#ffffff', background: '#8b5cf6', padding: '7px 14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)', transition: 'all 0.2s ease' }}>
+                  Open Generator <ChevronRight size={14} />
+                </Link>
+              </div>
             </div>
           </div>
           <div style={{ height: '1px', background: 'linear-gradient(to right, #cbd5e1 0%, rgba(203, 213, 225, 0.1) 100%)', width: '100%', marginBottom: '4px' }}></div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
             {data.proposals.length === 0 ? (
               <div style={{ gridColumn: '1 / -1', padding: '32px 0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                 <FileText size={32} style={{ color: '#cbd5e1' }} />
                 <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#475569' }}>No Active Proposals</div>
-                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>You don't have any pending proposals. Generate one!</div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>You don't have any pending proposals. Create one above!</div>
               </div>
             ) : (
-              data.proposals.map((prop) => (
-                <div
-                  key={prop.id}
-                  style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '6px', background: '#f3e8ff', color: '#7e22ce', fontWeight: 800, textTransform: 'uppercase' }}>
-                      {prop.stage}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 800 }}>
-                      {prop.budget}
-                    </span>
-                  </div>
+              data.proposals.map((prop) => {
+                const getStageStyle = (st: string) => {
+                  switch (st) {
+                    case 'Won': return { bg: '#dcfce7', text: '#15803d', border: '1px solid #86efac' };
+                    case 'Negotiation': return { bg: '#fef3c7', text: '#b45309', border: '1px solid #fde68a' };
+                    case 'Viewed': return { bg: '#eff6ff', text: '#1d4ed8', border: '1px solid #bfdbfe' };
+                    case 'Sent': return { bg: '#f3e8ff', text: '#7e22ce', border: '1px solid #d8b4fe' };
+                    case 'Lost': return { bg: '#fee2e2', text: '#b91c1c', border: '1px solid #fca5a5' };
+                    default: return { bg: '#f1f5f9', text: '#475569', border: '1px solid #cbd5e1' };
+                  }
+                };
+                const style = getStageStyle(prop.stage);
 
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
-                    {prop.clientName}
+                return (
+                  <div
+                    key={prop.id}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderTop: prop.stage === 'Won' ? '3px solid #10b981' : prop.stage === 'Negotiation' ? '3px solid #f59e0b' : prop.stage === 'Sent' ? '3px solid #8b5cf6' : '3px solid #cbd5e1',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <select
+                        value={prop.stage}
+                        onChange={(e) => handleProposalStageChange(prop.id, e.target.value as any)}
+                        title="Change proposal stage (saves to database)"
+                        style={{
+                          fontSize: '0.72rem',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: style.bg,
+                          color: style.text,
+                          border: style.border,
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="Draft">Draft</option>
+                        <option value="Sent">Sent</option>
+                        <option value="Viewed">Viewed</option>
+                        <option value="Negotiation">Negotiation</option>
+                        <option value="Won">Won</option>
+                        <option value="Lost">Lost</option>
+                      </select>
+                      <span style={{ fontSize: '0.88rem', color: '#059669', fontWeight: 900 }}>
+                        {prop.budget}
+                      </span>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+                        {prop.title || prop.clientName}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, marginTop: '4px' }}>
+                        Client: <strong style={{ color: '#334155' }}>{prop.clientName}</strong> • {prop.companyName}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748b' }}>
+                        <span>Win Prob: <strong style={{ color: prop.stage === 'Won' ? '#10b981' : '#8b5cf6' }}>{prop.probability}%</strong></span>
+                        <span>{prop.lastUpdated}</span>
+                      </div>
+                      <div style={{ width: '100%', height: '5px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', marginTop: '6px' }}>
+                        <div style={{
+                          width: `${prop.probability}%`,
+                          height: '100%',
+                          background: prop.stage === 'Won' ? '#10b981' : prop.probability >= 70 ? '#8b5cf6' : '#f59e0b',
+                          transition: 'width 0.3s ease',
+                        }} />
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
-                    Company: <span style={{ color: '#334155', fontWeight: 700 }}>{prop.companyName}</span>
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Win Prob: <strong style={{ color: '#8b5cf6' }}>{prop.probability}%</strong></span>
-                    <span>Updated {prop.lastUpdated}</span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
 
         {/* ROW 6 — UNIFIED ACTIVITY TIMELINE & REVENUE FORECAST (2 COLUMNS) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
           {/* Unified Timeline */}
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ padding: '8px', background: '#fff7ed', borderRadius: '8px', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ffedd5' }}>
                   <Clock size={20} strokeWidth={2.5} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Unified Activity Timeline</h2>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Recent system and team activity log.</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>Unified Activity Timeline</h2>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#f1f5f9', color: '#475569' }}>
+                      {data.timeline.length} Logs
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Live sales intelligence & team execution audit log.</p>
                 </div>
               </div>
             </div>
-            <div style={{ height: '1px', background: 'linear-gradient(to right, #cbd5e1 0%, rgba(203, 213, 225, 0.1) 100%)', width: '100%', marginBottom: '4px' }}></div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {data.timeline.map((item) => (
-                <div key={item.id} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                  <div style={{ background: '#f8fafc', padding: '8px', borderRadius: '50%', color: '#f97316', border: '1px solid #e2e8f0', flexShrink: 0 }}>
-                    <Sparkles size={14} />
-                  </div>
-                  <div style={{ paddingBottom: '16px', borderBottom: '1px solid #f1f5f9', width: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                        {item.title}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>
-                        {item.timeAgo}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px', lineHeight: '1.4' }}>
-                      {item.details}
-                    </div>
-                  </div>
-                </div>
+            {/* Filter Pills */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', background: '#f8fafc', padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              {(['All', 'Deals', 'Meetings', 'Proposals', 'Leads', 'Outreach'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setTimelineFilter(tab)}
+                  style={{
+                    flex: 1,
+                    minWidth: '60px',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.88rem',
+                    fontWeight: timelineFilter === tab ? 600 : 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: timelineFilter === tab ? '#ffffff' : 'transparent',
+                    color: timelineFilter === tab ? 'var(--accent-indigo)' : '#64748b',
+                    boxShadow: timelineFilter === tab ? '0 2px 6px rgba(15, 23, 42, 0.08)' : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {tab}
+                </button>
               ))}
+            </div>
+
+            <div style={{ height: '1px', background: 'linear-gradient(to right, #cbd5e1 0%, rgba(203, 213, 225, 0.1) 100%)', width: '100%', margin: '4px 0' }}></div>
+
+            {/* Activity List with smooth scroll */}
+            <div
+              className="custom-scrollbar"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0px',
+                maxHeight: '450px',
+                overflowY: 'auto',
+                paddingLeft: '4px',
+                paddingRight: '22px',
+                paddingTop: '10px',
+                paddingBottom: '24px'
+              }}>
+              {(() => {
+                const filteredTimeline = data.timeline.filter((item) => {
+                  if (timelineFilter === 'All') return true;
+                  if (timelineFilter === 'Deals') return item.type === 'Deal Won';
+                  if (timelineFilter === 'Meetings') return item.type === 'Meeting Scheduled';
+                  if (timelineFilter === 'Proposals') return item.type === 'Proposal Sent' || item.type === 'Review Queue';
+                  if (timelineFilter === 'Leads') return item.type === 'LinkedIn Discovery' || item.type === 'Apollo Research';
+                  if (timelineFilter === 'Outreach') return item.type === 'Email Sent' || item.type === 'Task Completed';
+                  return true;
+                });
+
+                if (filteredTimeline.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '40px 16px', color: '#94a3b8', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                      <Activity size={32} style={{ margin: '0 auto 12px', opacity: 0.5, color: '#64748b' }} />
+                      <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>No activities found for this filter.</p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>Try selecting a different tab.</p>
+                    </div>
+                  );
+                }
+
+                return filteredTimeline.map((item, index) => {
+                  const visual = getActivityVisuals(item.type);
+                  const isLast = index === filteredTimeline.length - 1;
+                  return (
+                    <div key={item.id} style={{ display: 'flex', gap: '16px', alignItems: 'stretch', position: 'relative' }}>
+                      {/* Timeline vertical track line */}
+                      {!isLast && (
+                        <div style={{
+                          position: 'absolute',
+                          left: '17px',
+                          top: '36px',
+                          bottom: '-4px',
+                          width: '2px',
+                          background: 'linear-gradient(to bottom, #cbd5e1 0%, rgba(203, 213, 225, 0.4) 100%)',
+                          zIndex: 0
+                        }} />
+                      )}
+
+                      <div style={{
+                        position: 'relative',
+                        zIndex: 1,
+                        background: visual.bg,
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        color: visual.color,
+                        border: `2px solid #ffffff`,
+                        boxShadow: `0 0 0 1.5px ${visual.borderColor}, 0 2px 6px rgba(0,0,0,0.06)`,
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginTop: '4px'
+                      }}>
+                        {visual.icon}
+                      </div>
+
+                      <div style={{
+                        flex: 1,
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        marginBottom: '16px',
+                        boxShadow: '0 2px 8px rgba(15, 23, 42, 0.02)',
+                        transition: 'all 0.2s ease',
+                        cursor: 'default',
+                      }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.06)';
+                          e.currentTarget.style.borderColor = '#cbd5e1';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(15, 23, 42, 0.02)';
+                          e.currentTarget.style.borderColor = '#e2e8f0';
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a' }}>
+                              {item.title}
+                            </span>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              background: visual.badgeBg,
+                              color: visual.badgeColor,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              border: `1px solid ${visual.borderColor}40`
+                            }}>
+                              {item.type}
+                            </span>
+                          </div>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            color: '#64748b',
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#f8fafc',
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            border: '1px solid #f1f5f9'
+                          }}>
+                            <Clock size={11} strokeWidth={2.5} /> {item.timeAgo}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.84rem', color: '#475569', margin: '0 0 12px 0', lineHeight: '1.5' }}>
+                          {item.details}
+                        </p>
+                        {item.actor && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '0.72rem',
+                            color: '#94a3b8',
+                            fontWeight: 500,
+                            paddingTop: '12px',
+                            borderTop: '1px dashed #cbd5e1'
+                          }}>
+                            <span>Logged by</span>
+                            <span style={{
+                              color: 'var(--accent-indigo)',
+                              fontWeight: 700,
+                              background: '#eef2ff',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #e0e7ff'
+                            }}>
+                              {item.actor}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
 
@@ -826,6 +1496,444 @@ export default function BdeCommandCenterHome() {
         </div>
 
       </div> {/* End scrollable content */}
+
+      {/* SCHEDULE MEETING MODAL */}
+      {isScheduleModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '20px',
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '480px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#f8fafc',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ padding: '6px', background: '#eff6ff', borderRadius: '6px', color: '#2563eb' }}>
+                  <Calendar size={18} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>Schedule Sales Engagement</h3>
+              </div>
+              <button
+                onClick={() => setIsScheduleModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleScheduleMeetingSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Meeting Title *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Technical Discovery Call"
+                  value={newMeetingTitle}
+                  onChange={(e) => setNewMeetingTitle(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Client Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Alex Morgan"
+                    value={newMeetingClient}
+                    onChange={(e) => setNewMeetingClient(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Acme Corp"
+                    value={newMeetingCompany}
+                    onChange={(e) => setNewMeetingCompany(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Meeting Type
+                  </label>
+                  <select
+                    value={newMeetingType}
+                    onChange={(e) => setNewMeetingType(e.target.value as any)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                      background: '#ffffff',
+                    }}
+                  >
+                    <option value="Discovery Call">Discovery Call</option>
+                    <option value="Demo">Product Demo</option>
+                    <option value="Proposal Review">Proposal Review</option>
+                    <option value="Follow-up Reminder">Follow-up Call</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Time (Today)
+                  </label>
+                  <input
+                    type="time"
+                    value={newMeetingTime}
+                    onChange={(e) => setNewMeetingTime(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Client Email (Optional)
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. client@example.com"
+                  value={newMeetingEmail}
+                  onChange={(e) => setNewMeetingEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{
+                background: '#eff6ff',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                fontSize: '0.78rem',
+                color: '#1e40af',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <Video size={16} /> Auto-generates Google Meet video bridge link
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '9px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                  }}
+                >
+                  Save & Schedule
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE PROPOSAL MODAL */}
+      {isProposalModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '20px',
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '480px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#f8fafc',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ padding: '6px', background: '#f5f3ff', borderRadius: '6px', color: '#7c3aed' }}>
+                  <FileText size={18} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>Create Customer Proposal</h3>
+              </div>
+              <button
+                onClick={() => setIsProposalModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProposalSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Proposal / Project Title *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Dedicated React & Node Squad Acceleration"
+                  value={newPropTitle}
+                  onChange={(e) => setNewPropTitle(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Client Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Alex Morgan"
+                    value={newPropClient}
+                    onChange={(e) => setNewPropClient(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CloudScale Labs"
+                    value={newPropCompany}
+                    onChange={(e) => setNewPropCompany(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Budget (USD) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. $45,000"
+                    value={newPropBudget}
+                    onChange={(e) => setNewPropBudget(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Initial Stage
+                  </label>
+                  <select
+                    value={newPropStage}
+                    onChange={(e) => setNewPropStage(e.target.value as any)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                      background: '#ffffff',
+                    }}
+                  >
+                    <option value="Draft">Draft</option>
+                    <option value="Sent">Sent</option>
+                    <option value="Viewed">Viewed</option>
+                    <option value="Negotiation">Negotiation</option>
+                    <option value="Won">Won</option>
+                    <option value="Lost">Lost</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsProposalModalOpen(false)}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '9px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#7c3aed',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
+                  }}
+                >
+                  Save Proposal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
