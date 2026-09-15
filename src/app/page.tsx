@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import blob from '@/assets/blob.png';
 import {
   getBdeCommandCenterData,
@@ -9,7 +9,8 @@ import {
   updateMeetingStatus,
   scheduleNewMeeting,
   updateProposalStage,
-  createProposal
+  createProposal,
+  createBdeTask
 } from '@/features/command-center/actions';
 import { getMorningCommandCenterAction } from '@/features/refinement/actions';
 import { MorningDashboard } from '@/components/refinement/MorningDashboard';
@@ -112,6 +113,100 @@ function getActivityVisuals(type: string) {
   }
 }
 
+function ProposalStageDropdown({ 
+  currentStage, 
+  currentStyle, 
+  onChange 
+}: { 
+  currentStage: string, 
+  currentStyle: { bg: string, text: string, border: string },
+  onChange: (newStage: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const stages = ['Draft', 'Sent', 'Viewed', 'Negotiation', 'Won', 'Lost'];
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          fontSize: '0.72rem',
+          padding: '4px 10px',
+          borderRadius: '6px',
+          background: currentStyle.bg,
+          color: currentStyle.text,
+          border: currentStyle.border,
+          fontWeight: 800,
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          outline: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          transition: 'all 0.3s ease'
+        }}
+      >
+        {currentStage}
+        <ChevronRight size={12} style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease' }} />
+      </button>
+
+      <div style={{
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        marginTop: '6px',
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '8px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+        overflow: 'hidden',
+        zIndex: 50,
+        opacity: isOpen ? 1 : 0,
+        visibility: isOpen ? 'visible' : 'hidden',
+        transform: isOpen ? 'translateY(0)' : 'translateY(-8px)',
+        transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        minWidth: '130px',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {stages.map(stage => (
+          <div
+            key={stage}
+            onClick={() => {
+              onChange(stage);
+              setIsOpen(false);
+            }}
+            style={{
+              padding: '8px 12px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: currentStage === stage ? currentStyle.text : '#475569',
+              background: currentStage === stage ? currentStyle.bg : 'transparent',
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={(e) => { if(currentStage !== stage) e.currentTarget.style.background = '#f8fafc' }}
+            onMouseLeave={(e) => { if(currentStage !== stage) e.currentTarget.style.background = 'transparent' }}
+          >
+            {stage}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function BdeCommandCenterHome() {
   const [data, setData] = useState<BdeCommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,6 +217,14 @@ export default function BdeCommandCenterHome() {
 
   // Activity Timeline Filter State
   const [timelineFilter, setTimelineFilter] = useState<'All' | 'Deals' | 'Meetings' | 'Proposals' | 'Leads' | 'Outreach'>('All');
+
+  // Task Modal State
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<'HIGH' | 'NORMAL' | 'LOW'>('NORMAL');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskLinkedOpportunity, setNewTaskLinkedOpportunity] = useState('');
+  const [newTaskAssignedOwner, _setNewTaskAssignedOwner] = useState('Akash (Lead BDE)');
 
   // Schedule Meeting Modal State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -350,6 +453,28 @@ export default function BdeCommandCenterHome() {
       setData({ ...data, proposals: previousProposals });
       const msg = err instanceof Error ? err.message : 'Error updating proposal stage.';
       triggerNotification('error', msg);
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle) return;
+    try {
+      await createBdeTask({
+        title: newTaskTitle,
+        priority: newTaskPriority,
+        dueDate: newTaskDueDate || new Date().toISOString(),
+        linkedOpportunity: newTaskLinkedOpportunity,
+        assignedOwner: newTaskAssignedOwner,
+      });
+      triggerNotification('success', 'Task created successfully!');
+      setIsTaskModalOpen(false);
+      setNewTaskTitle('');
+      setNewTaskDueDate('');
+      setNewTaskLinkedOpportunity('');
+      await loadCommandCenter();
+    } catch (err: any) {
+      triggerNotification('error', err.message || 'Failed to create task');
     }
   };
 
@@ -681,8 +806,8 @@ export default function BdeCommandCenterHome() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
             {[
               { step: 1, name: 'AI Priorities', link: '/priorities', hint: 'Daily Queue' },
-              { step: 2, name: 'Research Company 360', link: '/company', hint: 'Tech Stack & Profiles' },
-              { step: 3, name: 'Apollo B2B Search', link: '/apollo-search', hint: 'Find Decision Makers' },
+              { step: 2, name: 'Apollo B2B Search', link: '/apollo-search', hint: 'Find Decision Makers' },
+              { step: 3, name: 'Research Company 360', link: '/company', hint: 'Tech Stack & Profiles' },
               { step: 4, name: 'AI Outreach Generator', link: '/engagement', hint: 'Personalized Copies' },
               { step: 5, name: 'Review Queue', link: '/review', hint: 'Approve & Dispatch' },
               { step: 6, name: 'Automated Sequences', link: '/re-engagement', hint: 'Follow-up Schedules' },
@@ -874,14 +999,35 @@ export default function BdeCommandCenterHome() {
           {/* ROW 3: My Tasks Queue */}
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ marginBottom: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ padding: '8px', background: '#f0fdf4', borderRadius: '8px', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bbf7d0' }}>
-                  <CheckCircle size={20} strokeWidth={2.5} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ padding: '8px', background: '#f0fdf4', borderRadius: '8px', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bbf7d0' }}>
+                    <CheckCircle size={20} strokeWidth={2.5} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>My Execution Tasks</h2>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Organize and track your daily sales activities.</p>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>My Execution Tasks</h2>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, fontWeight: 500 }}>Organize and track your daily sales activities.</p>
-                </div>
+                <button
+                  onClick={() => setIsTaskModalOpen(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 14px',
+                    borderRadius: '20px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
+                  }}
+                >
+                  <Plus size={16} /> Add Task
+                </button>
               </div>
             </div>
             <div style={{ height: '1px', background: 'linear-gradient(to right, #cbd5e1 0%, rgba(203, 213, 225, 0.1) 100%)', width: '100%', marginBottom: '4px' }}></div>
@@ -1185,30 +1331,11 @@ export default function BdeCommandCenterHome() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <select
-                        value={prop.stage}
-                        onChange={(e) => handleProposalStageChange(prop.id, e.target.value as any)}
-                        title="Change proposal stage (saves to database)"
-                        style={{
-                          fontSize: '0.72rem',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          background: style.bg,
-                          color: style.text,
-                          border: style.border,
-                          fontWeight: 800,
-                          textTransform: 'uppercase',
-                          cursor: 'pointer',
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="Draft">Draft</option>
-                        <option value="Sent">Sent</option>
-                        <option value="Viewed">Viewed</option>
-                        <option value="Negotiation">Negotiation</option>
-                        <option value="Won">Won</option>
-                        <option value="Lost">Lost</option>
-                      </select>
+                      <ProposalStageDropdown
+                        currentStage={prop.stage}
+                        currentStyle={style}
+                        onChange={(newStage) => handleProposalStageChange(prop.id, newStage as any)}
+                      />
                       <span style={{ fontSize: '0.88rem', color: '#059669', fontWeight: 900 }}>
                         {prop.budget}
                       </span>
@@ -1934,6 +2061,46 @@ export default function BdeCommandCenterHome() {
           </div>
         </div>
       )}
+
+      {/* CREATE TASK MODAL */}
+      {isTaskModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#ffffff', width: '100%', maxWidth: '440px', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Add New Task</h3>
+              <button onClick={() => setIsTaskModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Task Title *</label>
+                <input required type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="e.g. Call CEO of Stripe" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Linked Opportunity</label>
+                <input type="text" value={newTaskLinkedOpportunity} onChange={(e) => setNewTaskLinkedOpportunity(e.target.value)} placeholder="e.g. Stripe Enterprise Deal" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Due Date</label>
+                  <input type="date" value={newTaskDueDate} onChange={(e) => setNewTaskDueDate(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Priority</label>
+                  <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as any)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', background: '#fff' }}>
+                    <option value="HIGH">High</option>
+                    <option value="NORMAL">Normal</option>
+                    <option value="LOW">Low</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" style={{ marginTop: '8px', width: '100%', background: '#4f46e5', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s' }}>
+                Create Task
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

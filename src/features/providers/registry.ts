@@ -21,17 +21,18 @@ export class ProviderRegistry {
   }
 
   /**
-   * Version 1 Core Providers: Apollo.io, LinkedIn, Crunchbase, GitHub.
-   * Other secondary providers commented out for lightweight V1 release.
+   * V1: Apollo.io is the only live provider. LinkedIn, Crunchbase and GitHub
+   * are registered as visible "Coming Soon" placeholders (see their getStatus()),
+   * so the UI can list the full roadmap without fabricating data for them.
    */
   private registerDefaultProviders() {
-    // 1. Apollo.io
+    // 1. Apollo.io — live
     this.register(new ApolloLeadProvider());
-    // 2. LinkedIn
+    // 2. LinkedIn — coming soon
     this.register(new LinkedInLeadProvider());
-    // 3. Crunchbase
+    // 3. Crunchbase — coming soon
     this.register(new CrunchbaseLeadProvider());
-    // 4. GitHub
+    // 4. GitHub — coming soon
     this.register(new GitHubLeadProvider());
   }
 

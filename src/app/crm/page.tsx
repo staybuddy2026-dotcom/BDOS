@@ -42,6 +42,7 @@ import {
   CrmAiBriefing
 } from '@/features/crm/actions';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+import { CustomDropdown } from '@/components/CustomDropdown';
 import blob from '@/assets/blob.png';
 import '@/styles/dashboard.css';
 import '@/styles/globals.css';
@@ -374,43 +375,45 @@ export default function EnterpriseCrmPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
         borderBottom: '1px solid var(--border-subtle)',
-        height: '65px',
+        minHeight: '72px',
+        flexWrap: 'wrap',
+        gap: '16px',
         flexShrink: 0,
-        padding: '0 28px',
+        padding: '12px 24px',
         background: 'var(--bg-primary)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 400px', minWidth: '400px' }}>
           <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Building2 size={18} style={{ color: '#ffffff' }} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.3rem', fontWeight: 800, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
-              Enterprise CRM & Customer Lifecycle Management
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 900, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0, letterSpacing: '-0.01em' }}>
+              Enterprise CRM Workspace
             </h1>
-            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
-              Manage end-to-end sales lifecycle: Lead ➔ Meeting Scheduled ➔ Proposal Sent ➔ Negotiation ➔ Won Client ➔ Repeat Business.
+            <p style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, marginTop: '4px', margin: 0 }}>
+              Manage your end-to-end sales lifecycle and pipeline velocity.
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* Mode Switcher */}
           <div className="apollo-toggle-bg" style={{ margin: 0 }}>
             <div className="apollo-toggle-slider" data-mode={viewMode === 'kanban' ? 'companies' : 'people'} />
             <button
               className={`apollo-toggle-btn ${viewMode === 'detail' ? 'active' : ''}`}
               onClick={() => setViewMode('detail')}
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
             >
-              <List size={16} /> 3-Pane Detail View
+              <List size={14} /> 3-Pane View
             </button>
             <button
               className={`apollo-toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`}
               onClick={() => setViewMode('kanban')}
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
             >
-              <Kanban size={16} /> Kanban Stage Funnel
+              <Kanban size={14} /> Stage Funnel
             </button>
           </div>
 
@@ -504,7 +507,7 @@ export default function EnterpriseCrmPage() {
           };
 
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', width: '100%', boxSizing: 'border-box', marginTop: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', width: '100%', boxSizing: 'border-box', marginTop: '12px' }}>
               {[
                 { label: 'Total Accounts', value: `${kpis.totalAccounts}`, color: '#3b82f6', pattern: 1, footerText: 'Accts' },
                 { label: 'Meetings', value: `${kpis.meetingsScheduled}`, color: '#059669', pattern: 2, footerText: 'Calls' },
@@ -603,9 +606,9 @@ export default function EnterpriseCrmPage() {
           </div>
         ) : (
           /* VIEW MODE 2: 3-PANE ACCOUNT DETAIL VIEW */
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', marginTop: '16px' }}>
+          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '16px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', marginTop: '16px' }}>
             {/* LEFT PANEL: Account List & Search */}
-            <div style={{ flex: '0 0 280px', background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', boxSizing: 'border-box', minWidth: 0 }}>
+            <div style={{ flex: '0 0 250px', background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '14px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', boxSizing: 'border-box', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.01em' }}>
                   <Building2 size={18} style={{ color: '#2563eb' }} /> Accounts ({accounts.length})
@@ -685,26 +688,53 @@ export default function EnterpriseCrmPage() {
                       <div
                         key={acc.id}
                         onClick={() => setSelectedAccount(acc)}
-                        className={`bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg py-2.5 px-3 cursor-pointer flex flex-col gap-1 transition-all duration-150 box-border hover:border-[var(--accent-indigo)] hover:translate-x-0.5 ${isSelected ? 'selected' : ''}`}
+                        className={`transition-all duration-200 box-border cursor-pointer flex flex-col gap-1.5`}
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: '10px',
+                          border: isSelected ? '1.5px solid #6366f1' : '1.5px solid #e2e8f0',
+                          background: isSelected ? 'linear-gradient(to right, #f8faff, #ffffff)' : '#ffffff',
+                          boxShadow: isSelected ? '0 4px 14px rgba(99, 102, 241, 0.12)' : '0 2px 4px rgba(0,0,0,0.01)',
+                          transform: isSelected ? 'translateX(2px)' : 'none',
+                        }}
+                        onMouseEnter={(e) => { 
+                          if(!isSelected) {
+                            e.currentTarget.style.borderColor = '#cbd5e1'; 
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.04)';
+                          }
+                        }}
+                        onMouseLeave={(e) => { 
+                          if(!isSelected) {
+                            e.currentTarget.style.borderColor = '#e2e8f0'; 
+                            e.currentTarget.style.transform = 'none';
+                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.01)';
+                          }
+                        }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', lineHeight: '1.2' }}>
                             {acc.name}
                           </span>
-                          <span style={{ fontSize: '0.72rem', background: 'var(--color-success-bg)', color: 'var(--color-success)', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                          <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#059669', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, whiteSpace: 'nowrap', border: '1px solid #d1fae5' }}>
                             {acc.dealValue}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+                          <span style={{ fontSize: '0.74rem', color: '#4f46e5', fontWeight: 700, background: '#e0e7ff', padding: '2px 6px', borderRadius: '4px' }}>
                             {acc.stage}
                           </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            Win: <strong>{acc.winProbability}%</strong>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>
+                            Win: <strong style={{ color: '#0f172a', fontWeight: 700 }}>{acc.winProbability}%</strong>
                           </span>
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                          {acc.industry} • {acc.employeeCount} Empl.
+                        
+                        <div style={{ fontSize: '0.72rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <Building2 size={12} style={{ opacity: 0.6 }} /> 
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {acc.industry}
+                          </span>
                         </div>
                       </div>
                     );
@@ -742,54 +772,53 @@ export default function EnterpriseCrmPage() {
                   </div>
 
                   {/* Quick Stage Mover & Action Buttons */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>Stage:</span>
-                      <select
-                        value={selectedAccount.stage}
-                        onChange={(e) => handleStageChange(selectedAccount, e.target.value as CrmStage)}
-                        style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.78rem', background: '#ffffff', color: '#0f172a', border: '1px solid var(--border-subtle)', fontWeight: 800, outline: 'none', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                      >
-                        {CRM_STAGES.map((stg) => (
-                          <option key={stg} value={stg}>{stg}</option>
-                        ))}
-                      </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 180px', minWidth: '180px', maxWidth: '280px' }}>
+                      <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stage</span>
+                      <div style={{ flex: 1 }}>
+                        <CustomDropdown
+                          value={selectedAccount.stage}
+                          onChange={(val) => handleStageChange(selectedAccount, val as CrmStage)}
+                          options={CRM_STAGES.map(s => ({ value: s, label: s }))}
+                        />
+                      </div>
                     </div>
 
-                    <button
-                      onClick={() => setShowMeetingModal(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg font-bold cursor-pointer transition-all duration-200 whitespace-nowrap"
-                      style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#334155', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent-indigo)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.1)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
-                    >
-                      <Video size={14} style={{ color: 'var(--accent-indigo)' }} /> Log Meeting
-                    </button>
+                    <div style={{ width: '1.5px', height: '28px', background: '#cbd5e1', margin: '0 4px' }} />
 
-                    <button
-                      onClick={() => setShowProposalModal(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg font-bold cursor-pointer transition-all duration-200 whitespace-nowrap"
-                      style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#334155', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0284c7'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(2, 132, 199, 0.1)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
-                    >
-                      <FileText size={14} style={{ color: '#0284c7' }} /> Proposal
-                    </button>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        onClick={() => setShowMeetingModal(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.82rem', background: '#ffffff', color: '#0f172a', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent-indigo)'; e.currentTarget.style.color = 'var(--accent-indigo)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.transform = 'none'; }}
+                      >
+                        <Video size={15} style={{ color: 'var(--accent-indigo)' }} /> Log Meeting
+                      </button>
 
-                    <button
-                      onClick={() => setShowTaskModal(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg font-bold cursor-pointer transition-all duration-200 whitespace-nowrap"
-                      style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#334155', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-success)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.1)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
-                    >
-                      <Plus size={14} style={{ color: 'var(--color-success)' }} /> Task
-                    </button>
+                      <button
+                        onClick={() => setShowProposalModal(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.82rem', background: '#ffffff', color: '#0f172a', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0284c7'; e.currentTarget.style.color = '#0284c7'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.transform = 'none'; }}
+                      >
+                        <FileText size={15} style={{ color: '#0284c7' }} /> Proposal
+                      </button>
+
+                      <button
+                        onClick={() => setShowTaskModal(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.82rem', background: '#ffffff', color: '#0f172a', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-success)'; e.currentTarget.style.color = 'var(--color-success)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.transform = 'none'; }}
+                      >
+                        <Plus size={15} style={{ color: 'var(--color-success)' }} /> Task
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Tabs Navigation */}
-                <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-hide" style={{ background: '#f8fafc', padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', paddingBottom: '16px', borderBottom: '1.5px solid #e2e8f0', marginTop: '28px' }}>
                   {[
                     { id: 'overview', label: 'Overview & Contacts', count: selectedAccount.decisionMakers.length },
                     { id: 'meetings', label: 'Meetings', count: selectedAccount.meetings.length },
@@ -802,23 +831,34 @@ export default function EnterpriseCrmPage() {
                       <button
                         key={t.id}
                         onClick={() => setActiveCenterTab(t.id as any)}
-                        className={`py-2 px-3 rounded-md text-[0.78rem] font-bold cursor-pointer inline-flex items-center gap-2 transition-all duration-200 whitespace-nowrap shrink-0`}
                         style={{
-                          background: isActive ? '#ffffff' : 'transparent',
-                          color: isActive ? 'var(--accent-indigo)' : '#64748b',
-                          boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-                          border: isActive ? '1px solid #e2e8f0' : '1px solid transparent'
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 18px',
+                          borderRadius: '9999px',
+                          fontSize: '0.85rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          transition: 'all 0.2s ease',
+                          background: isActive ? '#eef2ff' : '#ffffff',
+                          color: isActive ? '#4f46e5' : '#64748b',
+                          border: isActive ? '1px solid #c7d2fe' : '1px solid #e2e8f0',
+                          boxShadow: isActive ? '0 4px 12px rgba(79, 70, 229, 0.1)' : '0 2px 4px rgba(0,0,0,0.02)'
                         }}
+                        onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#334155'; } }}
+                        onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b'; } }}
                       >
                         {t.label} 
                         <span style={{ 
                           fontSize: '0.7rem', 
-                          background: isActive ? 'var(--accent-indigo)' : '#e2e8f0', 
+                          background: isActive ? '#4f46e5' : '#f1f5f9', 
                           color: isActive ? '#ffffff' : '#64748b', 
-                          padding: '2px 8px', 
+                          padding: '2px 10px', 
                           borderRadius: '12px', 
-                          fontWeight: 800,
-                          transition: 'all 0.2s'
+                          fontWeight: 900
                         }}>
                           {t.count}
                         </span>
@@ -969,8 +1009,9 @@ export default function EnterpriseCrmPage() {
                       </h4>
                       <button
                         onClick={() => setShowProposalModal(true)}
-                        className="inline-flex items-center gap-1.5 py-2 px-[14px] rounded-lg bg-gradient-to-br from-[var(--accent-indigo)] to-[#00b386] text-white font-extrabold text-[0.78rem] border-none cursor-pointer shadow-[0_4px_12px_rgba(0,208,156,0.22)] transition-all duration-150 whitespace-nowrap hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(0,208,156,0.3)]"
-                        style={{ padding: '6px 12px', fontSize: '0.76rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#ffffff', fontWeight: 800, fontSize: '0.8rem', border: 'none', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)', whiteSpace: 'nowrap' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.4)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)'; }}
                       >
                         <Plus size={14} /> New Proposal
                       </button>
@@ -1010,8 +1051,9 @@ export default function EnterpriseCrmPage() {
                       </h4>
                       <button
                         onClick={() => setShowTaskModal(true)}
-                        className="inline-flex items-center gap-1.5 py-2 px-[14px] rounded-lg bg-gradient-to-br from-[var(--accent-indigo)] to-[#00b386] text-white font-extrabold text-[0.78rem] border-none cursor-pointer shadow-[0_4px_12px_rgba(0,208,156,0.22)] transition-all duration-150 whitespace-nowrap hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(0,208,156,0.3)]"
-                        style={{ padding: '6px 12px', fontSize: '0.76rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#ffffff', fontWeight: 800, fontSize: '0.8rem', border: 'none', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)', whiteSpace: 'nowrap' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.4)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)'; }}
                       >
                         <Plus size={14} /> Add Task
                       </button>
@@ -1065,7 +1107,7 @@ export default function EnterpriseCrmPage() {
                         placeholder="Add a quick note, call summary or stage update..."
                         style={{ flex: 1, height: '40px', padding: '0 14px', borderRadius: '8px', background: '#ffffff', color: '#0f172a', border: '1.5px solid var(--border-subtle)', fontSize: '0.84rem', fontWeight: 600, outline: 'none' }}
                       />
-                      <button type="submit" className="inline-flex items-center gap-1.5 py-2 px-[14px] rounded-lg bg-gradient-to-br from-[var(--accent-indigo)] to-[#00b386] text-white font-extrabold text-[0.78rem] border-none cursor-pointer shadow-[0_4px_12px_rgba(0,208,156,0.22)] transition-all duration-150 whitespace-nowrap hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(0,208,156,0.3)]" style={{ padding: '0 16px', height: '40px' }}>
+                      <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0 20px', height: '40px', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#ffffff', fontWeight: 800, fontSize: '0.8rem', border: 'none', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)', whiteSpace: 'nowrap' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.4)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)'; }}>
                         <Send size={14} /> Log Note
                       </button>
                     </form>
@@ -1126,7 +1168,7 @@ export default function EnterpriseCrmPage() {
             )}
 
             {/* RIGHT PANEL: AI CRM Assistant */}
-            <div style={{ flex: '0 0 320px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', borderTop: '4px solid #3b82f6', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', boxSizing: 'border-box', minWidth: 0 }}>
+            <div style={{ flex: '0 0 280px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', borderTop: '4px solid #3b82f6', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', boxSizing: 'border-box', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1.5px solid var(--border-subtle)', paddingBottom: '12px' }}>
                 <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '8px', borderRadius: '8px' }}>
                   <Zap size={18} style={{ color: '#3b82f6' }} />
@@ -1153,8 +1195,8 @@ export default function EnterpriseCrmPage() {
                   {/* Closing Probability */}
                   <div style={{ background: 'var(--color-success-bg)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 800 }}>Probability To Close</div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--color-success)', marginTop: '2px' }}>
-                      {aiBriefing.probabilityToClose}% <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>High Intent</span>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--color-success)', marginTop: '2px' }}>
+                      {aiBriefing.probabilityToClose}% <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>High Intent</span>
                     </div>
                   </div>
 

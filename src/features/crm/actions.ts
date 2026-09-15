@@ -118,7 +118,15 @@ async function loadCrmStoreFromDb() {
   try {
     const record = await db.applicationSettings.findUnique({ where: { key: 'crm_accounts_store' } }).catch(() => null);
     if (record && record.value) {
-      crmAccountsStore = JSON.parse(record.value);
+      const parsed = JSON.parse(record.value) as CrmAccount[];
+      // Sanitize deal values for any existing corrupted records (ranges parsed as billions)
+      for (const acc of parsed) {
+        if (acc.dealValueNumber > 10000000) {
+          const match = acc.dealValue.match(/[0-9][0-9,.]*/);
+          acc.dealValueNumber = match ? parseInt(match[0].replace(/[^0-9]/g, ''), 10) : 50000;
+        }
+      }
+      crmAccountsStore = parsed;
     }
   } catch (err) {
     logger.error('Failed to load CRM store from DB', err);
@@ -151,6 +159,17 @@ export async function getCrmAccounts(params?: {
     await AuthService.verifySession();
     logger.info('Querying Enterprise CRM Accounts & LifeCycle Data...');
     await loadCrmStoreFromDb();
+
+    // Deduplicate the global store by domain or name
+    const uniqueMap = new Map<string, CrmAccount>();
+    for (const acc of crmAccountsStore) {
+      const key = (acc.domain || acc.name).toLowerCase().trim();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, acc);
+      }
+    }
+    crmAccountsStore.length = 0;
+    crmAccountsStore.push(...uniqueMap.values());
 
     let filtered = [...crmAccountsStore];
     if (params?.search) {
@@ -585,7 +604,14 @@ export async function importLeadsFromDiscovery() {
     const batchToImport = newLeadsToImport.slice(0, 6);
 
     const newlyCreated: CrmAccount[] = batchToImport.map((lead, idx) => {
-      const numericBudget = parseInt((lead.estimatedBudgetUsd || '').replace(/[^0-9]/g, ''), 10) || (lead.buyingScore >= 90 ? 75000 : 50000);
+      let numericBudget = lead.buyingScore >= 90 ? 75000 : 50000;
+      if (lead.estimatedBudgetUsd && lead.estimatedBudgetUsd !== 'N/A') {
+        const match = lead.estimatedBudgetUsd.match(/[0-9][0-9,.]*/);
+        if (match) {
+          numericBudget = parseInt(match[0].replace(/[^0-9]/g, ''), 10);
+        }
+      }
+      
       const estArr = lead.fundingSummary || `$${Math.max(4, Math.floor((lead.employeeCount || 80) * 0.14))}M ARR`;
 
       return {

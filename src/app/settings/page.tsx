@@ -201,16 +201,20 @@ export default function SettingsPage() {
   // Secret Key Save Modal Handler
   const handleSaveSecretKey = async () => {
     if (!keyModalConnector || !secretKeyInput.trim()) return;
+    if (keyModalConnector.id !== 'apollo') {
+      triggerNotification('error', `${keyModalConnector.name} is coming soon and does not accept credentials yet.`);
+      setKeyModalConnector(null);
+      setSecretKeyInput('');
+      return;
+    }
     setActionLoading(true);
     try {
-      if (keyModalConnector.id === 'apollo') {
-        setApolloApiKey(secretKeyInput);
-        await updateAppSettings({
-          primaryTone, secondaryTone, tertiaryTone, activeModel, weeklyLimit,
-          apolloEnabled, apolloConfirmRequired, apolloMaxEnrich, apolloAllowPersonalEmail,
-          apolloAllowPhone, apolloCreditWarningThreshold, apolloApiKey: secretKeyInput
-        });
-      }
+      setApolloApiKey(secretKeyInput);
+      await updateAppSettings({
+        primaryTone, secondaryTone, tertiaryTone, activeModel, weeklyLimit,
+        apolloEnabled, apolloConfirmRequired, apolloMaxEnrich, apolloAllowPersonalEmail,
+        apolloAllowPhone, apolloCreditWarningThreshold, apolloApiKey: secretKeyInput
+      });
       setConnectors(prev => prev.map(c => c.id === keyModalConnector.id ? { ...c, apiKeyMasked: `${secretKeyInput.slice(0, 7)}••••••••${secretKeyInput.slice(-4)}` } : c));
       triggerNotification('success', `Updated Secret Key for ${keyModalConnector.name}!`);
       setKeyModalConnector(null);
@@ -512,7 +516,9 @@ export default function SettingsPage() {
                           setKeyModalConnector({ id: c.id, name: c.name });
                           setSecretKeyInput(c.id === 'apollo' ? apolloApiKey : '');
                         }}
-                        style={{ padding: '6px 12px', fontSize: '0.82rem', background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', border: '1px solid rgba(37, 99, 235, 0.2)', borderRadius: '6px', cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
+                        disabled={c.id !== 'apollo'}
+                        title={c.id !== 'apollo' ? `${c.name} is coming soon` : undefined}
+                        style={{ padding: '6px 12px', fontSize: '0.82rem', background: c.id !== 'apollo' ? 'rgba(100, 116, 139, 0.1)' : 'rgba(37, 99, 235, 0.1)', color: c.id !== 'apollo' ? '#94a3b8' : '#2563eb', border: c.id !== 'apollo' ? '1px solid rgba(100, 116, 139, 0.15)' : '1px solid rgba(37, 99, 235, 0.2)', borderRadius: '6px', cursor: c.id !== 'apollo' ? 'not-allowed' : 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
                       >
                         <Key size={14} /> Configure Key
                       </button>
@@ -630,7 +636,17 @@ export default function SettingsPage() {
               </div>
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#10b981' }}>Apollo Direct API Connected</strong></span>
+                {(() => {
+                  const apolloConnector = connectors.find(c => c.id === 'apollo');
+                  const isConnected = apolloConnector?.status === 'Connected';
+                  return (
+                    <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                      Status: <strong style={{ color: isConnected ? '#10b981' : '#d97706' }}>
+                        {isConnected ? 'Apollo Direct API Connected' : (apolloConnector?.status || 'Not Connected')}
+                      </strong>
+                    </span>
+                  );
+                })()}
                 <button
                   onClick={() => handleSaveConfig()}
                   disabled={actionLoading}
@@ -650,29 +666,15 @@ export default function SettingsPage() {
                 <Share2 size={18} style={{ color: '#3b82f6' }} /> LinkedIn Social Intelligence Configuration
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                <div>
-                  <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>LinkedIn Client ID</label>
-                  <input
-                    type="password"
-                    defaultValue="li_cli_id_981452912401"
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', fontSize: '0.8rem', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Daily Ingestion Rate Limit</label>
-                  <div style={{ padding: '8px 12px', borderRadius: '6px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#10b981', fontSize: '0.82rem', fontWeight: 700 }}>
-                    1,890 / 2,000 Requests Remaining Today
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px', borderRadius: '8px', background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
+                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <div style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  <strong>Coming Soon.</strong> LinkedIn is not yet a live integration in this release — no credentials are configured and no data is fetched from LinkedIn. Use <strong>Apollo.io</strong> for live prospecting today.
                 </div>
               </div>
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#10b981' }}>Connected</strong></span>
-                <button onClick={() => triggerNotification('success', 'LinkedIn settings saved!')} className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 800, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)' }}>
-                  Save LinkedIn Settings
-                </button>
+                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#d97706' }}>Coming Soon</strong></span>
               </div>
             </div>
           )}
@@ -684,29 +686,15 @@ export default function SettingsPage() {
                 <TrendingUp size={18} style={{ color: '#3b82f6' }} /> Crunchbase Growth Intelligence Configuration
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                <div>
-                  <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Crunchbase API Key</label>
-                  <input
-                    type="password"
-                    defaultValue="cb_live_sk_891458912401"
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', fontSize: '0.8rem', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Daily Quota Remaining</label>
-                  <div style={{ padding: '8px 12px', borderRadius: '6px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#10b981', fontSize: '0.82rem', fontWeight: 700 }}>
-                    2,420 / 2,500 Requests Available Today
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px', borderRadius: '8px', background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
+                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <div style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  <strong>Coming Soon.</strong> Crunchbase is not yet a live integration in this release — no credentials are configured and no data is fetched from Crunchbase. Use <strong>Apollo.io</strong> for live prospecting today.
                 </div>
               </div>
 
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#10b981' }}>Connected</strong></span>
-                <button onClick={() => triggerNotification('success', 'Crunchbase settings saved!')} className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 800, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)' }}>
-                  Save Crunchbase Settings
-                </button>
+                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#d97706' }}>Coming Soon</strong></span>
               </div>
             </div>
           )}
@@ -718,33 +706,15 @@ export default function SettingsPage() {
                 <Zap size={18} style={{ color: '#3b82f6' }} /> GitHub Engineering Intelligence Provider Configuration
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <div>
-                  <label style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>GitHub Provider Status</label>
-                  <CustomDropdown
-                    value="true"
-                    onChange={() => {}}
-                    options={[
-                      { value: 'true', label: 'Enabled (Official REST API Active)' },
-                      { value: 'false', label: 'Disabled' }
-                    ]}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>GitHub Personal Access Token (PAT)</label>
-                  <input
-                    type="password"
-                    defaultValue="ghp_live_pat_token_********************"
-                    style={{ width: '100%', fontSize: '0.8rem', padding: '8px', fontFamily: 'monospace', background: '#ffffff', color: '#0f172a', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                  />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px', borderRadius: '8px', background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
+                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <div style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  <strong>Coming Soon.</strong> GitHub is not yet a live integration in this release — no credentials are configured and no data is fetched from GitHub. Use <strong>Apollo.io</strong> for live prospecting today.
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px' }}>
-                <button onClick={() => triggerNotification('success', 'GitHub settings saved!')} className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 800, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)' }}>
-                  <Save size={13} /> Save GitHub Settings
-                </button>
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#d97706' }}>Coming Soon</strong></span>
               </div>
             </div>
           )}
@@ -760,7 +730,7 @@ export default function SettingsPage() {
                 <div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Intelligence Weighting Model</label>
                   <div style={{ fontSize: '0.76rem', color: '#64748b', background: '#ffffff', border: '1px solid #e2e8f0', padding: '10px', borderRadius: '6px' }}>
-                    Crunchbase (25%) • GitHub (25%) • Apollo (25%) • LinkedIn (25%)
+                    Apollo (100%) — Crunchbase, GitHub & LinkedIn signals coming soon
                   </div>
                 </div>
 

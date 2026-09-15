@@ -9,8 +9,6 @@ import { getMigratedCompaniesFromDbAction } from '../discovery/actions';
 import { calculateAiOpportunityScore, generateRecommendedServices, generateExecutiveBriefing } from './scoring';
 import { createCrmDealFromMarketplaceOpportunity } from '@/features/crm/actions';
 import { sendMarketplaceProjectToReviewQueue } from '@/features/marketplace/actions';
-import { getProductHuntProductData } from '../producthunt/client';
-import { getRedditCompanyDiscussions } from '../reddit/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
 // Curated Master Company Store
@@ -84,8 +82,8 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       } as any;
     }
 
-    const productHunt = await getProductHuntProductData(cleaned);
-    const reddit = await getRedditCompanyDiscussions(cleaned);
+    const productHunt = undefined; // disabled
+    const reddit = undefined; // disabled
 
     const apolloSeed: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[] } = {
       companyName: migratedLead?.companyName || companyName,

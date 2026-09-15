@@ -305,9 +305,11 @@ async function runTestSuite() {
 
   // 11. Apollo Provider & Error Handling
   await runTest('Apollo Provider Match & Error Handling', async () => {
+    // In mock/test mode (no live APOLLO_API_KEY), searchPeople must return an
+    // empty result rather than fabricating a fake match — no dummy leads.
     const matches = await apolloProvider.searchPeople({ name: 'Marcus Aurelius', domain: 'logicflow.io' });
-    assert(matches.length > 0, 'Apollo provider searchPeople must return matches.');
-    assert(matches[0].personName === 'Marcus Aurelius', 'Matched person name must match search query.');
+    assert(Array.isArray(matches), 'Apollo provider searchPeople must return an array.');
+    assert(matches.length === 0, 'Apollo provider must not fabricate matches when no live API key is configured.');
   });
 
   // 12. Production Mock Safety Guards

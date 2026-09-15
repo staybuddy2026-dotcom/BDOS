@@ -803,7 +803,7 @@ export default function ApolloSearchPage() {
           {/* Top Navigation & Breadcrumb */}
           <BreadcrumbHeader
             currentTitle="Apollo B2B Search"
-            stepNumber={3}
+            stepNumber={2}
             totalSteps={7}
             badge="Executive Prospecting"
           />
@@ -934,7 +934,7 @@ export default function ApolloSearchPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
               {providersList.map((p) => {
                 const isSelected = selectedProviderId === p.id;
-                const isLive = p.id === 'apollo';
+                const isLive = p.isLive === true && p.status === 'Connected';
 
                 // Determine premium icons and colors based on provider
                 let IconStr = "A";
@@ -1089,6 +1089,10 @@ export default function ApolloSearchPage() {
               }
             }}
             onApplyHiringFilter={(keyword) => {
+              if (selectedProviderId !== 'apollo') {
+                triggerNotification('error', 'Switch to Apollo.io to run a live search.');
+                return;
+              }
               setPage(1);
               if (searchMode === 'people') {
                 executePeopleSearch(1);
@@ -1186,46 +1190,13 @@ export default function ApolloSearchPage() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label>Company Domain</label>
-                    <input
-                      type="text"
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value)}
-                      placeholder="e.g. logicflow.io"
-
-                    />
-                  </div>
-
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">SECTION C — TECHNOLOGY</div>
-                  <div className="flex flex-col gap-1.5">
-                    <label>Technology Used</label>
-                    <input
-                      type="text"
-                      value={techUsage}
-                      onChange={(e) => setTechUsage(e.target.value)}
-                      placeholder="React, Node.js, Flutter, AWS"
-
-                    />
-                  </div>
-
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">SECTION D — GROWTH SIGNALS</div>
-                  <div className="flex flex-col gap-1.5">
-                    <label>Hiring Activity</label>
-                    <input
-                      type="text"
-                      value={hiringActivity}
-                      onChange={(e) => setHiringActivity(e.target.value)}
-                      placeholder="Hiring developers, hiring CTO"
-
-                    />
-                  </div>
 
                   <button
                     onClick={() => executePeopleSearch(1)}
-                    disabled={loading}
+                    disabled={loading || selectedProviderId !== 'apollo'}
                     className="btn-primary"
                     style={{ width: '100%', justifyContent: 'center', marginTop: '12px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', height: '38px' }}
+                    title={selectedProviderId !== 'apollo' ? 'Switch to Apollo.io to run a live search' : undefined}
                   >
                     <Search size={15} /> Execute People Search
                   </button>
@@ -1376,9 +1347,10 @@ export default function ApolloSearchPage() {
 
                   <button
                     onClick={() => executeCompanySearch(1)}
-                    disabled={loading}
+                    disabled={loading || selectedProviderId !== 'apollo'}
                     className="btn-primary"
                     style={{ width: '100%', justifyContent: 'center', marginTop: '12px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', height: '38px' }}
+                    title={selectedProviderId !== 'apollo' ? 'Switch to Apollo.io to run a live search' : undefined}
                   >
                     <Search size={15} /> Execute Company Search
                   </button>
@@ -1748,59 +1720,68 @@ export default function ApolloSearchPage() {
 
           {/* Link to Review Queue Opportunity Modal */}
           {showLinkModal && selectedPersonForLink && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-              <div className="card-glass" style={{ width: '100%', maxWidth: '500px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(99,102,241,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '10px', borderRadius: '10px' }}>
-                    <LinkIcon size={24} style={{ color: 'var(--accent-violet)' }} />
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setShowLinkModal(false)}>
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', width: '100%', maxWidth: '540px', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #f1f5f9', paddingBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
+                      <LinkIcon size={20} style={{ color: '#ffffff' }} />
+                    </div>
+                    <div>
+                       <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.01em' }}>Link Opportunity</h3>
+                       <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>Attach research metadata to a candidate post</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>Link Research to Opportunity</h3>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Attach Apollo prospect metadata to Review Queue candidate post</p>
-                  </div>
+                  <button onClick={() => setShowLinkModal(false)} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', padding: 0 }} onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }} onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}>
+                    <span style={{ fontSize: '1.35rem', lineHeight: '1' }}>×</span>
+                  </button>
                 </div>
 
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                  Attach prospect <strong style={{ color: 'var(--text-primary)' }}>{formatPersonName(selectedPersonForLink.personName)}</strong> ({selectedPersonForLink.organizationName || 'Company'}) to an active Review Queue candidate post:
-                </p>
+                <div style={{ fontSize: '0.86rem', color: '#334155', lineHeight: '1.6', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                  Attach prospect <strong style={{ color: '#0f172a', fontWeight: 800 }}>{formatPersonName(selectedPersonForLink.personName)}</strong> ({selectedPersonForLink.organizationName || 'Company'}) to an active Review Queue candidate post:
+                </div>
 
                 {reviewPosts.length === 0 ? (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    No active candidate posts found in Review Queue. Scan keywords first in Post Discovery.
-                  </p>
+                  <div style={{ padding: '24px', textAlign: 'center', background: '#fff1f2', borderRadius: '10px', border: '1px solid #ffe4e6' }}>
+                    <p style={{ fontSize: '0.85rem', color: '#e11d48', margin: 0, fontWeight: 600 }}>
+                      No active candidate posts found in Review Queue.
+                    </p>
+                    <p style={{ fontSize: '0.78rem', color: '#f43f5e', margin: '4px 0 0 0' }}>
+                      Scan keywords first in Post Discovery to populate the queue.
+                    </p>
+                  </div>
                 ) : (
-                  <div className="flex flex-col gap-1.5">
-                    <label>Select Review Queue Candidate Post</label>
-                    <select
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#334155' }}>Select Review Queue Candidate Post</label>
+                    <CustomDropdown
                       value={selectedPostIdForLink}
-                      onChange={(e) => setSelectedPostIdForLink(e.target.value)}
-                      className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer"
-                      style={{ padding: '10px 12px' }}
-                    >
-                      {reviewPosts.map((post) => (
-                        <option key={post.id} value={post.id}>
-                          {post.authorName} ({post.companyName || 'Company'}) - {(post.postContent || '').slice(0, 40)}...
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setSelectedPostIdForLink}
+                      placeholder="Choose an active post..."
+                      options={reviewPosts.map((post) => ({
+                        value: post.id,
+                        label: `${post.authorName} (${post.companyName || 'Company'}) - ${(post.postContent || '').slice(0, 45)}...`
+                      }))}
+                    />
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px', paddingTop: '16px', borderTop: '1.5px solid #f1f5f9' }}>
                   <button
                     onClick={() => setShowLinkModal(false)}
-                    className="btn-secondary"
-                    style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+                    style={{ background: '#ffffff', color: '#0f172a', fontWeight: 700, fontSize: '0.85rem', border: '1.5px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.15s ease', padding: '10px 18px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirmLink}
                     disabled={reviewPosts.length === 0}
-                    className="btn-primary"
-                    style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', padding: '8px 18px', fontSize: '0.8rem' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 20px', borderRadius: '8px', background: reviewPosts.length === 0 ? '#cbd5e1' : 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#ffffff', fontWeight: 800, fontSize: '0.85rem', border: 'none', cursor: reviewPosts.length === 0 ? 'not-allowed' : 'pointer', boxShadow: reviewPosts.length === 0 ? 'none' : '0 4px 12px rgba(37, 99, 235, 0.3)', transition: 'all 0.15s ease' }}
+                    onMouseEnter={(e) => { if (reviewPosts.length > 0) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.4)'; } }}
+                    onMouseLeave={(e) => { if (reviewPosts.length > 0) { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)'; } }}
                   >
-                    Link Contact to Post
+                    Link to Opportunity
                   </button>
                 </div>
               </div>

@@ -210,7 +210,9 @@ export async function getRevenueDealsAction(): Promise<RevenueDeal[]> {
       orderBy: { discoveredAt: 'desc' }
     }).catch(() => []);
 
-    const liveDeals: RevenueDeal[] = dbPosts.map((post, idx) => {
+    const liveDeals: RevenueDeal[] = dbPosts
+      .filter((post) => !dealStore.has(post.id))
+      .map((post, idx) => {
       const draft = post.drafts[0];
       const isApproved = draft?.status === 'APPROVED' || post.status === 'APPROVED';
 
@@ -365,7 +367,13 @@ export async function updateDealStageAction(dealId: string, newStage: RevenueSta
   try {
     await AuthService.verifySession();
     initializeMockDeals();
-    const deal = dealStore.get(dealId);
+    let deal = dealStore.get(dealId);
+    
+    if (!deal) {
+      const allDeals = await getRevenueDealsAction();
+      deal = allDeals.find(d => d.id === dealId);
+    }
+
     if (!deal) throw new AppError('Deal not found.', 404);
 
     const updated = updateDealStage(deal, newStage);

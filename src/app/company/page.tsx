@@ -39,21 +39,7 @@ import { evaluateNegativeQualification } from '@/features/icp/negativeQualificat
 import { estimateProjectValue } from '@/features/icp/valueEngine';
 import { analyzeCompetitiveFit } from '@/features/icp/competitiveFit';
 import { DecisionMakerPanel } from '@/components/company360/DecisionMakerPanel';
-import { EngineeringPanel } from '@/components/company360/EngineeringPanel';
-import { AIInsightsPanel } from '@/components/company360/AIInsightsPanel';
-import { GrowthPanel } from '@/components/company360/GrowthPanel';
-import { FundingTimeline } from '@/components/company360/FundingTimeline';
-import { InvestorPanel } from '@/components/company360/InvestorPanel';
-import { ProductLaunchPanel } from '@/components/company360/ProductLaunchPanel';
-import { MakerPanel } from '@/components/company360/MakerPanel';
-import { CommunityPanel } from '@/components/company360/CommunityPanel';
-import { RedditPanel } from '@/components/company360/RedditPanel';
-import { BuyingIntentPanel } from '@/components/company360/BuyingIntentPanel';
-import { TechnologyDiscussionPanel } from '@/components/company360/TechnologyDiscussionPanel';
-import { LinkedInPanel } from '@/components/company360/LinkedInPanel';
-import { HiringPanel } from '@/components/company360/HiringPanel';
-import { SocialActivityPanel } from '@/components/company360/SocialActivityPanel';
-import { EngagementPanel } from '@/components/company360/EngagementPanel';
+
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import '@/styles/globals.css';
 
@@ -80,7 +66,7 @@ export default function Company360WorkspacePage() {
   // Selected Profile for 360 Drawer
   const [selectedProfile, setSelectedProfile] = useState<Company360Profile | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'overview' | 'decision-makers' | 'engineering' | 'growth' | 'producthunt' | 'reddit' | 'linkedin' | 'ai-insights' | 'playbook' | 'timeline'>('overview');
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'decision-makers' | 'playbook' | 'timeline'>('overview');
   const [profileLoading, setProfileLoading] = useState(false);
 
   // Notification Toast
@@ -351,31 +337,7 @@ export default function Company360WorkspacePage() {
     }
   };
 
-  const handleCreateCrmDeal = async (companyId: string, serviceName?: string) => {
-    try {
-      const res = await createCrmDealFromCompany360(companyId, serviceName);
-      
-      const newCreatedIds = Array.from(new Set([...createdDealIds, companyId.toLowerCase().trim()]));
-      setCreatedDealIds(newCreatedIds);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('bdos_created_deals', JSON.stringify(newCreatedIds));
-      }
 
-      triggerNotification('success', `✓ ${res.message} Migrated to CRM Pipeline!`);
-      await runSearch();
-    } catch {
-      triggerNotification('error', 'Failed to create CRM deal.');
-    }
-  };
-
-  const handleSendToReviewQueue = async (companyId: string) => {
-    try {
-      const res = await sendCompany360ToReviewQueue(companyId);
-      triggerNotification('success', `✓ ${res.message}`);
-    } catch {
-      triggerNotification('error', 'Failed to send to Review Queue.');
-    }
-  };
 
   // Compute clean list of all companies combining server search results and migrated leads map
   const displayedCompanies = (() => {
@@ -606,7 +568,7 @@ export default function Company360WorkspacePage() {
         {/* Top Navigation & Breadcrumb */}
         <BreadcrumbHeader
           currentTitle="Company 360 Workspace"
-          stepNumber={2}
+          stepNumber={3}
           totalSteps={7}
           badge="Multi-Signal Intelligence"
         />
@@ -987,12 +949,8 @@ export default function Company360WorkspacePage() {
                     {[
                       { id: 'overview', label: '🏢 Company Overview' },
                       { id: 'decision-makers', label: `👥 Decision Makers (${selectedProfile.decisionMakers.length})` },
-                      { id: 'engineering', label: '⚡ Engineering Intelligence' },
-                      { id: 'growth', label: '📈 Growth & Funding' },
-                      { id: 'linkedin', label: '🔗 LinkedIn Activity' },
-                      { id: 'ai-insights', label: '🤖 AI Sales Insights & Pitch' },
                       { id: 'playbook', label: '📘 Opportunity Playbook' },
-                      { id: 'timeline', label: '📜 Cross-Provider Timeline' }
+                      { id: 'timeline', label: '📜 Apollo Timeline' }
                     ].map(tab => (
                       <button
                         key={tab.id}
@@ -1061,52 +1019,7 @@ export default function Company360WorkspacePage() {
                     <DecisionMakerPanel decisionMakers={selectedProfile.decisionMakers} />
                   )}
 
-                  {drawerTab === 'engineering' && (
-                    <EngineeringPanel engineering={selectedProfile.engineering} />
-                  )}
 
-                  {drawerTab === 'growth' && selectedProfile.growth && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <GrowthPanel growth={selectedProfile.growth} />
-                      <FundingTimeline timeline={selectedProfile.growth.fundingTimeline} />
-                      <InvestorPanel investors={selectedProfile.growth.leadInvestors} />
-                    </div>
-                  )}
-
-                  {drawerTab === 'producthunt' && selectedProfile.productHunt && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <ProductLaunchPanel productHunt={selectedProfile.productHunt} />
-                      <MakerPanel makers={selectedProfile.productHunt.primaryProduct.makers} />
-                      <CommunityPanel community={selectedProfile.productHunt.primaryProduct.community} />
-                    </div>
-                  )}
-
-                  {drawerTab === 'reddit' && selectedProfile.reddit && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <BuyingIntentPanel reddit={selectedProfile.reddit} />
-                      <RedditPanel reddit={selectedProfile.reddit} />
-                      <TechnologyDiscussionPanel reddit={selectedProfile.reddit} />
-                    </div>
-                  )}
-
-                  {drawerTab === 'linkedin' && selectedProfile.linkedin && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <LinkedInPanel linkedin={selectedProfile.linkedin} />
-                      <HiringPanel jobOpenings={selectedProfile.linkedin.jobOpenings} />
-                      <SocialActivityPanel posts={selectedProfile.linkedin.recentPosts} />
-                      <EngagementPanel signals={selectedProfile.linkedin.buyingSignals} />
-                    </div>
-                  )}
-
-                  {drawerTab === 'ai-insights' && (
-                    <AIInsightsPanel
-                      scoring={selectedProfile.opportunityScoring}
-                      recommendedServices={selectedProfile.recommendedServices}
-                      briefing={selectedProfile.executiveBriefing}
-                      onCreateCrmDeal={(svc) => handleCreateCrmDeal(selectedProfile.companyId, svc)}
-                      onSendToReviewQueue={() => handleSendToReviewQueue(selectedProfile.companyId)}
-                    />
-                  )}
 
                   {drawerTab === 'timeline' && (
                     <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -57,10 +57,10 @@ export async function getUniversalLeadDiscoveryDataAction(
         lowerOrg === 'target account' ||
         lowerOrg.includes('likesoft') ||
         lowerOrg.includes('99ideas') ||
-        lowerOrg.includes('99ideas saas') ||
         lowerPerson === 'chris lyn' ||
-        lowerPerson === 'executive lead' ||
-        lowerPerson === 'jane doe'
+        lowerPerson === 'jane doe' ||
+        lowerPerson === 'apollo lead' ||
+        lowerPerson === 'decision maker'
       );
     };
 
@@ -110,7 +110,7 @@ export async function getUniversalLeadDiscoveryDataAction(
         whyContactReason: post.analysis?.summary || `Live signal detected for ${orgName}: ${post.matchedKeyword}`,
         recommendedContactName: contactName,
         recommendedContactTitle: contactTitle,
-        bestOutreachChannel: 'EMAIL',
+        bestOutreachChannel: 'EMAIL' as const,
         estimatedBudgetInr: 'N/A',
         estimatedBudgetUsd: 'N/A',
         conversionProbabilityPercent: Math.min(95, Math.max(20, Math.floor(score * 0.45))),
@@ -126,7 +126,7 @@ export async function getUniversalLeadDiscoveryDataAction(
       try {
         const apolloRes = await apolloProvider.searchPeopleAdvanced({
           keywords: query || 'Software SaaS',
-          perPage: perPage,
+          perPage: 50, // Fetch a larger batch to ensure we have enough items left after deduplication
           page: page,
         });
 
@@ -161,7 +161,7 @@ export async function getUniversalLeadDiscoveryDataAction(
               whyContactReason: `Verified Apollo B2B Contact: ${cleanName} (${cleanTitle}). Email: ${p.workEmail ? 'Available' : 'Unverified'}`,
               recommendedContactName: cleanName,
               recommendedContactTitle: cleanTitle,
-              bestOutreachChannel: 'EMAIL',
+              bestOutreachChannel: 'EMAIL' as const,
               contactEmail: p.workEmail || undefined,
               contactPhone: p.phone || undefined,
               contactLinkedinUrl: p.linkedinUrl || undefined,
@@ -181,9 +181,14 @@ export async function getUniversalLeadDiscoveryDataAction(
     }
 
     // Strict Company Deduplication on domain & companyName so NO repeated company is ever returned
+    // EXCEPT when the company is a generic placeholder due to missing data (prevent squashing all results to 1)
     const uniqueLeadsMap = new Map<string, DiscoveryLeadItem>();
     for (const lead of liveLeads) {
-      const key = (lead.domain || lead.companyName).toLowerCase();
+      const isGeneric = lead.companyName.toLowerCase() === 'organization' || lead.companyName.toLowerCase() === 'target account';
+      const key = (lead.domain && lead.domain.length > 2) 
+        ? lead.domain.toLowerCase() 
+        : (isGeneric ? lead.companyId : lead.companyName.toLowerCase());
+
       if (!uniqueLeadsMap.has(key)) {
         uniqueLeadsMap.set(key, lead);
       }
@@ -253,7 +258,10 @@ export async function getUniversalLeadDiscoveryDataAction(
     const effectivePerPage = Math.max(1, perPage);
     const totalPages = Math.max(1, Math.ceil(totalCompaniesCount / effectivePerPage));
     const currentPage = page;
-    const paginatedLeads = results.map(sanitizeDiscoveryLead);
+    
+    // Slice down to exactly the requested perPage amount (since we fetched 50 to survive deduplication)
+    const finalLeads = results.slice(0, effectivePerPage);
+    const paginatedLeads = finalLeads.map(sanitizeDiscoveryLead);
 
     // Read DB persisted migrated data from ApplicationSettings
     let dbMigratedLeads: Record<string, DiscoveryLeadItem> = {};

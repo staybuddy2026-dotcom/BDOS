@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { KeywordStatus, PostStatus } from '@prisma/client';
+import './apolloProvider';
 
 export interface DiscoveryPost {
   postUrl: string;
@@ -34,7 +35,7 @@ export function registerDiscoveryProvider(provider: IDiscoveryProvider) {
 }
 
 export function getDiscoveryProvider(name?: string): IDiscoveryProvider {
-  const providerName = name || process.env.DISCOVERY_PROVIDER || 'mock';
+  const providerName = name || process.env.DISCOVERY_PROVIDER || 'apollo';
   const provider = providersRegistry[providerName.toLowerCase()];
   if (!provider) {
     throw new AppError(`Discovery provider "${providerName}" is not registered.`, 500);

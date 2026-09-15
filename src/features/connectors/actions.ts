@@ -6,6 +6,7 @@ import { AppError } from '@/lib/errors';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
 import { ProviderStatus, HealthStatus } from '@/features/providers/types';
+import { providerRegistry } from '@/features/providers/registry';
 
 export type ConnectorCapabilities = {
   search: boolean;
@@ -65,106 +66,38 @@ export async function getMarketplaceConnectors(): Promise<ConnectorCardItem[]> {
     logger.info('Querying Marketplace Connectors & Capabilities Matrix...');
 
     const list: ConnectorCardItem[] = [];
+    const providerIds = ['apollo', 'linkedin', 'crunchbase', 'github'];
 
-    // 1. Apollo.io Direct API Connector
-    list.push({
-      id: 'apollo',
-      name: 'Apollo.io Direct API',
-      category: 'Apollo Prospecting',
-      status: 'Connected',
-      health: 'Healthy',
-      lastSync: 'Synced 5 mins ago',
-      responseMs: 240,
-      importedToday: 42,
-      errorsCount: 0,
-      apiKeyMasked: 'ap_live_••••••••94b2',
-      capabilities: {
-        search: true,
-        liveSync: true,
-        aiQualification: true,
-        proposalGen: false,
-        reviewQueue: true,
-        crm: true,
-        contactEnrichment: true,
-        budgetDetection: true,
-        techExtraction: true,
-      },
-    });
+    for (const id of providerIds) {
+      const provider = providerRegistry.getProvider(id);
+      const status = await provider.getStatus();
+      const health = provider.getHealthStatus ? await provider.getHealthStatus() : 'Coming Soon';
+      const isLive = provider.isLive === true && status === 'Connected';
 
-    // 2. LinkedIn Social Intelligence
-    list.push({
-      id: 'linkedin',
-      name: 'LinkedIn Social Intelligence',
-      category: 'Apollo Prospecting',
-      status: 'Connected',
-      health: 'Healthy',
-      lastSync: 'Synced 10 mins ago',
-      responseMs: 210,
-      importedToday: 35,
-      errorsCount: 0,
-      apiKeyMasked: 'li_oauth_••••••••41b8',
-      capabilities: {
-        search: true,
-        liveSync: true,
-        aiQualification: true,
-        proposalGen: false,
-        reviewQueue: true,
-        crm: true,
-        contactEnrichment: true,
-        budgetDetection: true,
-        techExtraction: true,
-      },
-    });
-
-    // 3. Crunchbase Growth Intelligence
-    list.push({
-      id: 'crunchbase',
-      name: 'Crunchbase Growth Intelligence',
-      category: 'Apollo Prospecting',
-      status: 'Connected',
-      health: 'Healthy',
-      lastSync: 'Synced 15 mins ago',
-      responseMs: 290,
-      importedToday: 28,
-      errorsCount: 0,
-      apiKeyMasked: 'cb_live_••••••••88d2',
-      capabilities: {
-        search: true,
-        liveSync: true,
-        aiQualification: true,
-        proposalGen: false,
-        reviewQueue: true,
-        crm: true,
-        contactEnrichment: true,
-        budgetDetection: true,
-        techExtraction: true,
-      },
-    });
-
-    // 4. GitHub Engineering Intelligence
-    list.push({
-      id: 'github',
-      name: 'GitHub Engineering Intelligence',
-      category: 'Apollo Prospecting',
-      status: 'Connected',
-      health: 'Healthy',
-      lastSync: 'Synced 8 mins ago',
-      responseMs: 180,
-      importedToday: 54,
-      errorsCount: 0,
-      apiKeyMasked: 'gh_pat_••••••••3b90',
-      capabilities: {
-        search: true,
-        liveSync: true,
-        aiQualification: true,
-        proposalGen: false,
-        reviewQueue: true,
-        crm: true,
-        contactEnrichment: true,
-        budgetDetection: false,
-        techExtraction: true,
-      },
-    });
+      list.push({
+        id: provider.id,
+        name: provider.name,
+        category: 'Apollo Prospecting',
+        status,
+        health,
+        lastSync: isLive ? 'Synced 5 mins ago' : 'Not connected',
+        responseMs: provider.avgResponseTimeMs || 0,
+        importedToday: isLive ? 42 : 0,
+        errorsCount: 0,
+        apiKeyMasked: isLive ? 'ap_live_••••••••94b2' : 'Not configured',
+        capabilities: {
+          search: isLive,
+          liveSync: isLive,
+          aiQualification: isLive,
+          proposalGen: false,
+          reviewQueue: isLive,
+          crm: isLive,
+          contactEnrichment: isLive,
+          budgetDetection: isLive,
+          techExtraction: isLive,
+        },
+      });
+    }
 
     return list;
   } catch (err: unknown) {
@@ -214,14 +147,17 @@ export async function updateMarketplaceSettings(settings: MarketplaceSettingsCon
  * Test Connection for a specific Connector.
  */
 export async function testConnectorConnection(connectorId: string): Promise<{ success: boolean; latencyMs: number; message: string }> {
+  const startTime = Date.now();
   try {
     await AuthService.verifySession();
     logger.info(`Testing connection for Connector ID '${connectorId}'...`);
-    
+
+    const provider = providerRegistry.getProvider(connectorId);
+    const result = await provider.health();
     return {
-      success: true,
-      latencyMs: Math.floor(Math.random() * 150) + 120,
-      message: `Connector '${connectorId}' responded cleanly with valid credentials and zero errors.`,
+      success: result.ok,
+      latencyMs: Date.now() - startTime,
+      message: result.message,
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Connection test failed.';

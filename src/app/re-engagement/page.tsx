@@ -12,9 +12,8 @@ import {
   CheckCircle, 
   XCircle, 
   AlertTriangle, 
-  ArrowRight, 
-  Calendar, 
-  Info, 
+  ArrowRight,
+  Calendar,
   Sparkles
 } from 'lucide-react';
 import { ApprovalStatus } from '@prisma/client';
@@ -29,7 +28,6 @@ export default function ReEngagementPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [scanLoading, setScanLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [dbWarning, setDbWarning] = useState(false);
 
   // Composer fields
   const [draftText, setDraftText] = useState('');
@@ -71,10 +69,8 @@ export default function ReEngagementPage() {
         setSelectedId(null);
         setDraftText('');
       }
-      setDbWarning(false);
     } catch (err) {
       console.error(err);
-      setDbWarning(true);
     } finally {
       setPageLoading(false);
     }

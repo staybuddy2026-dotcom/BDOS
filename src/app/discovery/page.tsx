@@ -77,7 +77,7 @@ export default function LeadDiscoveryPage() {
   const [data, setData] = useState<LeadDiscoveryData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
-  const perPage = 25;
+  const perPage = 10;
   const [activeTab, setActiveTab] = useState<'all' | 'migrated' | 'watchlist' | 'recent'>('all');
   const [selectedExplanation, setSelectedExplanation] = useState<LeadExplanation | null>(null);
   const [selectedOutreach, setSelectedOutreach] = useState<OmniChannelOutreachPackage | null>(null);
@@ -317,43 +317,86 @@ export default function LeadDiscoveryPage() {
   };
 
   // Watchlist & Recently Viewed persistent state
+  const [watchlistMap, setWatchlistMap] = useState<Record<string, DiscoveryLeadItem>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bdos_watchlist_leads');
+      if (saved) { try { return JSON.parse(saved); } catch { } }
+    }
+    return {};
+  });
+
   const [watchlistIds, setWatchlistIds] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bdos_watchlist_ids');
-      if (saved) {
-        try { return JSON.parse(saved); } catch { }
+      const savedIds = localStorage.getItem('bdos_watchlist_ids');
+      const savedMap = localStorage.getItem('bdos_watchlist_leads');
+      if (savedIds) { 
+        try { 
+          const ids = JSON.parse(savedIds) as string[]; 
+          const map = savedMap ? JSON.parse(savedMap) : {};
+          return ids.filter(id => !!map[id]);
+        } catch { } 
       }
     }
     return [];
+  });
+
+  const [recentlyViewedMap, setRecentlyViewedMap] = useState<Record<string, DiscoveryLeadItem>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bdos_recently_viewed_leads');
+      if (saved) { try { return JSON.parse(saved); } catch { } }
+    }
+    return {};
   });
 
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bdos_recently_viewed_ids');
-      if (saved) {
-        try { return JSON.parse(saved); } catch { }
+      const savedIds = localStorage.getItem('bdos_recently_viewed_ids');
+      const savedMap = localStorage.getItem('bdos_recently_viewed_leads');
+      if (savedIds) { 
+        try { 
+          const ids = JSON.parse(savedIds) as string[]; 
+          const map = savedMap ? JSON.parse(savedMap) : {};
+          return ids.filter(id => !!map[id]);
+        } catch { } 
       }
     }
     return [];
   });
 
-  const toggleWatchlist = (id: string) => {
-    const next = watchlistIds.includes(id)
-      ? watchlistIds.filter((x) => x !== id)
-      : [...watchlistIds, id];
-    setWatchlistIds(next);
+  const toggleWatchlist = (lead: DiscoveryLeadItem) => {
+    const id = lead.companyId;
+    const isAdded = !watchlistIds.includes(id);
+    const nextIds = isAdded ? [...watchlistIds, id] : watchlistIds.filter((x) => x !== id);
+    const nextMap = { ...watchlistMap };
+    
+    if (isAdded) {
+      nextMap[id] = lead;
+    } else {
+      delete nextMap[id];
+    }
+    
+    setWatchlistIds(nextIds);
+    setWatchlistMap(nextMap);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('bdos_watchlist_ids', JSON.stringify(next));
+      localStorage.setItem('bdos_watchlist_ids', JSON.stringify(nextIds));
+      localStorage.setItem('bdos_watchlist_leads', JSON.stringify(nextMap));
     }
   };
 
-  const markRecentlyViewed = (id: string) => {
+  const markRecentlyViewed = (company: DiscoveryLeadItem) => {
+    const id = company.companyId;
+    const nextMap = { ...recentlyViewedMap, [id]: company };
+    let nextIds = recentlyViewedIds;
+    
     if (!recentlyViewedIds.includes(id)) {
-      const next = [id, ...recentlyViewedIds];
-      setRecentlyViewedIds(next);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('bdos_recently_viewed_ids', JSON.stringify(next));
-      }
+      nextIds = [id, ...recentlyViewedIds];
+    }
+
+    setRecentlyViewedIds(nextIds);
+    setRecentlyViewedMap(nextMap);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bdos_recently_viewed_ids', JSON.stringify(nextIds));
+      localStorage.setItem('bdos_recently_viewed_leads', JSON.stringify(nextMap));
     }
   };
 
@@ -447,7 +490,7 @@ export default function LeadDiscoveryPage() {
   };
 
   const handleExplain = async (company: DiscoveryLeadItem) => {
-    markRecentlyViewed(company.companyId);
+    markRecentlyViewed(company);
     const exp = await explainLeadScoreAction(company.companyId, company.companyName, company.domain, company.buyingScore);
     setSelectedExplanation(exp);
   };
@@ -455,7 +498,7 @@ export default function LeadDiscoveryPage() {
   const [enrichingLeadId, setEnrichingLeadId] = useState<string | null>(null);
 
   const handleViewContact = (company: DiscoveryLeadItem) => {
-    markRecentlyViewed(company.companyId);
+    markRecentlyViewed(company);
     setExpandedContactCompanyId((prev) => (prev === company.companyId ? null : company.companyId));
   };
 
@@ -493,7 +536,7 @@ export default function LeadDiscoveryPage() {
   };
 
   const handleOutreach = async (company: DiscoveryLeadItem) => {
-    markRecentlyViewed(company.companyId);
+    markRecentlyViewed(company);
     const pkg = await generateOmniOutreachAction(company.companyName, company.domain, company.recommendedContactName, company.recommendedContactTitle);
     setSelectedOutreach(pkg);
   };
@@ -528,9 +571,9 @@ export default function LeadDiscoveryPage() {
 
       list = Array.from(map.values());
     } else if (activeTab === 'watchlist') {
-      list = rawLeads.filter((l) => watchlistIds.includes(l.companyId) || (l.domain && watchlistIds.includes(l.domain)));
+      list = watchlistIds.map(id => watchlistMap[id]).filter(Boolean);
     } else if (activeTab === 'recent') {
-      list = rawLeads.filter((l) => recentlyViewedIds.includes(l.companyId) || (l.domain && recentlyViewedIds.includes(l.domain)));
+      list = recentlyViewedIds.map(id => recentlyViewedMap[id]).filter(Boolean);
     } else {
       list = rawLeads;
     }
@@ -898,7 +941,7 @@ export default function LeadDiscoveryPage() {
 
                       <button
                         type="button"
-                        onClick={() => toggleWatchlist(lead.companyId)}
+                        onClick={() => toggleWatchlist(lead)}
                         style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '0.76rem', background: isWatchlisted ? 'var(--color-warning-bg)' : 'var(--bg-secondary)', border: '1px solid rgba(234, 179, 8, 0.4)', color: isWatchlisted ? 'var(--color-warning)' : '#94a3b8', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
                         ⭐ {isWatchlisted ? 'Saved' : 'Watchlist'}
@@ -1149,7 +1192,7 @@ export default function LeadDiscoveryPage() {
             {data && data.totalCount > 0 && activeTab === 'all' && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 16px', marginTop: '10px' }}>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  Showing <strong style={{ color: 'var(--text-primary)' }}>1–{data.leads.length}</strong> of <strong style={{ color: 'var(--accent-indigo)' }}>{data.totalCount.toLocaleString()}</strong> target company accounts ({data.totalContactsCount ? data.totalContactsCount.toLocaleString() : '1,345'} total decision-makers in Apollo)
+                  Showing <strong style={{ color: 'var(--text-primary)' }}>{(data.page - 1) * data.perPage + 1}–{Math.min(data.page * data.perPage, data.totalCount)}</strong> of <strong style={{ color: 'var(--accent-indigo)' }}>{data.totalCount.toLocaleString()}</strong> target company accounts ({data.totalContactsCount ? data.totalContactsCount.toLocaleString() : '1,345'} total decision-makers in Apollo)
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

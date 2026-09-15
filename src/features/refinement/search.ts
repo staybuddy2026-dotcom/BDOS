@@ -29,22 +29,34 @@ export async function executeUniversalCrossProviderSearch(
     const orgName = enrichment?.organizationName || post.companyName || 'Unknown Company';
     const domain = enrichment?.organizationDomain || (orgName.toLowerCase().replace(/\s+/g, '') + '.com');
     
+    // Dynamically infer country from Domain TLD
+    const tld = domain.split('.').pop()?.toLowerCase() || 'com';
+    let country = 'United States';
+    if (tld === 'in') country = 'India';
+    else if (tld === 'uk' || domain.endsWith('.co.uk')) country = 'United Kingdom';
+    else if (tld === 'au' || domain.endsWith('.com.au')) country = 'Australia';
+    else if (tld === 'ca') country = 'Canada';
+    else if (tld === 'de') country = 'Germany';
+    else if (tld === 'fr') country = 'France';
+    else if (tld === 'io' || tld === 'ai' || tld === 'co' || tld === 'dev') country = 'Global (Tech)';
+
+    const baseScore = post.opportunityScore || 75;
+    // Calculate a dynamic ICP Score based on real engagement data and the AI Opportunity Score
+    const icpScore = Math.min(100, Math.max(40, Math.round(baseScore * 0.95 + (post.engagementCount * 1.5))));
+
     return {
       companyId: post.id,
       companyName: orgName,
       domain: domain,
-      country: 'Global',
-      industry: post.keywordCategory || 'Technology',
-      employeeCount: '50-200',
+      country: country,
+      employeeCount: 0,
       fundingSummary: 'Active Pipeline',
-      buyingScore: post.opportunityScore || 75,
-      icpScore: 85,
-      tier: (post.opportunityScore || 75) >= 90 ? 'TIER_1' : 'TIER_2',
+      buyingScore: baseScore,
+      icpScore: icpScore,
+      tier: baseScore >= 90 ? 'TIER_A' : 'TIER_B',
       primaryTechStack: post.postContent?.match(/(React|Node\.js|Python|AWS|TypeScript|Next\.js|PostgreSQL|Docker)/ig) || [],
-      recentSignals: ['Active RFP Detected'],
-      keyContactsFound: enrichment ? 1 : 0,
       hiringSummary: 'Actively Hiring',
-      matchedProviders: ['Apollo', 'LinkedIn']
+      matchedProviders: enrichment ? ['apollo'] : []
     };
   });
 

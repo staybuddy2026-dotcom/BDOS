@@ -102,7 +102,7 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
   // Derive base deal value from employee count if possible
   let employeeCountEst = 50;
   if (profile.overview.employeeCount) {
-    const parsed = parseInt(profile.overview.employeeCount.replace(/[^0-9]/g, ''));
+    const parsed = Number(profile.overview.employeeCount);
     if (!isNaN(parsed) && parsed > 0) employeeCountEst = parsed;
   }
   

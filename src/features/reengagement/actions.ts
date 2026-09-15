@@ -30,17 +30,7 @@ export type ReEngagementData = {
   approvalStatus: ApprovalStatus;
 };
 
-// Target whitelist of buying signals
-const VALID_BUYING_SIGNALS = [
-  'Hiring Developers',
-  'Looking for Agencies',
-  'Looking for Outsourcing',
-  'Looking for Technical Partners',
-  'Need React Developers',
-  'Need Flutter Developers',
-  'Need AI Engineers',
-  'Need Software Developers'
-];
+
 
 /**
  * Fetch all re-engagement events.
@@ -60,55 +50,9 @@ export async function getReEngagementEvents(): Promise<ReEngagementData[]> {
       orderBy: { detectionDate: 'desc' }
     });
     return events as unknown as ReEngagementData[];
-  } catch {
-    logger.warn('Failed to query database for re-engagement events. Returning mock re-engagement entries.');
-    const base = new Date();
-    return [
-      {
-        id: 'mock-re-1',
-        outreachDraftId: 'mock-draft-2',
-        outreachDraft: {
-          id: 'mock-draft-2',
-          originalAiDraft: 'Hi Marcus,\n\nRead your note about outbound conversion. Most campaigns end up in spam. We recently solved a similar conversions bottleneck by mapping playbook step progression rules.',
-          editedDraft: 'Hi Marcus, interesting points on LogicFlow outbound sales rates. Most templates end up ignored. Let me know if you want to swap insights.',
-          status: 'APPROVED',
-          playbook: { name: 'Default Outreach Sequence' },
-          post: {
-            authorName: 'Marcus Aurelius',
-            authorHeadline: 'Head of Sales at LogicFlow',
-            postPreview: 'Our outbound sales campaigns are showing lower conversion rates this quarter. Has anyone successfully used personalized AI video pitches at scale?'
-          }
-        },
-        prospectName: 'Marcus Aurelius',
-        newBuyingSignal: 'LogicFlow is actively looking for outsourcing agencies to scale our mobile React application and streamline integrations.',
-        detectionDate: new Date(base.getTime() - 1 * 3600000),
-        analysis: 'Prospect has a new buying signal: Looking for Outsourcing / Need React Developers. The previous outreach was focused on outbound sales conversions.',
-        generatedDraft: 'Hi Marcus,\n\nI saw LogicFlow is looking to scale your React app. Since we last spoke about outbound conversion blueprints, I wanted to share a React scalability blueprint we compiled for mobile integrations.\n\nWould this help save your dev team some cycles?',
-        approvalStatus: ApprovalStatus.PENDING
-      },
-      {
-        id: 'mock-re-2',
-        outreachDraftId: 'mock-draft-3',
-        outreachDraft: {
-          id: 'mock-draft-3',
-          originalAiDraft: 'Hi Linus,\n\nSaw latency spikes are affecting KernelCore customer satisfaction. Caching logic can be tricky under high concurrent load. Are you looking at client-side caching?',
-          editedDraft: null,
-          status: 'SENT',
-          playbook: { name: 'Default Outreach Sequence' },
-          post: {
-            authorName: 'Linus Torvalds',
-            authorHeadline: 'Director of Technology at KernelCore',
-            postPreview: 'Database queries latency spikes are dragging down our customer satisfaction scores. We need suggestions for caching layers.'
-          }
-        },
-        prospectName: 'Linus Torvalds',
-        newBuyingSignal: 'We need AI Engineers to deploy fine-tuned local models on cached query nodes immediately. DM if interested.',
-        detectionDate: new Date(base.getTime() - 12 * 3600000),
-        analysis: 'Prospect has a new buying signal: Need AI Engineers. Previous outreach targeted database caching latency.',
-        generatedDraft: 'Hi Linus,\n\nSaw you are bringing on AI Engineers for fine-tuning local models. When we exchanged notes about database latency, we discussed cache optimization. Combining fine-tuned models on latency-sensitive caching nodes can get complex.\n\nI can share a benchmark layout of cached model inferences if you are interested?',
-        approvalStatus: ApprovalStatus.PENDING
-      }
-    ];
+  } catch (error) {
+    logger.warn('Failed to query database for re-engagement events.', { error: String(error) });
+    return [];
   }
 }
 
