@@ -4,6 +4,7 @@ import { PriorityDashboard } from '@/components/prioritization/PriorityDashboard
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { Sparkles } from 'lucide-react';
 import blob from '@/assets/blob.png';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 
 export default async function DailyPrioritiesPage() {
@@ -15,9 +16,15 @@ export default async function DailyPrioritiesPage() {
   ]);
 
   return (
-    <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box' }}>
-      
-      {/* HEADER BANNER */}
+    <div className="dashboard-page" style={{ 
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'top right',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed'
+    }}>
+      {/* HEADER BANNER - CLEAN DESIGN */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -50,6 +57,8 @@ export default async function DailyPrioritiesPage() {
           </div>
         </div>
       </div>
+      
+      <WorkflowGuide activeStep={1} />
 
       {/* SCROLLABLE MAIN CONTENT */}
       <div
@@ -61,12 +70,7 @@ export default async function DailyPrioritiesPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
-          position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'top right',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          position: 'relative'
         }}
       >
         <BreadcrumbHeader

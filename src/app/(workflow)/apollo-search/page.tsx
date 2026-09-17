@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import blob from '@/assets/blob.png';
 import {
   User,
@@ -40,10 +41,13 @@ import {
   FrameworkStats
 } from '@/features/providers/actions';
 import { LeadItem, SavedSearchPreset } from '@/features/providers/types';
+import { saveMigratedCompanyAction } from '@/features/discovery/actions';
+import { DiscoveryLeadItem } from '@/features/discovery/types';
 import { ActiveHiringFilterPanel } from '@/components/apollo/ActiveHiringFilterPanel';
 import { UniversalResultRenderer } from '@/components/UniversalResultRenderer';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { CustomDropdown } from '@/components/CustomDropdown';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 
 // Helper to format Apollo masked names cleanly (e.g., "Mike Br***m" -> "Mike B.")
@@ -53,6 +57,8 @@ function formatPersonName(rawName: string): string {
 }
 
 export default function ApolloSearchPage() {
+  const router = useRouter();
+
   // Mode Switcher: 'people' | 'companies'
   const [searchMode, setSearchMode] = useState<'people' | 'companies'>('people');
 
@@ -274,6 +280,65 @@ export default function ApolloSearchPage() {
   const triggerNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleResearchInCompany360 = async (org: ApolloOrganizationMatch) => {
+    try {
+      const leadItem: DiscoveryLeadItem = {
+        companyId: org.apolloOrganizationId || `comp_${Date.now()}`,
+        companyName: org.name,
+        domain: org.domain || '',
+        industry: org.industry || 'Technology',
+        country: org.location || 'Unknown',
+        employeeCount: org.employeeCount || 0,
+        fundingSummary: org.latestFundingStage || '',
+        buyingScore: 85,
+        icpScore: 90,
+        tier: 'HIGH',
+        primaryTechStack: org.technologies || ['React', 'Node.js'],
+        hiringSummary: `${org.openJobsCount || 0} open roles`,
+        matchedProviders: ['apollo'],
+        whyContactReason: org.whyThisCompanySummary || 'High ICP match',
+        recommendedContactName: 'Decision Maker',
+        recommendedContactTitle: 'Executive',
+        bestOutreachChannel: 'EMAIL',
+        estimatedBudgetInr: '₹50,00,000',
+        estimatedBudgetUsd: '$60,000',
+        conversionProbabilityPercent: 45,
+        recommendedServices: ['Web Development', 'AI Integration'],
+      };
+
+      // Ensure it is saved in DB
+      await saveMigratedCompanyAction(leadItem);
+
+      // Save locally to reflect immediately on Company 360 page
+      if (typeof window !== 'undefined') {
+        const key = (org.domain || leadItem.companyId).toLowerCase().trim();
+        const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
+        let currentMap: Record<string, DiscoveryLeadItem> = {};
+        if (savedLeads) {
+          try { currentMap = JSON.parse(savedLeads); } catch { }
+        }
+        currentMap[key] = leadItem;
+        localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(currentMap));
+
+        const savedIds = localStorage.getItem('bdos_company360_migrated_ids');
+        let currentIds: string[] = [];
+        if (savedIds) {
+          try { currentIds = JSON.parse(savedIds); } catch { }
+        }
+        if (!currentIds.includes(key)) {
+          currentIds.push(key);
+          localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(currentIds));
+        }
+      }
+
+      // Redirect to Company 360 Workspace
+      router.push(`/company?query=${encodeURIComponent(org.domain || org.apolloOrganizationId)}`);
+      triggerNotification('success', `Sent ${org.name} to Company 360 Workspace.`);
+    } catch (err: unknown) {
+      triggerNotification('error', 'Failed to send company to Company 360.');
+    }
   };
 
   // Run People Search
@@ -694,7 +759,12 @@ export default function ApolloSearchPage() {
       flexDirection: 'column',
       height: '100vh',
       overflow: 'hidden',
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'top right',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed'
     }}>
       {/* Toast Notification */}
       {notification && (
@@ -769,6 +839,8 @@ export default function ApolloSearchPage() {
           </div>
         </div>
       </div>
+      
+      <WorkflowGuide activeStep={2} />
 
       {/* SCROLLABLE MAIN CONTENT */}
       <div
@@ -780,12 +852,7 @@ export default function ApolloSearchPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'top right',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          position: 'relative'
         }}
       >
 
@@ -840,13 +907,11 @@ export default function ApolloSearchPage() {
             };
 
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 {[
                   { label: "Total Registered", value: frameworkStats.totalProviders, color: "#3b82f6", pattern: 1, icon: Building2, footerText: "Providers" },
-                  { label: "Connected", value: frameworkStats.connectedProviders, color: "#059669", pattern: 2, icon: CheckCircle, footerText: "Ready" },
-                  { label: "Live APIs", value: frameworkStats.liveProviders, color: "#0284c7", pattern: 3, icon: Zap, footerText: "Active REST" },
-                  { label: "Coming Soon", value: frameworkStats.comingSoonProviders, color: "#d97706", pattern: 1, icon: AlertTriangle, footerText: "Placeholders" },
-                  { label: "Avg Response", value: `${frameworkStats.avgResponseTimeMs}`, color: "#4f46e5", pattern: 2, icon: Zap, footerText: "ms" },
+                  { label: "Active Integrations", value: frameworkStats.connectedProviders, color: "#059669", pattern: 2, icon: CheckCircle, footerText: "Ready" },
+                  { label: "Search Avg Response", value: `${frameworkStats.avgResponseTimeMs}`, color: "#4f46e5", pattern: 2, icon: Zap, footerText: "ms" },
                   { label: "Success Rate", value: `${frameworkStats.searchSuccessRate}%`, color: "#047857", pattern: 3, icon: CheckCircle, footerText: "" }
                 ].map((card, idx) => {
                   const Icon = card.icon;
@@ -1637,6 +1702,7 @@ export default function ApolloSearchPage() {
                               organization={org}
                               searchMode="companies"
                               onFindDecisionMakers={handleFindDecisionMakers}
+                              onResearchInCompany360={handleResearchInCompany360}
                             />
                           ))}
                         </tbody>

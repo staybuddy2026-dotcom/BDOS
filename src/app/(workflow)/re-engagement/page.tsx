@@ -19,6 +19,7 @@ import {
 import { ApprovalStatus } from '@prisma/client';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import blob from '@/assets/blob.png';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 import '@/styles/re-engagement.css';
 
@@ -191,7 +192,11 @@ export default function ReEngagementPage() {
   };
 
   return (
-    <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box' }}>
+    <div className="dashboard-page" style={{ 
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover', backgroundPosition: 'top right', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
+    }}>
       
       {/* Notifications */}
       {notification && (
@@ -236,6 +241,8 @@ export default function ReEngagementPage() {
           </div>
         </div>
       </div>
+      
+      <WorkflowGuide activeStep={6} />
 
       {/* SCROLLABLE MAIN CONTENT */}
       <div
@@ -247,12 +254,7 @@ export default function ReEngagementPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
-          position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'top right',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          position: 'relative'
         }}
       >
         {/* Top Navigation & Breadcrumb */}

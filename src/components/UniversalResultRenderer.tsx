@@ -31,6 +31,7 @@ interface UniversalResultRendererProps {
   onUnsavePerson?: (person: ApolloPersonMatch) => void;
   onEnrichPerson?: (person: ApolloPersonMatch) => void;
   onFindDecisionMakers?: (org: ApolloOrganizationMatch) => void;
+  onResearchInCompany360?: (org: ApolloOrganizationMatch) => void;
   onLinkToPost?: (person: ApolloPersonMatch) => void;
   formatPersonName?: (name: string) => string;
 }
@@ -47,6 +48,7 @@ export function UniversalResultRenderer({
   onUnsavePerson,
   onEnrichPerson,
   onFindDecisionMakers,
+  onResearchInCompany360,
   onLinkToPost,
   formatPersonName = (n) => n || 'Lead Contact',
 }: UniversalResultRendererProps) {
@@ -560,17 +562,32 @@ export function UniversalResultRenderer({
 
         {/* ACTIONS Column */}
         <td style={{ textAlign: 'right', paddingRight: '20px' }}>
-          {onFindDecisionMakers && (
-            <button
-              onClick={() => onFindDecisionMakers(organization)}
-              className="btn-primary"
-              style={{ padding: '8px 16px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', border: 'none', borderRadius: '8px', whiteSpace: 'nowrap', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)', transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.4)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)'; }}
-            >
-              Find People <ArrowRight size={14} />
-            </button>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+            {onFindDecisionMakers && (
+              <button
+                onClick={() => onFindDecisionMakers(organization)}
+                className="btn-primary"
+                style={{ padding: '8px 16px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', border: 'none', borderRadius: '8px', whiteSpace: 'nowrap', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)', transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.4)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)'; }}
+              >
+                Find People <ArrowRight size={14} />
+              </button>
+            )}
+            
+            {onResearchInCompany360 && (
+              <button
+                onClick={() => onResearchInCompany360(organization)}
+                className="btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.78rem', background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '8px', whiteSpace: 'nowrap', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#1d4ed8'; e.currentTarget.style.background = '#eff6ff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.background = '#f8fafc'; }}
+                title="Send target account to Company 360 Workspace for deep intelligence gathering"
+              >
+                <Building2 size={14} /> Research in Company 360
+              </button>
+            )}
+          </div>
         </td>
       </tr>
     );

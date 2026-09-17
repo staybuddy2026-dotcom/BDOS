@@ -276,7 +276,41 @@ function getFallbackPeople(_params: ApolloSearchParams): ApolloPersonMatch[] {
 
 // Helper to generate verified fallback target accounts when Apollo API rate limits or returns 0 results
 function getFallbackOrganizations(_params?: ApolloOrgSearchParams): ApolloOrganizationMatch[] {
-  return [];
+  return [
+    {
+      apolloOrganizationId: 'mock_org_1',
+      name: 'Vercel',
+      domain: 'vercel.com',
+      industry: 'Software Development',
+      location: 'San Francisco, CA, USA',
+      employeeCount: 450,
+      revenuePrinted: '$50M - $100M',
+      latestFundingStage: 'Series D',
+      technologies: ['React', 'Next.js', 'Node.js', 'AWS']
+    },
+    {
+      apolloOrganizationId: 'mock_org_2',
+      name: 'Stripe',
+      domain: 'stripe.com',
+      industry: 'Financial Services',
+      location: 'South San Francisco, CA, USA',
+      employeeCount: 7000,
+      revenuePrinted: '$1B+',
+      latestFundingStage: 'Late Stage VC',
+      technologies: ['Ruby', 'React', 'Go', 'AWS']
+    },
+    {
+      apolloOrganizationId: 'mock_org_3',
+      name: 'Linear',
+      domain: 'linear.app',
+      industry: 'Software Development',
+      location: 'San Francisco, CA, USA',
+      employeeCount: 50,
+      revenuePrinted: '$10M - $50M',
+      latestFundingStage: 'Series B',
+      technologies: ['React', 'TypeScript', 'Node.js', 'GCP']
+    }
+  ];
 }
 
 export class DefaultApolloProvider implements ApolloProvider {
@@ -415,9 +449,8 @@ export class DefaultApolloProvider implements ApolloProvider {
       });
 
       if (!res.ok) {
-        logger.warn(`Apollo searchPeopleAdvanced returned status ${res.status}. Serving verified decision maker dataset.`);
-        const fbPeople = getFallbackPeople(params);
-        return { people: fbPeople, totalCount: fbPeople.length, page: params.page || 1, perPage: params.perPage || 10 };
+        logger.warn(`Apollo searchPeopleAdvanced returned status ${res.status}. Returning empty.`);
+        return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
       }
 
       const data = await res.json();
@@ -430,9 +463,8 @@ export class DefaultApolloProvider implements ApolloProvider {
       }
 
       if (!data.people || !Array.isArray(data.people) || data.people.length === 0) {
-        logger.info('Apollo API returned 0 people. Serving verified decision maker dataset.');
-        const fbPeople = getFallbackPeople(params);
-        return { people: fbPeople, totalCount: fbPeople.length, page: params.page || 1, perPage: params.perPage || 10 };
+        logger.info('Apollo API returned 0 people.');
+        return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
       }
 
       const totalEntries = data.total_entries || data.pagination?.total_entries || data.people.length;
@@ -520,9 +552,8 @@ export class DefaultApolloProvider implements ApolloProvider {
         perPage: params.perPage || 10,
       };
     } catch (err: unknown) {
-      logger.error('Apollo searchPeopleAdvanced failed, serving fallback decision makers', err);
-      const fbPeople = getFallbackPeople(params);
-      return { people: fbPeople, totalCount: fbPeople.length, page: params.page || 1, perPage: params.perPage || 10 };
+      logger.error('Apollo searchPeopleAdvanced failed', err);
+      return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
     }
   }
 
@@ -531,8 +562,7 @@ export class DefaultApolloProvider implements ApolloProvider {
    */
   async searchOrganizationsAdvanced(params: ApolloOrgSearchParams): Promise<ApolloOrgSearchResponse> {
     if (!this.apiKey || process.env.APOLLO_MOCK_MODE === 'true' || this.apiKey === 'your-apollo-api-key-here') {
-      const fbOrgs = getFallbackOrganizations(params);
-      return { organizations: fbOrgs, totalCount: fbOrgs.length, page: params.page || 1, perPage: params.perPage || 10 };
+      return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
     }
 
     try {
@@ -604,23 +634,20 @@ export class DefaultApolloProvider implements ApolloProvider {
       });
 
       if (!res.ok) {
-        logger.warn(`Apollo searchOrganizationsAdvanced returned status ${res.status}. Falling back to verified target accounts.`);
-        const fbOrgs = getFallbackOrganizations(params);
-        return { organizations: fbOrgs, totalCount: fbOrgs.length, page: params.page || 1, perPage: params.perPage || 10 };
+        logger.warn(`Apollo searchOrganizationsAdvanced returned status ${res.status}. Returning empty.`);
+        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
       }
 
       const data = await res.json();
 
       if (data.message && typeof data.message === 'string' && (data.message.includes('api calls allowed') || data.message.includes('rate') || data.message.includes('limit') || data.message.includes('upgrade'))) {
-        logger.warn(`Apollo API Rate Limit reached: "${data.message}". Serving verified target accounts.`);
-        const fbOrgs = getFallbackOrganizations(params);
-        return { organizations: fbOrgs, totalCount: fbOrgs.length, page: params.page || 1, perPage: params.perPage || 10 };
+        logger.warn(`Apollo API Rate Limit reached: "${data.message}". Returning empty.`);
+        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
       }
 
       if (!data.organizations || !Array.isArray(data.organizations) || data.organizations.length === 0) {
-        logger.info('Apollo API returned 0 organizations. Serving verified target accounts.');
-        const fbOrgs = getFallbackOrganizations(params);
-        return { organizations: fbOrgs, totalCount: fbOrgs.length, page: params.page || 1, perPage: params.perPage || 10 };
+        logger.info('Apollo API returned 0 organizations.');
+        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
       }
 
       const totalEntries = data.pagination?.total_entries || data.num_fetch_result || data.organizations.length;

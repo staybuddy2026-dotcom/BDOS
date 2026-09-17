@@ -188,8 +188,11 @@ export async function getCrmAccounts(params?: {
 
     const totalAccounts = crmAccountsStore.length;
     const qualifiedAccounts = crmAccountsStore.filter(a => a.winProbability >= 60).length;
-    const meetingsScheduled = crmAccountsStore.filter(a => a.stage === 'Meeting Scheduled').length;
-    const proposalsSent = crmAccountsStore.filter(a => a.stage === 'Proposal Sent').length;
+    
+    // Count actual meetings and proposals instead of just accounts in those stages
+    const meetingsScheduled = crmAccountsStore.reduce((sum, a) => sum + (a.meetings?.length || 0), 0);
+    const proposalsSent = crmAccountsStore.reduce((sum, a) => sum + (a.proposals?.length || 0), 0);
+    
     const inNegotiation = crmAccountsStore.filter(a => a.stage === 'Negotiation').length;
     const wonDeals = crmAccountsStore.filter(a => a.stage === 'Won' || a.stage === 'Repeat Client').length;
     const lostDeals = crmAccountsStore.filter(a => a.stage === 'Lost').length;
@@ -527,7 +530,7 @@ export async function getAccountAiBriefing(accountId: string, companyName: strin
     await AuthService.verifySession();
     logger.info(`Generating AI CRM Briefing for account #${accountId} (${companyName})...`);
 
-    return {
+    const fallbackMock: CrmAiBriefing = {
       companySummary: `${companyName} is an active prospect in the ${industry} domain.`,
       buyingSignals: [
         'Active expansion in engineering & digital transformation',
@@ -557,6 +560,61 @@ export async function getAccountAiBriefing(accountId: string, companyName: strin
         'Continuous automated QA testing package.',
       ],
     };
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
+    if (!apiKey) {
+      logger.warn('No AI API Key found, using mock briefing.');
+      return fallbackMock;
+    }
+
+    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+    const systemPrompt = `You are an expert Enterprise CRM Intelligence Assistant.
+Analyze the company: ${companyName} in the ${industry} industry.
+Generate a JSON structured AI briefing predicting their buying signals, recommended services, discovery questions, and next actions.
+Use realistic enterprise sales terminology. Ensure the data feels highly personalized to their industry.
+Output ONLY valid JSON matching this exact schema:
+{
+  "companySummary": "string",
+  "buyingSignals": ["string"],
+  "recommendedServices": ["string"],
+  "discoveryQuestions": ["string"],
+  "riskAnalysis": ["string"],
+  "probabilityToClose": number,
+  "competitorSignals": ["string"],
+  "recommendedNextAction": "string",
+  "upsellSuggestions": ["string"]
+}`;
+
+    const requestBody = {
+      contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    };
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gemini HTTP Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (textPart) {
+        return JSON.parse(textPart.trim()) as CrmAiBriefing;
+      }
+    } catch (apiErr) {
+      logger.error('Gemini API failed for CRM briefing, falling back to mock.', apiErr);
+    }
+
+    return fallbackMock;
   } catch (err: unknown) {
     logger.error(`Failed to generate AI CRM briefing for ${accountId}`, err);
     throw new AppError('AI CRM briefing failed.', 500);

@@ -49,6 +49,12 @@ export type ReviewPostData = {
     approvedAt: Date | null;
     sentAt: Date | null;
   }[];
+  apolloEnrichment?: {
+    personName: string;
+    jobTitle: string | null;
+    organizationName: string | null;
+    organizationDomain: string | null;
+  } | null;
 };
 
 /**
@@ -69,6 +75,7 @@ export async function getReviewPosts(): Promise<ReviewPostData[]> {
         drafts: {
           orderBy: { generatedAt: 'desc' },
         },
+        apolloEnrichment: true,
       },
       orderBy: { discoveredAt: 'desc' },
     });

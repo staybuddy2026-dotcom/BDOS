@@ -93,7 +93,13 @@ export async function getPrioritizationTelemetryAction(): Promise<Prioritization
     const immediateCount = accounts.filter(a => a.priorityTier === 'IMMEDIATE').length;
     const highCount = accounts.filter(a => a.priorityTier === 'HIGH').length;
 
-    const totalValInr = accounts.reduce((acc, a) => acc + (a.buyingReadinessScore * 185000), 0);
+    let totalValInr = 0;
+    accounts.forEach(a => {
+      const maxValStr = a.estimatedDealValueInr.split('–')[1] || a.estimatedDealValueInr;
+      const parsedVal = parseInt(maxValStr.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(parsedVal)) totalValInr += parsedVal;
+    });
+
     const totalValUsd = Math.round(totalValInr / 83);
     const monthlyRevInr = Math.round(totalValInr * 0.28);
 

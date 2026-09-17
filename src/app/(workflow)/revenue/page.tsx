@@ -5,6 +5,7 @@ import { RevenueDashboard } from '@/components/revenue/RevenueDashboard';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { DollarSign } from 'lucide-react';
 import blob from '@/assets/blob.png';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 
 export default async function RevenueOSPage() {
@@ -18,7 +19,11 @@ export default async function RevenueOSPage() {
   const forecast = calculateRevenueForecast(deals);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div className="dashboard-page" style={{ 
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover', backgroundPosition: 'top right', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
+    }}>
       <style>{`
         .premium-kpi-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 1); border-radius: 12px; padding: 16px; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.04), inset 0 0 0 1px rgba(255, 255, 255, 0.5); position: relative; overflow: hidden; cursor: default; display: flex; flex-direction: column; gap: 4px; min-width: 0; box-sizing: border-box; }
         .premium-kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--glow-color) 0%, transparent 50%); opacity: 0.3; transition: opacity 0.4s ease; pointer-events: none; }
@@ -65,6 +70,8 @@ export default async function RevenueOSPage() {
           </span>
         </div>
       </div>
+      
+      <WorkflowGuide activeStep={7} />
 
       {/* SCROLLABLE MAIN CONTENT */}
       <div
@@ -76,12 +83,7 @@ export default async function RevenueOSPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'top right',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          position: 'relative'
         }}
       >
         {/* Top Navigation & Breadcrumb */}

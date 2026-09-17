@@ -41,6 +41,7 @@ import { analyzeCompetitiveFit } from '@/features/icp/competitiveFit';
 import { DecisionMakerPanel } from '@/components/company360/DecisionMakerPanel';
 
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 
 interface MigratedLeadRecord {
@@ -382,8 +383,19 @@ export default function Company360WorkspacePage() {
     return list;
   })();
 
+  const totalExecutives = displayedCompanies.reduce((sum, c) => sum + Math.max(1, Math.floor((c.employeeCount || 100) * 0.05)), 0);
+  const totalRepos = displayedCompanies.reduce((sum, c) => sum + Math.max(1, Math.floor((c.engineeringMaturity || 80) / 4)), 0);
+  const totalDealValue = displayedCompanies.reduce((sum, c) => sum + Math.max(1000000, (c.employeeCount || 100) * 15000), 0);
+
   return (
-    <div className="apollo-search-workspace" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box' }}>
+    <div className="apollo-search-workspace" style={{ 
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'top right',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed'
+    }}>
       <style>{`
         .premium-kpi-card {
           background: rgba(255, 255, 255, 0.9);
@@ -546,6 +558,8 @@ export default function Company360WorkspacePage() {
           </div>
         </div>
       </div>
+      
+      <WorkflowGuide activeStep={3} />
 
       {/* SCROLLABLE MAIN CONTENT */}
       <div
@@ -557,12 +571,7 @@ export default function Company360WorkspacePage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'top right',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          position: 'relative'
         }}
       >
         {/* Top Navigation & Breadcrumb */}
@@ -608,7 +617,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length > 0 ? displayedCompanies.length * 3 : 0}</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalExecutives}</div>
                 <div style={{ fontSize: '0.8rem', color: '#9333ea', marginTop: '8px', fontWeight: 600 }}>Identified CTOs & VPs</div>
               </div>
               <div style={{ border: '1px solid #e9d5ff', borderRadius: '50%', padding: '6px', color: '#9333ea', display: 'flex', background: '#f3e8ff' }}>
@@ -629,7 +638,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length > 0 ? displayedCompanies.length * 18 : 0}</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalRepos}</div>
                 <div style={{ fontSize: '0.8rem', color: '#0284c7', marginTop: '8px', fontWeight: 600 }}>Engineering Activity Signals</div>
               </div>
               <div style={{ border: '1px solid #bae6fd', borderRadius: '50%', padding: '6px', color: '#0284c7', display: 'flex', background: '#e0f2fe' }}>
@@ -650,7 +659,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length > 0 ? `₹${(displayedCompanies.length * 2850000).toLocaleString('en-IN')}` : '₹0'}</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length > 0 ? `₹${totalDealValue.toLocaleString('en-IN')}` : '₹0'}</div>
                 <div style={{ fontSize: '0.8rem', color: '#059669', marginTop: '8px', fontWeight: 600 }}>Estimated Total Value</div>
               </div>
               <div style={{ border: '1px solid #a7f3d0', borderRadius: '50%', padding: '6px', color: '#059669', display: 'flex', background: '#ecfdf5' }}>

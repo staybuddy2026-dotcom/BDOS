@@ -5,6 +5,7 @@ import { OutreachCampaignDashboard } from '@/components/outreach/OutreachCampaig
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { Send } from 'lucide-react';
 import blob from '@/assets/blob.png';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 
 export default async function SalesEngagementPage({ searchParams }: { searchParams: Promise<{ domain?: string }> | { domain?: string } }) {
@@ -19,7 +20,14 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
   ]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', backgroundColor: '#ffffff' }}>
+    <div className="dashboard-page" style={{ 
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'top right',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed'
+    }}>
       {/* FIXED TOP HEADER */}
       <div style={{
         display: 'flex',
@@ -54,6 +62,8 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
         </div>
       </div>
 
+      <WorkflowGuide activeStep={4} />
+
       {/* SCROLLABLE MAIN CONTENT */}
       <div
         className="dashboard-scrollable-content"
@@ -64,12 +74,7 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'top right',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          position: 'relative'
         }}
       >
         <BreadcrumbHeader

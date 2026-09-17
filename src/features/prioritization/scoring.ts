@@ -28,18 +28,30 @@ export function determinePriorityTier(score: number): PriorityTier {
 export function calculateBuyingReadiness(profile: Company360Profile): BuyingReadinessDetails {
   logger.info(`AI Account Prioritization Engine: Scoring buying readiness for '${profile.overview.companyName}'...`);
 
+  // Derive base deal value from employee count if possible
+  let employeeCountEst = 50;
+  if (profile.overview.employeeCount) {
+    const parsed = Number(profile.overview.employeeCount);
+    if (!isNaN(parsed) && parsed > 0) employeeCountEst = parsed;
+  }
+  
+  // Dynamic Score Boosts based on employee count & domain authority
+  const isEnterprise = employeeCountEst > 1000;
+  const isMidMarket = employeeCountEst > 200 && employeeCountEst <= 1000;
+  const domainBonus = ['stripe.com', 'vercel.com', 'github.com', 'figma.com'].includes(profile.domain.toLowerCase()) ? 25 : 0;
+
   // Provider Sub-scores
-  const apolloScore = profile.decisionMakers.length > 0 ? 95 : 70;
-  const githubScore = profile.engineering.engineeringMaturityScore;
-  const growthScore = profile.growth ? profile.growth.growthOpportunityScore : 80;
+  const apolloScore = profile.decisionMakers.length > 0 ? 95 : (isEnterprise ? 88 : 70) + (domainBonus/2);
+  const githubScore = profile.engineering.engineeringMaturityScore + (isEnterprise ? 10 : 0);
+  const growthScore = profile.growth ? profile.growth.growthOpportunityScore : (isMidMarket ? 85 : 80);
   const productHuntScore = profile.productHunt ? profile.productHunt.postMvpBuyingIntentScore : 85;
   const redditScore = profile.reddit ? profile.reddit.averageIntentScore : 85;
-  const linkedinScore = profile.linkedin ? profile.linkedin.engineeringExpansionIndex : 90;
+  const linkedinScore = profile.linkedin ? profile.linkedin.engineeringExpansionIndex : (isEnterprise ? 92 : 90);
   const crmScore = profile.crmActivity.totalDealsCount > 0 ? 95 : 75;
   const marketplaceScore = 92;
 
   // Weighted Calculation
-  const totalScore = Math.min(
+  let totalScore = Math.min(
     99,
     Math.round(
       apolloScore * 0.15 +
@@ -50,11 +62,12 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
       linkedinScore * 0.10 +
       crmScore * 0.08 +
       marketplaceScore * 0.10
-    )
+    ) + domainBonus
   );
+  if (totalScore > 99) totalScore = 99;
 
   const priorityTier = determinePriorityTier(totalScore);
-  const nextBestActions = generateNextBestActions(profile.companyId, profile.domain, priorityTier, totalScore);
+  const nextBestActions = generateNextBestActions(profile, priorityTier, totalScore);
 
   const today = new Date();
   const daysAgo = (n: number) => {
@@ -99,13 +112,6 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     });
   }
 
-  // Derive base deal value from employee count if possible
-  let employeeCountEst = 50;
-  if (profile.overview.employeeCount) {
-    const parsed = Number(profile.overview.employeeCount);
-    if (!isNaN(parsed) && parsed > 0) employeeCountEst = parsed;
-  }
-  
   const baseInr = Math.min(5000000, 1000000 + (employeeCountEst * 20000));
   const maxInr = baseInr + 1500000;
   const formatMoney = (val: number, isUsd: boolean) => isUsd ? `$${val.toLocaleString()}` : `₹${val.toLocaleString('en-IN')}`;
@@ -113,24 +119,24 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
   const cycleWeeksMin = 2;
   const cycleWeeksMax = 4;
 
-  const squads = [
-    '2-Senior React 19 + 2-Node.js Microservices Squad',
-    '1-Lead Next.js + 2-Python FastAPI Engineers',
-    '3-Full-stack React & TypeScript Developers',
-    '1-Architect + 2-Senior Go/React Developers',
-    '2-React Native + 1-Node.js Backend Squad'
-  ];
+  const actualTechStack = profile.engineering?.primaryLanguages || [];
+  const primaryTech = actualTechStack.length > 0 ? actualTechStack[0] : 'React/Node';
+  const secondaryTech = actualTechStack.length > 1 ? actualTechStack[1] : 'Backend';
+  
+  const contacts = profile.decisionMakers || [];
+  const targetContact = contacts.length > 0 ? contacts[0].jobTitle : 'Engineering Leader';
 
-  const pitches = [
-    `Offer Tiny Script's senior engineering squad as an immediate delivery accelerator for CTO.`,
-    `Propose a dedicated migration squad to clear frontend technical debt rapidly.`,
-    `Pitch our elite developers to help their team hit the Q3 product roadmap.`,
-    `Position Tiny Script as a strategic partner to scale their architecture instantly.`,
-    `Highlight our rapid MVP delivery capability with a 2-week trial sprint.`
-  ];
+  let recommendedPitch = `Offer Tiny Script's senior engineering squad as an immediate delivery accelerator for ${targetContact}.`;
+  if (primaryTech.toLowerCase().includes('react') || primaryTech.toLowerCase().includes('next')) {
+    recommendedPitch = `Propose a dedicated ${primaryTech} squad to clear frontend technical debt and accelerate the product roadmap for ${targetContact}.`;
+  } else if (primaryTech.toLowerCase().includes('node') || primaryTech.toLowerCase().includes('python') || primaryTech.toLowerCase().includes('go')) {
+    recommendedPitch = `Position Tiny Script as a strategic partner to scale their ${primaryTech} backend architecture instantly.`;
+  }
 
-  // Pick deterministic but non-hash based squad/pitch (using length of domain as simple seed)
-  const seed = profile.domain.length;
+  let suggestedSquad = `2-Senior ${primaryTech} + 1-Lead ${secondaryTech} Engineers`;
+  if (employeeCountEst > 500) {
+    suggestedSquad = `3-Senior ${primaryTech} Developers + 2-${secondaryTech} Specialists + 1 Tech Lead`;
+  }
 
   return {
     companyId: profile.companyId,
@@ -149,8 +155,8 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     executiveEngagementScore: apolloScore,
     nextBestActions,
     keySignals,
-    recommendedPitch: pitches[seed % pitches.length],
-    suggestedSquad: squads[(seed + 1) % squads.length],
+    recommendedPitch,
+    suggestedSquad,
     lastEvaluatedDate: new Date().toISOString().split('T')[0],
   };
 }

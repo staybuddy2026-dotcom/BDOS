@@ -18,6 +18,14 @@ export type AppConfigData = {
   apolloAllowPhone: string;
   apolloCreditWarningThreshold: string;
   apolloApiKey?: string;
+  linkedinEnabled?: string;
+  linkedinApiKey?: string;
+  crunchbaseEnabled?: string;
+  crunchbaseApiKey?: string;
+  githubEnabled?: string;
+  githubApiKey?: string;
+  immediateActionThreshold?: string;
+  defaultSignature?: string;
 };
 
 /**
@@ -46,6 +54,16 @@ export async function getAppSettings(): Promise<AppConfigData> {
     const apolloCreditWarningThreshold = await SettingsService.get('apolloCreditWarningThreshold', '20');
     const apolloApiKey = await SettingsService.get('apolloApiKey', 'ap_live_98a7f432194b2');
 
+    const linkedinEnabled = await SettingsService.get('linkedinEnabled', 'false');
+    const linkedinApiKey = await SettingsService.get('linkedinApiKey', '');
+    const crunchbaseEnabled = await SettingsService.get('crunchbaseEnabled', 'false');
+    const crunchbaseApiKey = await SettingsService.get('crunchbaseApiKey', '');
+    const githubEnabled = await SettingsService.get('githubEnabled', 'false');
+    const githubApiKey = await SettingsService.get('githubApiKey', '');
+    
+    const immediateActionThreshold = await SettingsService.get('immediateActionThreshold', '90');
+    const defaultSignature = await SettingsService.get('defaultSignature', 'Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)');
+
     return {
       primaryTone,
       secondaryTone,
@@ -59,6 +77,14 @@ export async function getAppSettings(): Promise<AppConfigData> {
       apolloAllowPhone,
       apolloCreditWarningThreshold,
       apolloApiKey,
+      linkedinEnabled,
+      linkedinApiKey,
+      crunchbaseEnabled,
+      crunchbaseApiKey,
+      githubEnabled,
+      githubApiKey,
+      immediateActionThreshold,
+      defaultSignature,
     };
   } catch {
     logger.warn('Failed to query database for App Settings. Returning default configurations.');
@@ -75,6 +101,14 @@ export async function getAppSettings(): Promise<AppConfigData> {
       apolloAllowPhone: 'false',
       apolloCreditWarningThreshold: '20',
       apolloApiKey: 'ap_live_98a7f432194b2',
+      linkedinEnabled: 'false',
+      linkedinApiKey: '',
+      crunchbaseEnabled: 'false',
+      crunchbaseApiKey: '',
+      githubEnabled: 'false',
+      githubApiKey: '',
+      immediateActionThreshold: '90',
+      defaultSignature: 'Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)',
     };
   }
 }
@@ -96,9 +130,16 @@ export async function updateAppSettings(config: AppConfigData) {
     await SettingsService.set('apolloAllowPersonalEmail', config.apolloAllowPersonalEmail);
     await SettingsService.set('apolloAllowPhone', config.apolloAllowPhone);
     await SettingsService.set('apolloCreditWarningThreshold', config.apolloCreditWarningThreshold);
-    if (config.apolloApiKey) {
-      await SettingsService.set('apolloApiKey', config.apolloApiKey);
-    }
+    
+    if (config.apolloApiKey !== undefined) await SettingsService.set('apolloApiKey', config.apolloApiKey);
+    if (config.linkedinEnabled !== undefined) await SettingsService.set('linkedinEnabled', config.linkedinEnabled);
+    if (config.linkedinApiKey !== undefined) await SettingsService.set('linkedinApiKey', config.linkedinApiKey);
+    if (config.crunchbaseEnabled !== undefined) await SettingsService.set('crunchbaseEnabled', config.crunchbaseEnabled);
+    if (config.crunchbaseApiKey !== undefined) await SettingsService.set('crunchbaseApiKey', config.crunchbaseApiKey);
+    if (config.githubEnabled !== undefined) await SettingsService.set('githubEnabled', config.githubEnabled);
+    if (config.githubApiKey !== undefined) await SettingsService.set('githubApiKey', config.githubApiKey);
+    if (config.immediateActionThreshold !== undefined) await SettingsService.set('immediateActionThreshold', config.immediateActionThreshold);
+    if (config.defaultSignature !== undefined) await SettingsService.set('defaultSignature', config.defaultSignature);
 
     logger.info('App Settings updated successfully.');
     safeRevalidatePath('/settings');

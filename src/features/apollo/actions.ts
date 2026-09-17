@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { SettingsService } from '@/lib/settings';
-import { apolloProvider } from './provider';
+import { apolloProvider, ApolloPersonMatch } from './provider';
 import { AuthService } from '@/lib/auth';
 import { EnrichmentStatus } from '@prisma/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
@@ -67,12 +67,29 @@ export async function enrichPostWithApollo(
     logger.info(`Starting Apollo enrichment for post ID ${postId} (${post.authorName})...`);
 
     // 4. Perform search via ApolloProvider abstraction
-    const matches = await apolloProvider.searchPeople({
-      name: post.authorName,
-      domain: post.companyName?.toLowerCase().replace(/\s+/g, '') + '.com'
-    });
+    let matches: ApolloPersonMatch[] = [];
+    const isGenericName = !post.authorName || post.authorName.toLowerCase().includes('decision maker') || post.authorName.toLowerCase().includes('executive');
+    const domain = post.companyName?.toLowerCase().replace(/\s+/g, '') + '.com';
+
+    if (isGenericName) {
+      logger.info(`Generic name detected. Falling back to advanced search for executives at ${domain}...`);
+      const advancedRes = await apolloProvider.searchPeopleAdvanced({
+        domain: domain,
+        seniority: 'c_suite,vp,head,director',
+        perPage: 1
+      });
+      matches = advancedRes.people;
+      console.log('ADVANCED SEARCH MATCHES:', matches.length);
+    } else {
+      matches = await apolloProvider.searchPeople({
+        name: post.authorName,
+        domain: domain
+      });
+      console.log('STANDARD SEARCH MATCHES:', matches.length);
+    }
 
     if (matches.length === 0) {
+      console.log('MATCHES IS ZERO, SAVING NO_MATCH!');
       // Record NO_MATCH
       const noMatchRec = await db.apolloEnrichment.upsert({
         where: { linkedPostId: postId },

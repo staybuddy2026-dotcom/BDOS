@@ -37,6 +37,7 @@ import { getPlaybooks, PlaybookData } from '@/features/playbooks/actions';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { DraftStatus } from '@prisma/client';
 import blob from '@/assets/blob.png';
+import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 import '@/styles/review.css';
 
@@ -598,7 +599,11 @@ export default function ReviewPage() {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', backgroundColor: '#ffffff' }}>
+    <div className="dashboard-page" style={{ 
+      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
+      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+      backgroundSize: 'cover', backgroundPosition: 'top right', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
+    }}>
       {/* Toast Notification */}
       {notification && (
         <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 999999, background: notification.type === 'success' ? '#064e3b' : '#7f1d1d', color: '#ffffff', border: `1.5px solid ${notification.type === 'success' ? '#10b981' : '#ef4444'}`, padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: 800 }}>
@@ -631,14 +636,14 @@ export default function ReviewPage() {
           </div>
         </div>
       </div>
+      
+      <WorkflowGuide activeStep={5} />
 
       {/* FULL HEIGHT MAIN CONTENT WITH OVERALL SCROLLBAR */}
       <div
         className="dashboard-scrollable-content"
         style={{
-          flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-          backgroundSize: 'cover', backgroundPosition: 'top right', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
+          flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative'
         }}
       >
 
@@ -767,7 +772,7 @@ export default function ReviewPage() {
                     >
                       <div className="item-header">
                         <div className="item-title-meta">
-                          <span className="item-author">{post.authorName}</span>
+                          <span className="item-author">{post.apolloEnrichment ? post.apolloEnrichment.personName : post.authorName}</span>
                           <span className="item-keyword">Query: {post.matchedKeyword}</span>
                         </div>
 
@@ -807,10 +812,10 @@ export default function ReviewPage() {
                       <User className="author-icon" style={{ width: '22px', height: '22px' }} />
                     </div>
                     <div className="author-details">
-                      <span className="author-name" style={{ fontSize: '1.1rem' }}>{activePost.authorName}</span>
+                      <span className="author-name" style={{ fontSize: '1.1rem' }}>{activePost.apolloEnrichment ? activePost.apolloEnrichment.personName : activePost.authorName}</span>
                       <span className="detail-headline">
-                        {activePost.authorHeadline || 'LinkedIn Member'}
-                        {activePost.companyName ? ` • ${activePost.companyName}` : ''}
+                        {activePost.apolloEnrichment?.jobTitle || activePost.authorHeadline || 'LinkedIn Member'}
+                        {activePost.apolloEnrichment?.organizationName ? ` • ${activePost.apolloEnrichment.organizationName}` : activePost.companyName ? ` • ${activePost.companyName}` : ''}
                       </span>
                     </div>
                   </div>

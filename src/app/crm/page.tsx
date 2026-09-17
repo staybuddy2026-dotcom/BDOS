@@ -789,11 +789,31 @@ export default function EnterpriseCrmPage() {
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button
                         onClick={() => setShowMeetingModal(true)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '0.82rem', background: '#ffffff', color: '#0f172a', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent-indigo)'; e.currentTarget.style.color = 'var(--accent-indigo)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.transform = 'none'; }}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '8px', 
+                          padding: '8px 18px', 
+                          fontSize: '0.85rem', 
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', 
+                          color: '#ffffff', 
+                          fontWeight: 800, 
+                          border: 'none', 
+                          borderRadius: '10px', 
+                          cursor: 'pointer', 
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+                          boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)' 
+                        }}
+                        onMouseEnter={(e) => { 
+                          e.currentTarget.style.transform = 'translateY(-2px)'; 
+                          e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 70, 229, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)'; 
+                        }}
+                        onMouseLeave={(e) => { 
+                          e.currentTarget.style.transform = 'none'; 
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)'; 
+                        }}
                       >
-                        <Video size={15} style={{ color: 'var(--accent-indigo)' }} /> Log Meeting
+                        <Video size={16} style={{ color: '#ffffff' }} /> Log Meeting
                       </button>
 
                       <button
@@ -963,10 +983,31 @@ export default function EnterpriseCrmPage() {
                       </h4>
                       <button
                         onClick={() => setShowMeetingModal(true)}
-                        className="inline-flex items-center gap-1.5 py-2 px-[14px] rounded-lg bg-gradient-to-br from-[var(--accent-indigo)] to-[#00b386] text-white font-extrabold text-[0.78rem] border-none cursor-pointer shadow-[0_4px_12px_rgba(0,208,156,0.22)] transition-all duration-150 whitespace-nowrap hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(0,208,156,0.3)]"
-                        style={{ padding: '6px 12px', fontSize: '0.76rem' }}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '8px', 
+                          padding: '8px 16px', 
+                          fontSize: '0.8rem', 
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
+                          color: '#ffffff', 
+                          fontWeight: 800, 
+                          border: 'none', 
+                          borderRadius: '10px', 
+                          cursor: 'pointer', 
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)' 
+                        }}
+                        onMouseEnter={(e) => { 
+                          e.currentTarget.style.transform = 'translateY(-2px)'; 
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)'; 
+                        }}
+                        onMouseLeave={(e) => { 
+                          e.currentTarget.style.transform = 'none'; 
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)'; 
+                        }}
                       >
-                        <Plus size={14} /> Log Meeting
+                        <Plus size={15} style={{ color: '#ffffff' }} /> Log Meeting
                       </button>
                     </div>
 

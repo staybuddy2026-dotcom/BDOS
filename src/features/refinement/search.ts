@@ -27,7 +27,8 @@ export async function executeUniversalCrossProviderSearch(
   let results: UniversalSearchResultItem[] = dbPosts.map(post => {
     const enrichment = post.apolloEnrichment;
     const orgName = enrichment?.organizationName || post.companyName || 'Unknown Company';
-    const domain = enrichment?.organizationDomain || (orgName.toLowerCase().replace(/\s+/g, '') + '.com');
+    const cleanOrgName = orgName.toLowerCase().replace(/\s+/g, '');
+    const domain = enrichment?.organizationDomain || (cleanOrgName.includes('.') ? cleanOrgName : cleanOrgName + '.com');
     
     // Dynamically infer country from Domain TLD
     const tld = domain.split('.').pop()?.toLowerCase() || 'com';

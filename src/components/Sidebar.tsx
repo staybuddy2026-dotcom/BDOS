@@ -14,7 +14,8 @@ import {
   Activity,
   ChevronDown,
   User,
-  LogOut
+  LogOut,
+  Target
 } from 'lucide-react';
 
 interface NavItem {
@@ -25,6 +26,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'BDE Workflow', href: '/priorities', icon: Target },
   { name: 'Universal Search', href: '/discovery', icon: Search },
   { name: 'Company 360', href: '/company', icon: Building2 },
   { name: 'Outreach', href: '/engagement', icon: Send },
