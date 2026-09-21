@@ -83,7 +83,8 @@ export function EngagementWorkspace({
             const first = formatted[0];
             if (first && first.domain) {
               setDomainQuery(first.domain);
-              handleGenerateCustom(first.domain);
+              // Disabled auto-generation to prevent polluting Review Queue automatically
+              // handleGenerateCustom(first.domain);
             }
           }
         }

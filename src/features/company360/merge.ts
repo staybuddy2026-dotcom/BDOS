@@ -101,8 +101,8 @@ export function fuseCompanyProfiles(
   linkedin?: LinkedInIntelligenceData;
   timeline: CompanyTimelineEvent[];
 } {
-  const domain = normalizeCompanyDomain(apolloData.domain || apolloData.websiteUrl || 'enterprise.com');
-  const companyName = apolloData.companyName || (githubData?.githubOrgLogin ? githubData.githubOrgLogin.toUpperCase() : 'Enterprise Account');
+  const domain = normalizeCompanyDomain(apolloData.domain || apolloData.websiteUrl || 'unknown-company.com');
+  const companyName = apolloData.companyName || (githubData?.githubOrgLogin ? githubData.githubOrgLogin.toUpperCase() : 'Unknown Company');
   const companyId = generateCompanyId(domain, companyName);
 
   logger.info(`Company Identity Resolution Engine: Fusing identity for '${companyName}' (${domain})...`);

@@ -383,9 +383,10 @@ export default function Company360WorkspacePage() {
     return list;
   })();
 
-  const totalExecutives = displayedCompanies.reduce((sum, c) => sum + Math.max(1, Math.floor((c.employeeCount || 100) * 0.05)), 0);
-  const totalRepos = displayedCompanies.reduce((sum, c) => sum + Math.max(1, Math.floor((c.engineeringMaturity || 80) / 4)), 0);
-  const totalDealValue = displayedCompanies.reduce((sum, c) => sum + Math.max(1000000, (c.employeeCount || 100) * 15000), 0);
+  const totalFused = displayedCompanies.length;
+  const highScoringOpps = displayedCompanies.filter(c => (c.opportunityScore || 0) >= 90).length;
+  const totalEmployees = displayedCompanies.reduce((sum, c) => sum + (c.employeeCount || 0), 0);
+  const avgMaturity = totalFused > 0 ? Math.round(displayedCompanies.reduce((sum, c) => sum + (c.engineeringMaturity || 0), 0) / totalFused) : 0;
 
   return (
     <div className="apollo-search-workspace" style={{ 
@@ -605,68 +606,66 @@ export default function Company360WorkspacePage() {
             </div>
           </div>
 
-          <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(139, 92, 246, 0.15)' } as React.CSSProperties}>
+          {/* CARD 2: QUALIFIED OPPORTUNITIES */}
+          <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(168, 85, 247, 0.15)' } as React.CSSProperties}>
             <div className="kpi-glow"></div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ background: '#f3e8ff', padding: '10px', borderRadius: '50%', color: '#9333ea', display: 'flex' }}>
-                  <Briefcase size={16} strokeWidth={2.5} />
+                <div style={{ background: '#faf5ff', padding: '10px', borderRadius: '50%', color: '#a855f7', display: 'flex' }}>
+                  <Building size={16} strokeWidth={2.5} />
                 </div>
-                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Apollo Executives</span>
+                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Qualified Opportunities</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalExecutives}</div>
-                <div style={{ fontSize: '0.8rem', color: '#9333ea', marginTop: '8px', fontWeight: 600 }}>Identified CTOs & VPs</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{highScoringOpps}</div>
+                <div style={{ fontSize: '0.8rem', color: '#a855f7', marginTop: '8px', fontWeight: 600 }}>Priority Targets (Score 90+)</div>
               </div>
-              <div style={{ border: '1px solid #e9d5ff', borderRadius: '50%', padding: '6px', color: '#9333ea', display: 'flex', background: '#f3e8ff' }}>
-                <ArrowRight size={14} strokeWidth={2.5} />
-              </div>
+              <div style={{ background: '#faf5ff', padding: '8px', borderRadius: '50%', color: '#d8b4fe' }}><ArrowRight size={18} /></div>
             </div>
           </div>
 
+          {/* CARD 3: AVERAGE ENGINEERING MATURITY */}
           <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(14, 165, 233, 0.15)' } as React.CSSProperties}>
             <div className="kpi-glow"></div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ background: '#e0f2fe', padding: '10px', borderRadius: '50%', color: '#0284c7', display: 'flex' }}>
-                  <Clock size={16} strokeWidth={2.5} />
+                <div style={{ background: '#f0f9ff', padding: '10px', borderRadius: '50%', color: '#0ea5e9', display: 'flex' }}>
+                  <RotateCcw size={16} strokeWidth={2.5} />
                 </div>
-                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>GitHub Repos Indexed</span>
+                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Average Maturity</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalRepos}</div>
-                <div style={{ fontSize: '0.8rem', color: '#0284c7', marginTop: '8px', fontWeight: 600 }}>Engineering Activity Signals</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{avgMaturity}/100</div>
+                <div style={{ fontSize: '0.8rem', color: '#0ea5e9', marginTop: '8px', fontWeight: 600 }}>Engineering Activity Signals</div>
               </div>
-              <div style={{ border: '1px solid #bae6fd', borderRadius: '50%', padding: '6px', color: '#0284c7', display: 'flex', background: '#e0f2fe' }}>
-                <ArrowRight size={14} strokeWidth={2.5} />
-              </div>
+              <div style={{ background: '#f0f9ff', padding: '8px', borderRadius: '50%', color: '#7dd3fc' }}><ArrowRight size={18} /></div>
             </div>
           </div>
 
+          {/* CARD 4: TOTAL TARGET EMPLOYEES */}
           <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(16, 185, 129, 0.15)' } as React.CSSProperties}>
             <div className="kpi-glow"></div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ background: '#ecfdf5', padding: '10px', borderRadius: '50%', color: '#059669', display: 'flex' }}>
+                <div style={{ background: '#ecfdf5', padding: '10px', borderRadius: '50%', color: '#10b981', display: 'flex' }}>
                   <CheckCircle size={16} strokeWidth={2.5} />
                 </div>
-                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Target Deal Pipeline</span>
+                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Target Workforce Size</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length > 0 ? `₹${totalDealValue.toLocaleString('en-IN')}` : '₹0'}</div>
-                <div style={{ fontSize: '0.8rem', color: '#059669', marginTop: '8px', fontWeight: 600 }}>Estimated Total Value</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalEmployees.toLocaleString()}</div>
+                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '8px', fontWeight: 600 }}>Total Estimated Employees</div>
               </div>
-              <div style={{ border: '1px solid #a7f3d0', borderRadius: '50%', padding: '6px', color: '#059669', display: 'flex', background: '#ecfdf5' }}>
-                <ArrowRight size={14} strokeWidth={2.5} />
-              </div>
+              <div style={{ background: '#ecfdf5', padding: '8px', borderRadius: '50%', color: '#6ee7b7' }}><ArrowRight size={18} /></div>
             </div>
           </div>
+
         </div>
 
         {/* SEARCH BAR */}
@@ -1008,7 +1007,7 @@ export default function Company360WorkspacePage() {
                         selectedProfile.overview.fundingStage || 'Bootstrapped',
                         selectedProfile.overview.industry || 'Technology'
                       )} />
-                      <AICopilotPanel companyName={selectedProfile.overview.companyName} />
+                      <AICopilotPanel profile={selectedProfile} />
                       <CompanyOverviewPanel overview={selectedProfile.overview} provenance={selectedProfile.provenance} />
                       <ProjectValueCard estimate={estimateProjectValue(
                         selectedProfile.overview.companyName,

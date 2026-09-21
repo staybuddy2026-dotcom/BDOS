@@ -57,10 +57,13 @@ export type ReviewPostData = {
   } | null;
 };
 
+import { unstable_noStore as noStore } from 'next/cache';
+
 /**
  * Fetch all posts currently in the review queue.
  */
 export async function getReviewPosts(): Promise<ReviewPostData[]> {
+  noStore();
   try {
     const list = await db.linkedInPost.findMany({
       where: {

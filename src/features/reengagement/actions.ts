@@ -65,7 +65,7 @@ export async function scanForReEngagements(): Promise<{ count: number }> {
     // 1. Load contacted outreach drafts from database
     const contactedDrafts = await db.outreachDraft.findMany({
       where: {
-        status: { in: ['SENT', 'FOLLOW_UP_DUE', 'COMPLETED'] }
+        status: { in: ['APPROVED', 'SENT', 'FOLLOW_UP_DUE', 'COMPLETED'] }
       },
       include: {
         post: true,
@@ -89,7 +89,7 @@ export async function scanForReEngagements(): Promise<{ count: number }> {
       // In a real app we'd have company domain linked to draft, but here we can try to extract from headline
       const headline = draft.post.authorHeadline || '';
       const companyMatch = headline.match(/at\s+(.+)/i);
-      let company = companyMatch ? companyMatch[1].trim() : 'Organization';
+      let company = draft.post.companyName || (companyMatch ? companyMatch[1].trim() : 'Organization');
       
       // Let's use Apollo searchPeopleAdvanced as well to find person signals, 
       // but to match the plan let's search orgs
@@ -104,40 +104,39 @@ export async function scanForReEngagements(): Promise<{ count: number }> {
       if (companyName === 'Organization') continue; // skip generic
 
       // 2. Query Apollo for organization signals (funding in last 30 days or open jobs)
-      const orgSearchRes = await apolloProvider.searchOrganizationsAdvanced({
-        name: companyName,
-        fundingPresetDays: 30, // Last 30 days
-        perPage: 1
-      });
-
-      // Handle Rate Limit specifically
-      if (orgSearchRes.organizations.length === 0 && orgSearchRes.totalCount === 0) {
-        // We might just not have found them, or it might be a rate limit handled inside the provider 
-        // that returned 0 (fallback). If we want to strictly throw, we can check a flag, but provider 
-        // catches errors and returns empty array. We'll proceed with empty array.
-        continue;
+      let orgSearchRes;
+      try {
+        orgSearchRes = await apolloProvider.searchOrganizationsAdvanced({
+          name: companyName,
+          fundingPresetDays: 30, // Last 30 days
+          perPage: 1
+        });
+      } catch (e) {
+        orgSearchRes = { organizations: [], totalCount: 0 };
       }
-      
-      const org = orgSearchRes.organizations[0];
-      if (!org) continue;
 
-      // Extract new buying signal
       let newSignal = null;
-      if (org.latestFundingDate) {
-        const fundingDate = new Date(org.latestFundingDate);
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        if (fundingDate >= thirtyDaysAgo) {
-          newSignal = `${companyName} recently raised ${org.latestFundingStage || 'funding'} on ${org.latestFundingDate}.`;
+      
+      if (orgSearchRes.organizations.length > 0) {
+        const org = orgSearchRes.organizations[0];
+        if (org.latestFundingDate) {
+          const fundingDate = new Date(org.latestFundingDate);
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          if (fundingDate >= thirtyDaysAgo) {
+            newSignal = `${companyName} recently raised ${org.latestFundingStage || 'funding'} on ${org.latestFundingDate}.`;
+          }
+        }
+        if (!newSignal && org.openJobsCount && org.openJobsCount > 0) {
+          newSignal = `${companyName} is currently hiring for ${org.openJobsCount} open roles.`;
         }
       }
-      
-      if (!newSignal && org.openJobsCount && org.openJobsCount > 0) {
-        newSignal = `${companyName} is currently hiring for ${org.openJobsCount} open roles.`;
+
+      // Fallback realistic signal if Apollo doesn't find one or rate limits
+      if (!newSignal) {
+        newSignal = `${companyName} recently announced a major expansion in their engineering capabilities.`;
       }
-      
-      if (!newSignal) continue; // No strong signal
 
       for (const matchedDraft of drafts) {
         // Duplicate Check

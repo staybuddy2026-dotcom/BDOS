@@ -14,10 +14,8 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
   const resolvedParams = await Promise.resolve(searchParams);
   const targetDomain = resolvedParams?.domain || '';
 
-  const [initialDraft, telemetry] = await Promise.all([
-    generateOutreachDraftAction(targetDomain, 'EMAIL', 'COLD_OUTREACH', 'EXECUTIVE'),
-    getEngagementTelemetryAction(),
-  ]);
+  const telemetry = await getEngagementTelemetryAction();
+  const initialDraft = await generateOutreachDraftAction(targetDomain, 'EMAIL', 'COLD_OUTREACH', 'EXECUTIVE', false);
 
   return (
     <div className="dashboard-page" style={{ 

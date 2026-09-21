@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RevenueMeeting } from '@/features/revenue/types';
 import { Calendar, Clock, Plus, ExternalLink, CheckCircle, Video, Mail, XCircle, RotateCcw } from 'lucide-react';
+import { CustomDropdown } from '@/components/CustomDropdown';
 
 export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueMeeting[] }) {
   const [meetings, setMeetings] = useState<RevenueMeeting[]>(initialMeetings);
@@ -137,11 +138,15 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
 
             <div>
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Online Platform</label>
-              <select value={meetingPlatform} onChange={(e) => setMeetingPlatform(e.target.value as any)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.84rem', fontWeight: 700 }}>
-                <option value="GOOGLE_MEET">🎥 Google Meet</option>
-                <option value="ZOOM">💻 Zoom Video Conference</option>
-                <option value="TEAMS">🔷 Microsoft Teams</option>
-              </select>
+              <CustomDropdown
+                value={meetingPlatform}
+                onChange={(val) => setMeetingPlatform(val as any)}
+                options={[
+                  { value: 'GOOGLE_MEET', label: '🎥 Google Meet' },
+                  { value: 'ZOOM', label: '💻 Zoom Video Conference' },
+                  { value: 'TEAMS', label: '🔷 Microsoft Teams' },
+                ]}
+              />
             </div>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>

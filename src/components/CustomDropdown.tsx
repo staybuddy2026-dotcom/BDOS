@@ -35,27 +35,18 @@ export function CustomDropdown({ options, value, onChange, placeholder = 'Select
   const selectedOption = options.find((opt) => opt.value === value);
 
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
+    <div ref={dropdownRef} className="relative w-full">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex justify-between items-center rounded-[8px] px-3.5 py-2.5 text-[0.86rem] font-semibold outline-none cursor-pointer transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
         style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           background: isOpen ? '#ffffff' : '#f8fafc',
-          border: '1px solid',
+          borderWidth: '1px',
+          borderStyle: 'solid',
           borderColor: isOpen ? '#6366f1' : '#cbd5e1',
-          borderRadius: '8px',
-          padding: '10px 14px',
           color: selectedOption ? '#0f172a' : '#64748b',
-          fontSize: '0.86rem',
-          fontWeight: 600,
-          outline: 'none',
           boxShadow: isOpen ? '0 4px 12px rgba(99, 102, 241, 0.15)' : 'none',
-          cursor: 'pointer',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           transform: isOpen ? 'translateY(-1px)' : 'none',
         }}
         onMouseEnter={(e) => {
@@ -71,42 +62,34 @@ export function CustomDropdown({ options, value, onChange, placeholder = 'Select
           }
         }}
       >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown
           size={16}
+          className="shrink-0 transition-transform duration-300 ease-in-out"
           style={{
             color: isOpen ? '#6366f1' : '#64748b',
             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.3s ease',
-            flexShrink: 0
           }}
         />
       </button>
 
       <div
+        className="absolute left-0 right-0 origin-top rounded-[10px] border border-[#e2e8f0] bg-white p-1.5 z-50 max-h-[260px] overflow-y-auto"
         style={{
-          position: 'absolute',
           top: 'calc(100% + 8px)',
-          left: 0,
-          right: 0,
-          background: '#ffffff',
-          borderRadius: '10px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.1)',
-          padding: '6px',
-          zIndex: 50,
-          maxHeight: '260px',
-          overflowY: 'auto',
+          boxShadow: isOpen ? '0 16px 40px rgba(15, 23, 42, 0.14)' : '0 10px 30px rgba(15, 23, 42, 0.1)',
           opacity: isOpen ? 1 : 0,
           visibility: isOpen ? 'visible' : 'hidden',
-          transform: isOpen ? 'translateY(0)' : 'translateY(-10px)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: isOpen ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.97)',
+          transition: isOpen
+            ? 'opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1), transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s ease, visibility 0.32s'
+            : 'opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, visibility 0.18s',
           pointerEvents: isOpen ? 'auto' : 'none',
         }}
       >
-        {options.map((opt) => {
+        {options.map((opt, idx) => {
           const isSelected = opt.value === value;
           return (
             <button
@@ -116,21 +99,15 @@ export function CustomDropdown({ options, value, onChange, placeholder = 'Select
                 onChange(opt.value);
                 setIsOpen(false);
               }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[0.84rem] border-none cursor-pointer text-left transition-[background,color,opacity,transform] duration-150"
               style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                borderRadius: '6px',
                 background: isSelected ? '#e0e7ff' : 'transparent',
                 color: isSelected ? '#4338ca' : '#334155',
-                fontSize: '0.84rem',
                 fontWeight: isSelected ? 700 : 500,
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease',
+                opacity: isOpen ? 1 : 0,
+                transform: isOpen ? 'translateY(0)' : 'translateY(-4px)',
+                transitionDuration: '0.28s',
+                transitionDelay: isOpen ? `${Math.min(idx, 8) * 0.02}s` : '0s',
               }}
               onMouseEnter={(e) => {
                 if (!isSelected) {
@@ -145,8 +122,8 @@ export function CustomDropdown({ options, value, onChange, placeholder = 'Select
                 }
               }}
             >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
-              {isSelected && <Check size={14} style={{ color: '#4f46e5', flexShrink: 0 }} />}
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">{opt.label}</span>
+              {isSelected && <Check size={14} className="shrink-0 text-[#4f46e5]" />}
             </button>
           );
         })}

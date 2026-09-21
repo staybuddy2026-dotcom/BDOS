@@ -1,16 +1,17 @@
 'use client';
 
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  Archive,
   CheckCircle,
+  RefreshCw,
+  Search,
   AlertCircle,
   Star,
   ExternalLink,
-  RefreshCw,
-  Search,
   BookOpen,
   Zap,
-  Archive,
   User,
   ShieldCheck
 } from 'lucide-react';
@@ -34,6 +35,7 @@ import {
   ApolloEnrichmentData
 } from '@/features/apollo/actions';
 import { getPlaybooks, PlaybookData } from '@/features/playbooks/actions';
+import { CustomDropdown } from '@/components/CustomDropdown';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { DraftStatus } from '@prisma/client';
 import blob from '@/assets/blob.png';
@@ -606,7 +608,7 @@ export default function ReviewPage() {
     }}>
       {/* Toast Notification */}
       {notification && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 999999, background: notification.type === 'success' ? '#064e3b' : '#7f1d1d', color: '#ffffff', border: `1.5px solid ${notification.type === 'success' ? '#10b981' : '#ef4444'}`, padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: 800 }}>
+        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: `1.5px solid ${notification.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)'}`, padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', fontWeight: 800 }}>
           {notification.type === 'success' ? <CheckCircle size={18} style={{ color: '#34d399' }} /> : <AlertCircle size={18} style={{ color: '#fca5a5' }} />}
           <span>{notification.message}</span>
         </div>
@@ -1060,36 +1062,34 @@ export default function ReviewPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                           <div className="form-group">
                             <label style={{ fontSize: '0.75rem' }}>Select Outreach Playbook</label>
-                            <select
-                              value={selectedPlaybookId}
-                              onChange={(e) => {
-                                setSelectedPlaybookId(e.target.value);
-                                const pb = playbooks.find(p => p.id === e.target.value);
-                                if (pb && pb.steps.length > 0) {
-                                  setSelectedStepId(pb.steps[0].id);
-                                }
-                              }}
-                              className="premium-select"
-                              style={{ padding: '8px 12px', fontSize: '0.85rem' }}
-                            >
-                              {playbooks.map(pb => (
-                                <option key={pb.id} value={pb.id}>{pb.name}</option>
-                              ))}
-                            </select>
+                            <div style={{ minWidth: '220px' }}>
+                              <CustomDropdown
+                                value={selectedPlaybookId}
+                                onChange={(val) => {
+                                  setSelectedPlaybookId(val);
+                                  const pb = playbooks.find(p => p.id === val);
+                                  if (pb && pb.steps.length > 0) {
+                                    setSelectedStepId(pb.steps[0].id);
+                                  }
+                                }}
+                                options={playbooks.map(pb => ({ value: pb.id, label: pb.name }))}
+                              />
+                            </div>
                           </div>
 
                           <div className="form-group">
                             <label style={{ fontSize: '0.75rem' }}>Select Sequence Step</label>
-                            <select
-                              value={selectedStepId}
-                              onChange={(e) => setSelectedStepId(e.target.value)}
-                              className="premium-select"
-                              style={{ padding: '8px 12px', fontSize: '0.85rem' }}
-                            >
-                              {playbooks.find(p => p.id === selectedPlaybookId)?.steps.filter(s => s.enabled).map(step => (
-                                <option key={step.id} value={step.id}>Step {step.order}: {step.stepName} ({step.delay}d delay)</option>
-                              )) || <option value="">No steps available</option>}
-                            </select>
+                            <div style={{ minWidth: '220px' }}>
+                              <CustomDropdown
+                                value={selectedStepId}
+                                onChange={(val) => setSelectedStepId(val)}
+                                options={(() => {
+                                  const steps = playbooks.find(p => p.id === selectedPlaybookId)?.steps.filter(s => s.enabled);
+                                  if (!steps || steps.length === 0) return [{ value: '', label: 'No steps available' }];
+                                  return steps.map(step => ({ value: step.id, label: `Step ${step.order}: ${step.stepName} (${step.delay}d delay)` }));
+                                })()}
+                              />
+                            </div>
                           </div>
 
                           <div className="form-group">

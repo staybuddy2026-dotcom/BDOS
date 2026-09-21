@@ -1,137 +1,84 @@
 /* App Settings & AI Learning Dark SaaS Styles */
+@reference "tailwindcss";
 
 .settings-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding-bottom: 40px;
+  @apply flex flex-col gap-5 max-w-[1000px] mx-auto pb-10;
 }
 
 .settings-grid {
-  display: grid;
+  @apply grid gap-5;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
 }
 
 @media (max-width: 768px) {
   .settings-grid {
-    grid-template-columns: 1fr;
+    @apply grid-cols-1;
   }
 }
 
 .settings-card {
-  background: #111726;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 24px;
+  @apply bg-[#111726] border border-white/[0.08] rounded-[10px] p-6;
 }
 
 .settings-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 /* Insights Panel Styles */
 .insights-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  @apply flex justify-between items-center border-b border-white/[0.06] pb-3 mb-4;
 }
 
 .insights-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  @apply flex flex-col gap-3.5;
 }
 
 .insight-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5 p-3.5 border border-white/[0.06] rounded-[8px];
   background: var(--bg-primary);
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
 }
 
 .insight-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  @apply text-[0.72rem] font-bold text-[#64748b] uppercase tracking-wide;
 }
 
 .insight-val {
-  font-size: 0.88rem;
+  @apply text-[0.88rem] font-semibold;
   color: var(--text-primary);
-  font-weight: 600;
 }
 
 .word-tags-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
+  @apply flex flex-wrap gap-1.5 mt-1;
 }
 
 .word-tag-del {
-  font-size: 0.72rem;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-decoration: line-through;
+  @apply text-[0.72rem] bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.2)] text-[#ef4444] px-2 py-0.5 rounded-[4px] line-through;
 }
 
 .word-tag-add {
-  font-size: 0.72rem;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  color: #10b981;
-  padding: 2px 8px;
-  border-radius: 4px;
+  @apply text-[0.72rem] bg-[rgba(16,185,129,0.12)] border border-[rgba(16,185,129,0.2)] text-[#10b981] px-2 py-0.5 rounded-[4px];
 }
 
 .metrics-comparison {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 4px;
+  @apply flex items-center gap-3 mt-1;
 }
 
 .metric-bar-group {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  @apply flex-1 flex flex-col gap-1;
 }
 
 .metric-label-txt {
-  font-size: 0.7rem;
-  color: #64748b;
+  @apply text-[0.7rem] text-[#64748b];
 }
 
 .metric-progress-outer {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 3px;
-  overflow: hidden;
+  @apply h-1.5 bg-white/[0.06] rounded-[3px] overflow-hidden;
 }
 
 .metric-progress-inner {
-  height: 100%;
-  background: #6366f1;
-  border-radius: 3px;
+  @apply h-full bg-[#6366f1] rounded-[3px];
 }
 
 .metric-progress-inner.edited {
-  background: #06b6d4;
+  @apply bg-[#06b6d4];
 }

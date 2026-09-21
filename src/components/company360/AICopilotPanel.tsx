@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import { askSalesCopilotAction } from '@/features/copilot/actions';
 import { CopilotQuestionAnswer } from '@/features/copilot/types';
+import { Company360Profile } from '@/features/company360/types';
 import { Bot, Send, Sparkles, RotateCcw } from 'lucide-react';
 
-export function AICopilotPanel({ companyName = 'ACME Health Technologies' }: { companyName?: string }) {
+export function AICopilotPanel({ profile }: { profile: Company360Profile }) {
+  const companyName = profile.overview.companyName;
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<CopilotQuestionAnswer[]>([
     {
       question: 'Should I contact this company today?',
-      answer: `Yes, absolutely! ${companyName} shows strong buying signals and is an excellent target based on their profile data.`,
-      confidencePercent: 98,
-      reasoningSources: ['Company 360 Profile', 'Crunchbase Series A Feed', 'GitHub Repos'],
+      answer: `${companyName} has an ICP opportunity score of ${profile.opportunityScoring.overallScore}/100 (${profile.opportunityScoring.salesPriority} priority) — ${profile.opportunityScoring.salesPriority === 'HIGH' ? 'a strong target to reach out to today.' : 'worth a closer look before prioritizing outreach.'}`,
+      confidencePercent: profile.opportunityScoring.confidenceScorePercent,
+      reasoningSources: ['Company 360 Profile', 'Apollo Executive Lookup'],
     },
   ]);
 
@@ -28,7 +30,7 @@ export function AICopilotPanel({ companyName = 'ACME Health Technologies' }: { c
     if (!qText.trim()) return;
     setLoading(true);
     try {
-      const res = await askSalesCopilotAction(companyName, qText);
+      const res = await askSalesCopilotAction(profile, qText);
       setHistory((prev) => [res, ...prev]);
       setQuestion('');
     } catch {
@@ -39,7 +41,7 @@ export function AICopilotPanel({ companyName = 'ACME Health Technologies' }: { c
   };
 
   return (
-    <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-focus)', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+    <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-focus)', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(15,23,42,0.03)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
         <div>
           <span style={{ fontSize: '0.7rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>

@@ -90,7 +90,7 @@ export function DealDrawer({
             <h2 style={{ fontSize: '1.75rem', fontWeight: 900, color: '#0f172a', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               {deal.companyName} <ShieldCheck size={24} style={{ color: '#3b82f6', flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(59,130,246,0.4))' }} />
             </h2>
-            <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', fontWeight: 500, background: 'rgba(241, 245, 249, 0.6)', padding: '6px 12px', borderRadius: '8px', display: 'inline-flex', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
+            <div style={{ fontSize: '0.85rem', color: '#64748b', display: 'inline-flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', fontWeight: 500, background: 'rgba(241, 245, 249, 0.6)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ opacity: 0.7 }}>🌐</span> <span style={{ color: '#334155', fontWeight: 600 }}>{deal.domain}</span></span>
               <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#cbd5e1' }} />
               <span>Assigned BDE: <strong style={{ color: '#0f172a', fontWeight: 700 }}>{deal.assignedBde}</strong></span>

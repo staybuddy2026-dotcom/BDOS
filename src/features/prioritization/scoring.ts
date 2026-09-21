@@ -40,28 +40,24 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
   const isMidMarket = employeeCountEst > 200 && employeeCountEst <= 1000;
   const domainBonus = ['stripe.com', 'vercel.com', 'github.com', 'figma.com'].includes(profile.domain.toLowerCase()) ? 25 : 0;
 
-  // Provider Sub-scores
+  // Real signal sub-scores (Apollo-derived + internal CRM data only — Product Hunt,
+  // Reddit and standalone marketplace signals are not live providers, so they are not
+  // blended into the score as if they were).
   const apolloScore = profile.decisionMakers.length > 0 ? 95 : (isEnterprise ? 88 : 70) + (domainBonus/2);
   const githubScore = profile.engineering.engineeringMaturityScore + (isEnterprise ? 10 : 0);
   const growthScore = profile.growth ? profile.growth.growthOpportunityScore : (isMidMarket ? 85 : 80);
-  const productHuntScore = profile.productHunt ? profile.productHunt.postMvpBuyingIntentScore : 85;
-  const redditScore = profile.reddit ? profile.reddit.averageIntentScore : 85;
   const linkedinScore = profile.linkedin ? profile.linkedin.engineeringExpansionIndex : (isEnterprise ? 92 : 90);
   const crmScore = profile.crmActivity.totalDealsCount > 0 ? 95 : 75;
-  const marketplaceScore = 92;
 
   // Weighted Calculation
   let totalScore = Math.min(
     99,
     Math.round(
-      apolloScore * 0.15 +
-      githubScore * 0.15 +
-      growthScore * 0.18 +
-      productHuntScore * 0.14 +
-      redditScore * 0.10 +
-      linkedinScore * 0.10 +
-      crmScore * 0.08 +
-      marketplaceScore * 0.10
+      apolloScore * 0.23 +
+      githubScore * 0.23 +
+      growthScore * 0.27 +
+      linkedinScore * 0.15 +
+      crmScore * 0.12
     ) + domainBonus
   );
   if (totalScore > 99) totalScore = 99;
@@ -149,7 +145,7 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     estimatedDealValueUsd: `${formatMoney(Math.round(baseInr / 83), true)} – ${formatMoney(Math.round(maxInr / 83), true)}`,
     expectedSalesCycle: `${cycleWeeksMin} – ${cycleWeeksMax} Weeks`,
     technicalMatchScore: Math.min(99, Math.round(githubScore * 1.05)),
-    budgetConfidence: 94,
+    budgetConfidence: Math.min(96, Math.round((totalScore + apolloScore) / 2)),
     growthVelocityScore: growthScore,
     engineeringExpansionIndex: linkedinScore,
     executiveEngagementScore: apolloScore,

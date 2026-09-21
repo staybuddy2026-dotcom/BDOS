@@ -1,30 +1,21 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  getPipelineOutreaches, 
-  updateOutreachDraftStatus, 
-  createFollowUp, 
-  progressToNextStep, 
-  simulateProspectReply, 
+import {
+  Calendar, X,
+  CheckCircle, MessageSquare, AlertTriangle, Send, ChevronRight, FolderPlus, Info, Sparkles, Copy
+} from 'lucide-react';
+import { CustomDropdown } from '@/components/CustomDropdown';
+import {
+  getPipelineOutreaches,
+  updateOutreachDraftStatus,
+  createFollowUp,
+  progressToNextStep,
+  simulateProspectReply,
   generateAiReplySuggestion,
   saveOutreachDraftChanges
 } from '@/features/review/actions';
-import { 
-  Calendar, 
-  CheckCircle, 
-  MessageSquare, 
-  AlertTriangle, 
-  Send, 
-  ChevronRight, 
-  FolderPlus, 
-  Info,
-  Sparkles,
-  Copy,
-  X
-} from 'lucide-react';
 import { DraftStatus } from '@prisma/client';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import blob from '@/assets/blob.png';
@@ -489,24 +480,52 @@ export default function PipelinePage() {
   };
 
   return (
-    <div
-      className="dashboard-scrollable-content"
-      style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '16px 28px 24px 28px',
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box' }}>
+      {/* HEADER BANNER */}
+      <div style={{
         display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-        position: 'relative',
-        backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'top right',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
-        minHeight: 'calc(100vh - 120px)'
-      }}
-    >
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid var(--border-subtle)',
+        height: '65px',
+        flexShrink: 0,
+        padding: '0 28px',
+        background: 'var(--bg-primary)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', padding: '8px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(6, 182, 212, 0.3)' }}>
+            <Send size={20} style={{ color: '#ffffff' }} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 700, background: 'linear-gradient(135deg, #0f172a, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+              Outreach Pipeline & Sequences
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+              Track outbound drafts through follow-up sequences to close
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="dashboard-scrollable-content"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px 28px 24px 28px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          position: 'relative',
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'top right',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed'
+        }}
+      >
       <style>{`
         .premium-kpi-card {
           background: rgba(255, 255, 255, 0.9);
@@ -800,15 +819,13 @@ export default function PipelinePage() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8fafc', padding: '6px 16px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</span>
-                      <select 
-                        value={activeItem.status}
-                        onChange={(e) => handleUpdateStatus(e.target.value as DraftStatus)}
-                        style={{ padding: '4px 8px', fontWeight: 700, border: 'none', background: 'transparent', color: '#0f172a', cursor: 'pointer', outline: 'none', fontSize: '0.85rem' }}
-                      >
-                        {allStatuses.map(st => (
-                          <option key={st} value={st}>{st.replace(/_/g, ' ')}</option>
-                        ))}
-                      </select>
+                      <div style={{ minWidth: '160px' }}>
+                        <CustomDropdown 
+                          value={activeItem.status}
+                          onChange={(val) => handleUpdateStatus(val as DraftStatus)}
+                          options={allStatuses.map(st => ({ value: st, label: st.replace(/_/g, ' ') }))}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1103,6 +1120,7 @@ export default function PipelinePage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

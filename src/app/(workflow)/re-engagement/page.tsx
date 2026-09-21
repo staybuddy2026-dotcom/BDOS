@@ -336,7 +336,8 @@ export default function ReEngagementPage() {
                 </span>
               </div>
 
-              <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', paddingRight: '4px' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0 }}>
+                <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '8px' }}>
                 
                 {/* 1. Comparison Box: Old Context vs New signal */}
                 <div className="comparison-box">
@@ -352,41 +353,44 @@ export default function ReEngagementPage() {
                     )}
                   </div>
 
-                  <div className="comparison-card highlight">
-                    <span className="card-title-lbl" style={{ color: 'var(--accent-cyan)' }}>New Detected Buying Signal</span>
-                    <p>{activeEvent.newBuyingSignal}</p>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'auto' }}>
-                      <Calendar size={10} /> whitelisted alert matched
+                  <div className="comparison-card highlight" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.05), rgba(59,130,246,0.1))', borderColor: 'rgba(59,130,246,0.3)', boxShadow: 'inset 0 0 20px rgba(59,130,246,0.05)' }}>
+                    <span className="card-title-lbl" style={{ color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Sparkles size={14} /> New Detected Buying Signal
+                    </span>
+                    <p style={{ fontWeight: 600, color: '#0f172a' }}>{activeEvent.newBuyingSignal}</p>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'auto', fontWeight: 700 }}>
+                      <Calendar size={12} /> Live Intent Match
                     </span>
                   </div>
                 </div>
 
                 {/* 2. Analysis of contexts */}
-                <div className="analysis-field">
-                  <span className="label">Re-Engagement Signal Analysis</span>
+                <div className="analysis-field" style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <span className="label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Signal Analysis & Context</span>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                     {activeEvent.analysis}
                   </p>
                 </div>
 
                 {/* 3. Suggested Draft (Composer) */}
-                <div className="analysis-field">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span className="label">Suggested Re-Engagement Follow-Up Draft</span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--color-warning)' }}>
-                      Never automatically sent (Human approval required)
+                <div className="analysis-field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '200px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span className="label" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>AI Re-Engagement Follow-Up Draft</span>
+                    <span style={{ fontSize: '0.75rem', color: '#d97706', background: '#fef3c7', padding: '4px 10px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertTriangle size={12} /> Human approval required
                     </span>
                   </div>
                   <textarea 
                     value={draftText}
                     onChange={(e) => setDraftText(e.target.value)}
                     className="outreach-editor-textarea"
-                    style={{ minHeight: '130px', fontSize: '0.8rem' }}
+                    style={{ flex: 1, minHeight: '150px', fontSize: '0.9rem', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', resize: 'none', lineHeight: '1.6', background: '#ffffff' }}
                   />
                 </div>
+                </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: '10px', marginTop: 'var(--space-xs)' }}>
+                {/* Actions - Pinned to bottom */}
+                <div style={{ display: 'flex', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
                   <button 
                     onClick={handleSaveEdits}
                     disabled={actionLoading}
@@ -401,19 +405,19 @@ export default function ReEngagementPage() {
                       <button 
                         onClick={handleDismissReEngagement}
                         disabled={actionLoading}
-                        className="btn-danger-outline"
-                        style={{ justifyContent: 'center', gap: '6px' }}
+                        className="btn-secondary"
+                        style={{ justifyContent: 'center', gap: '8px', color: '#ef4444', borderColor: '#fecaca', background: '#fef2f2', padding: '10px 20px', fontSize: '0.9rem' }}
                       >
-                        <XCircle size={14} /> Dismiss Opportunity
+                        <XCircle size={16} /> Dismiss
                       </button>
 
                       <button 
                         onClick={handleApproveReEngagement}
                         disabled={actionLoading || !draftText.trim()}
                         className="btn-primary"
-                        style={{ flex: 1, justifyContent: 'center', gap: '6px' }}
+                        style={{ flex: 1, justifyContent: 'center', gap: '8px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', boxShadow: '0 4px 14px rgba(16,185,129,0.3)', padding: '10px 20px', fontSize: '0.9rem' }}
                       >
-                        <CheckCircle size={14} /> Approve Draft
+                        <CheckCircle size={16} /> Approve & Queue Dispatch
                       </button>
                     </>
                   )}

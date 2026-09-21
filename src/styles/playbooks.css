@@ -1,198 +1,124 @@
 /* Outreach Playbook Dark SaaS Styles */
+@reference "tailwindcss";
 
 .playbooks-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  @apply flex flex-col gap-5 max-w-[1400px] mx-auto;
   min-height: calc(100vh - 120px);
 }
 
 .playbooks-workspace {
-  display: grid;
+  @apply grid gap-5 flex-1 min-h-0;
   grid-template-columns: 320px 1fr;
-  gap: 20px;
-  flex: 1;
-  min-height: 0;
 }
 
 @media (max-width: 992px) {
   .playbooks-workspace {
-    grid-template-columns: 1fr;
+    @apply grid-cols-1;
   }
 }
 
 /* Playbooks list card on the left */
 .playbooks-list-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 0;
+  @apply flex flex-col gap-3.5 min-h-0;
 }
 
 .playbooks-scroll {
-  overflow-y: auto;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-right: 2px;
+  @apply overflow-y-auto flex-1 flex flex-col gap-2 pr-0.5;
 }
 
 .playbook-list-card {
-  background: #111726;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 3px solid transparent;
-  border-radius: 8px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  @apply bg-[#111726] border border-white/[0.08] border-l-[3px] border-l-transparent rounded-[8px] px-4 py-3.5 cursor-pointer transition-all duration-150;
 }
 
 .playbook-list-card:hover {
-  background: #161e30;
-  border-color: rgba(255, 255, 255, 0.12);
+  @apply bg-[#161e30] border-white/[0.12];
 }
 
 .playbook-list-card.active-card {
-  background: rgba(99, 102, 241, 0.08);
+  @apply bg-[rgba(99,102,241,0.08)] border-[rgba(99,102,241,0.3)];
   border-left-color: #6366f1;
-  border-color: rgba(99, 102, 241, 0.3);
 }
 
 .playbook-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @apply flex justify-between items-center;
 }
 
 .playbook-card-name {
-  font-size: 0.9rem;
-  font-weight: 600;
+  @apply text-[0.9rem] font-semibold;
   color: var(--text-primary);
 }
 
 .playbook-card-desc {
-  font-size: 0.78rem;
-  color: #94a3b8;
-  line-height: 1.35;
-  margin-top: 4px;
+  @apply text-[0.78rem] text-[#94a3b8] leading-snug mt-1 overflow-hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .playbook-card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.72rem;
-  color: #64748b;
-  margin-top: 10px;
+  @apply flex justify-between items-center text-[0.72rem] text-[#64748b] mt-2.5;
 }
 
 /* Playbooks editor on the right */
 .playbook-editor-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
+  @apply flex flex-col gap-4 min-h-0 overflow-y-auto pr-1;
 }
 
 .editor-form-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding-bottom: 12px;
+  @apply flex justify-between items-center border-b border-white/[0.06] pb-3;
 }
 
 /* Step cards */
 .steps-container {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 12px;
+  @apply flex flex-col gap-3.5 mt-3;
 }
 
 .step-edit-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  @apply flex flex-col gap-3.5 rounded-[8px] p-4 transition-colors duration-150;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 16px;
-  transition: border-color 0.15s ease;
 }
 
 .step-edit-card.disabled-step {
-  opacity: 0.5;
+  @apply opacity-50;
   border-style: dashed;
 }
 
 .step-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @apply flex justify-between items-center pb-2;
   border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 8px;
 }
 
 .step-badge {
-  background: #6366f1;
-  color: white;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  font-size: 0.75rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply bg-[#6366f1] text-white w-[22px] h-[22px] rounded-full text-xs font-bold flex items-center justify-center;
 }
 
 .step-header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  @apply flex gap-2 items-center;
 }
 
 .step-fields-grid {
-  display: grid;
+  @apply grid gap-3.5;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
 }
 
 @media (max-width: 768px) {
   .step-fields-grid {
-    grid-template-columns: 1fr;
+    @apply grid-cols-1;
   }
 }
 
 .step-textarea {
-  min-height: 70px;
+  @apply min-h-[70px] rounded-[6px] p-2.5 text-[0.85rem] resize-y outline-none;
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 10px;
   color: var(--text-primary);
-  font-size: 0.85rem;
-  resize: vertical;
-  outline: none;
 }
 
 .step-textarea:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  @apply border-[#6366f1] shadow-[0_0_0_2px_rgba(99,102,241,0.2)];
 }
 
 .add-step-btn-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 14px;
+  @apply flex justify-center mt-3.5;
 }

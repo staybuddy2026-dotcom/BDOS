@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getAppSettings,
-  updateAppSettings
+  updateAppSettings,
+  getServiceCatalog,
+  updateServiceCatalog
 } from '@/features/learning/actions';
 import {
   Save,
@@ -86,14 +88,7 @@ export default function SettingsPage() {
   const [secretKeyInput, setSecretKeyInput] = useState('');
 
   // Service Catalog CRUD State
-  const [services, setServices] = useState<ServiceItem[]>([
-    { id: '1', name: 'AI, Machine Learning & LLM Systems', minInr: '₹35,00,000', minUsd: '$45,000', stack: 'TensorFlow, PyTorch, Python, OpenCV, Hugging Face, LangChain, LLAMA, Pandas, Scikit-learn, Numpy, AWS SageMaker, Google Vertex AI', model: 'AI Consulting', threshold: 85 },
-    { id: '2', name: 'Native & Cross-Platform Mobile Applications', minInr: '₹25,00,000', minUsd: '$30,000', stack: 'Swift, SwiftUI, Kotlin, Jetpack, Flutter, React Native, Firebase, GraphQL, Xcode, Android Studio, App Store, Google Play', model: 'Dedicated Team', threshold: 80 },
-    { id: '3', name: 'Modern Web Architecture & Web Platforms', minInr: '₹25,00,000', minUsd: '$30,000', stack: 'HTML5, CSS3, JavaScript, React, Next.js, Vue.js, TypeScript, Node.js, Express, MongoDB, PostgreSQL, WordPress, Shopify', model: 'Dedicated Team', threshold: 80 },
-    { id: '4', name: 'Enterprise Backend, Cloud & DevOps Infrastructure', minInr: '₹30,00,000', minUsd: '$38,000', stack: 'Python, Django, C#, C++, .NET, AWS, Azure, Docker, Kubernetes, PostgreSQL, MongoDB', model: 'Fixed Price', threshold: 80 },
-    { id: '5', name: 'E-Commerce Platforms & Headless Digital Retail', minInr: '₹20,00,000', minUsd: '$25,000', stack: 'Shopify, WooCommerce, BigCommerce, Magento, React', model: 'Staff Augmentation', threshold: 75 },
-    { id: '6', name: 'UI/UX Design Systems & Product Prototyping', minInr: '₹15,00,000', minUsd: '$18,000', stack: 'Figma, Adobe XD, HTML5, CSS3', model: 'Fixed Price', threshold: 70 },
-  ]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
 
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -153,6 +148,9 @@ export default function SettingsPage() {
 
       const mSettings = await getMarketplaceSettings();
       setMarketplaceSettings(mSettings);
+      
+      const catalog = await getServiceCatalog();
+      setServices(catalog);
     } catch {
       setDbWarning(true);
     } finally {
@@ -285,29 +283,39 @@ export default function SettingsPage() {
     setServiceModalOpen(true);
   };
 
-  const handleSaveService = () => {
+  const handleSaveService = async () => {
     if (!serviceForm.name.trim()) {
       triggerNotification('error', 'Please enter a valid service name.');
       return;
     }
 
+    let updatedList = [...services];
     if (editingServiceId) {
-      setServices(prev => prev.map(s => s.id === editingServiceId ? { ...s, ...serviceForm } : s));
+      updatedList = updatedList.map(s => s.id === editingServiceId ? { ...s, ...serviceForm } : s);
       triggerNotification('success', `Updated service: ${serviceForm.name}`);
     } else {
       const newSrv: ServiceItem = {
         id: `srv_${Date.now()}`,
         ...serviceForm
       };
-      setServices(prev => [...prev, newSrv]);
+      updatedList = [...updatedList, newSrv];
       triggerNotification('success', `Added new service: ${serviceForm.name}`);
     }
+    
+    setServices(updatedList);
     setServiceModalOpen(false);
+    
+    // Persist to DB
+    await updateServiceCatalog(updatedList);
   };
 
-  const handleDeleteService = (id: string, name: string) => {
-    setServices(prev => prev.filter(s => s.id !== id));
+  const handleDeleteService = async (id: string, name: string) => {
+    const updatedList = services.filter(s => s.id !== id);
+    setServices(updatedList);
     triggerNotification('success', `Deleted service: ${name}`);
+    
+    // Persist to DB
+    await updateServiceCatalog(updatedList);
   };
 
   return (

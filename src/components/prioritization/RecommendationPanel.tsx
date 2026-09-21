@@ -3,6 +3,7 @@
 import { BuyingReadinessDetails, PriorityTier } from '@/features/prioritization/types';
 import { Sparkles, ShieldCheck, ArrowRight, Flame } from 'lucide-react';
 import Link from 'next/link';
+import { CustomDropdown } from '@/components/CustomDropdown';
 
 function formatCleanCompanyName(rawName: string, domain: string): string {
   if (!rawName) return domain || 'Target Account';
@@ -67,28 +68,19 @@ export function RecommendationPanel({
         <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Flame size={16} style={{ color: tierStyle.color }} /> Priority Tier Assignment:
         </div>
-        <select
-          value={account.priorityTier}
-          onChange={(e) => onTierChange?.(account.companyId, e.target.value as PriorityTier)}
-          style={{
-            fontSize: '0.8rem',
-            fontWeight: 800,
-            background: tierStyle.bg,
-            color: tierStyle.color,
-            border: `1.5px solid ${tierStyle.border}`,
-            padding: '6px 14px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            outline: 'none',
-            fontFamily: 'inherit',
-          }}
-        >
-          <option value="IMMEDIATE">🚀 Immediate (Contact Today)</option>
-          <option value="HIGH">⚡ High Priority (Within 24 Hours)</option>
-          <option value="MEDIUM">✨ Medium Tier (Outreach Sequence)</option>
-          <option value="MONITOR">👀 Active Monitor (Track Signals)</option>
-          <option value="ARCHIVE">⚪ Archive</option>
-        </select>
+        <div style={{ minWidth: '240px' }}>
+          <CustomDropdown
+            value={account.priorityTier}
+            onChange={(val) => onTierChange?.(account.companyId, val as PriorityTier)}
+            options={[
+              { value: 'IMMEDIATE', label: '🚀 Immediate (Contact Today)' },
+              { value: 'HIGH', label: '⚡ High Priority (Within 24 Hours)' },
+              { value: 'MEDIUM', label: '✨ Medium Tier (Outreach Sequence)' },
+              { value: 'MONITOR', label: '👀 Active Monitor (Track Signals)' },
+              { value: 'ARCHIVE', label: '⚪ Archive' }
+            ]}
+          />
+        </div>
       </div>
 
       {/* Suggested Squad & Pitch */}

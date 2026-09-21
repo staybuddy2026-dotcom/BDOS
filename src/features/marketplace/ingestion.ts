@@ -4,7 +4,6 @@ import { AuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import crypto from 'crypto';
-import { providerRegistry } from '@/features/providers/registry';
 import { ProviderStatus, HealthStatus } from '@/features/providers/types';
 
 export type UniversalOpportunity = {
@@ -61,179 +60,12 @@ function generateDuplicateHash(title: string, country: string, budget: string, u
   return crypto.createHash('md5').update(normalized).digest('hex');
 }
 
-// In-Memory Global Opportunity Store
-const globalOpportunityStore: UniversalOpportunity[] = [
-  {
-    id: 'opp_ingest_1',
-    providerId: 'upwork',
-    providerName: 'Upwork Enterprise',
-    projectTitle: 'Full-Stack React 19 & Node.js Microservices SaaS Redesign',
-    projectDescription: 'We are seeking an established software engineering agency to completely redesign and scale our core HIPAA-compliant healthcare SaaS web portal. The project requires migrating legacy REST endpoints to TypeScript Node.js microservices and building a high-performance React 19 frontend.',
-    budget: '$18,000 – $25,000',
-    budgetCurrency: 'USD',
-    estimatedValueNumber: 22500,
-    budgetType: 'Fixed-Price',
-    clientCountry: 'United States 🇺🇸',
-    clientTimezone: 'EST (UTC-5)',
-    technologyStack: ['React.js', 'Node.js', 'TypeScript', 'PostgreSQL', 'AWS', 'HIPAA'],
-    skills: ['React 19', 'Node.js', 'TypeScript', 'HIPAA Compliance'],
-    industry: 'Healthcare SaaS',
-    projectType: 'Web Application Development',
-    experienceLevel: 'Expert',
-    engagementModel: 'Project Basis',
-    urgency: 'Immediate',
-    postedDate: '15 mins ago',
-    proposalDeadline: '7 Days',
-    projectUrl: 'https://upwork.com/jobs/react-healthcare-saas-redesign',
-    sourceUrl: 'https://upwork.com',
-    aiOpportunityScore: 98,
-    duplicateHash: generateDuplicateHash('Full-Stack React 19 & Node.js Microservices SaaS Redesign', 'United States 🇺🇸', '$18,000 – $25,000', 'https://upwork.com/jobs/react-healthcare-saas-redesign'),
-    status: 'QUALIFIED',
-    tags: ['High Budget', 'HIPAA', 'React 19'],
-    revenuePotential: '$18,000 – $25,000',
-    complexity: 'High',
-    deliveryRisk: 'Low (10%)',
-    estimatedTeamSize: '1 Tech Lead, 2 Senior Full-Stack Engineers, 1 QA Engineer',
-    estimatedTimeline: '6 to 8 Weeks',
-    winningStrategy: 'Position Tiny Script as a specialized software agency with pre-built healthcare HIPAA & React state architecture modules.',
-  },
-  {
-    id: 'opp_ingest_2',
-    providerId: 'freelancer',
-    providerName: 'Freelancer.com',
-    projectTitle: 'Cross-Platform Flutter Mobile Application for Logistics Fleet Tracking',
-    projectDescription: 'Looking for an experienced Flutter development agency to build a cross-platform iOS & Android mobile application for real-time fleet GPS tracking, driver dispatch notifications, and offline map syncing.',
-    budget: '$65 – $90 / hr',
-    budgetCurrency: 'USD',
-    estimatedValueNumber: 24000,
-    budgetType: 'Hourly',
-    clientCountry: 'Canada 🇨🇦',
-    clientTimezone: 'EST (UTC-5)',
-    technologyStack: ['Flutter', 'Dart', 'Firebase', 'Google Maps API', 'REST API'],
-    skills: ['Flutter Mobile', 'Dart', 'GPS Syncing'],
-    industry: 'Logistics & Fleet Management',
-    projectType: 'Mobile Application',
-    experienceLevel: 'Expert',
-    engagementModel: 'Dedicated Team',
-    urgency: 'High',
-    postedDate: '42 mins ago',
-    proposalDeadline: '10 Days',
-    projectUrl: 'https://freelancer.com/projects/flutter-logistics-fleet-app',
-    sourceUrl: 'https://freelancer.com',
-    aiOpportunityScore: 94,
-    duplicateHash: generateDuplicateHash('Cross-Platform Flutter Mobile Application for Logistics Fleet Tracking', 'Canada 🇨🇦', '$65 – $90 / hr', 'https://freelancer.com/projects/flutter-logistics-fleet-app'),
-    status: 'QUALIFIED',
-    tags: ['Mobile App', 'Flutter', 'Real-Time GPS'],
-    revenuePotential: '$20,000 – $26,000',
-    complexity: 'Medium',
-    deliveryRisk: 'Low (12%)',
-    estimatedTeamSize: '1 Senior Flutter Lead, 1 Backend Engineer',
-    estimatedTimeline: '5 to 7 Weeks',
-    winningStrategy: 'Highlight proven offline map sync algorithms and 0-delay mobile push notification architecture.',
-  },
-  {
-    id: 'opp_ingest_3',
-    providerId: 'guru',
-    providerName: 'Guru.com',
-    projectTitle: 'Python AI / ML Fine-Tuning & Local LLM Integration for Document Analytics',
-    projectDescription: 'Need an AI engineering team to fine-tune Llama 3 / Mistral models on proprietary legal contracts, deploy local inference nodes, and integrate structured JSON outputs with our Python FastAPI backend.',
-    budget: '$12,000 – $15,000',
-    budgetCurrency: 'USD',
-    estimatedValueNumber: 14500,
-    budgetType: 'Fixed-Price',
-    clientCountry: 'United Kingdom 🇬🇧',
-    clientTimezone: 'GMT (UTC+0)',
-    technologyStack: ['Python', 'PyTorch', 'LLM Fine-Tuning', 'FastAPI', 'LangChain', 'Docker'],
-    skills: ['Python AI', 'LLMs', 'PyTorch', 'FastAPI'],
-    industry: 'Legal Tech / AI',
-    projectType: 'AI Engineering & Fine-Tuning',
-    experienceLevel: 'Expert',
-    engagementModel: 'Project Basis',
-    urgency: 'High',
-    postedDate: '1 hr ago',
-    proposalDeadline: '5 Days',
-    projectUrl: 'https://guru.com/jobs/python-ai-llm-fine-tuning',
-    sourceUrl: 'https://guru.com',
-    aiOpportunityScore: 92,
-    duplicateHash: generateDuplicateHash('Python AI / ML Fine-Tuning & Local LLM Integration for Document Analytics', 'United Kingdom 🇬🇧', '$12,000 – $15,000', 'https://guru.com/jobs/python-ai-llm-fine-tuning'),
-    status: 'QUALIFIED',
-    tags: ['AI/ML', 'Python', 'LLM'],
-    revenuePotential: '$12,000 – $15,000',
-    complexity: 'High',
-    deliveryRisk: 'Moderate (20%)',
-    estimatedTeamSize: '1 AI Research Lead, 1 Python FastAPI Engineer',
-    estimatedTimeline: '4 to 6 Weeks',
-    winningStrategy: 'Demonstrate local LLM quantization techniques and structured JSON parsing efficiency.',
-  },
-  {
-    id: 'opp_ingest_4',
-    providerId: 'toptal',
-    providerName: 'Toptal Direct Contract',
-    projectTitle: 'Enterprise Next.js Web Portal & Microservices Architecture Scaleup',
-    projectDescription: 'High-growth European FinTech scaling user portal to handle 50,000 concurrent active users. Seeking senior Next.js App Router and Node.js microservices developers to join core engineering squad.',
-    budget: '$80 – $110 / hr',
-    budgetCurrency: 'USD',
-    estimatedValueNumber: 36000,
-    budgetType: 'Hourly',
-    clientCountry: 'Germany 🇩🇪',
-    clientTimezone: 'CET (UTC+1)',
-    technologyStack: ['Next.js', 'React 19', 'TypeScript', 'Node.js', 'Redis', 'Kubernetes'],
-    skills: ['Next.js App Router', 'TypeScript', 'Microservices'],
-    industry: 'Financial Technology',
-    projectType: 'Enterprise Scaleup',
-    experienceLevel: 'Expert',
-    engagementModel: 'Dedicated Team',
-    urgency: 'Normal',
-    postedDate: '2 hrs ago',
-    proposalDeadline: '12 Days',
-    projectUrl: 'https://toptal.com/jobs/nextjs-fintech-microservices',
-    sourceUrl: 'https://toptal.com',
-    aiOpportunityScore: 88,
-    duplicateHash: generateDuplicateHash('Enterprise Next.js Web Portal & Microservices Architecture Scaleup', 'Germany 🇩🇪', '$80 – $110 / hr', 'https://toptal.com/jobs/nextjs-fintech-microservices'),
-    status: 'QUALIFIED',
-    tags: ['FinTech', 'Next.js', 'Enterprise'],
-    revenuePotential: '$30,000 – $42,000',
-    complexity: 'Enterprise',
-    deliveryRisk: 'Moderate (22%)',
-    estimatedTeamSize: '2 Senior Full-Stack Engineers',
-    estimatedTimeline: '8 to 12 Weeks',
-    winningStrategy: 'Position senior TypeScript developers with proven high-concurrency Redis caching benchmarks.',
-  },
-  {
-    id: 'opp_ingest_5',
-    providerId: 'remoteok',
-    providerName: 'RemoteOK Procurement',
-    projectTitle: 'Senior React & Node.js Engineer Squad for Stripe Billing Integration',
-    projectDescription: 'US e-commerce SaaS needs an engineering team to implement multi-currency Stripe Billing, subscription upgrades, and invoice PDF generation for 100k customers.',
-    budget: '$15,000 – $20,000',
-    budgetCurrency: 'USD',
-    estimatedValueNumber: 17500,
-    budgetType: 'Fixed-Price',
-    clientCountry: 'United States 🇺🇸',
-    clientTimezone: 'PST (UTC-8)',
-    technologyStack: ['React.js', 'Node.js', 'Stripe API', 'PostgreSQL', 'Express'],
-    skills: ['React.js', 'Stripe Integration', 'Node.js'],
-    industry: 'E-Commerce SaaS',
-    projectType: 'Payment Infrastructure',
-    experienceLevel: 'Intermediate',
-    engagementModel: 'Project Basis',
-    urgency: 'High',
-    postedDate: '3 hrs ago',
-    proposalDeadline: '6 Days',
-    projectUrl: 'https://remoteok.com/remote-jobs/stripe-billing-react-node',
-    sourceUrl: 'https://remoteok.com',
-    aiOpportunityScore: 91,
-    duplicateHash: generateDuplicateHash('Senior React & Node.js Engineer Squad for Stripe Billing Integration', 'United States 🇺🇸', '$15,000 – $20,000', 'https://remoteok.com/remote-jobs/stripe-billing-react-node'),
-    status: 'QUALIFIED',
-    tags: ['Stripe', 'React', 'Payment'],
-    revenuePotential: '$15,000 – $20,000',
-    complexity: 'Medium',
-    deliveryRisk: 'Low (8%)',
-    estimatedTeamSize: '1 Full-Stack Engineer, 1 QA',
-    estimatedTimeline: '3 to 4 Weeks',
-    winningStrategy: 'Highlight ready-made Stripe Webhook and PCI compliance test suites.',
-  },
-];
+// In-Memory Global Opportunity Store.
+// No automatic scraping provider is live yet (Upwork/Freelancer/Guru/Toptal/RSS are
+// all "Coming Soon" — see placeholder-providers.ts), so this store starts empty and
+// is only ever populated by genuinely real input: inbound webhook payloads, manual
+// CSV import, or the manual "Send to Review Queue" flow.
+const globalOpportunityStore: UniversalOpportunity[] = [];
 
 /**
  * Perform live opportunity collection, normalization, deduplication, and AI qualification.
@@ -541,58 +373,10 @@ export async function refreshRssFeeds(feedType?: 'tech' | 'startup' | 'remote' |
   newOpportunities: number;
   totalParsed: number;
 }> {
-  try {
-    await AuthService.verifySession();
-    logger.info(`Polling RSS feeds (Type: ${feedType || 'all'})...`);
-
-    const rssOpp: UniversalOpportunity = {
-      id: `opp_rss_${Date.now()}`,
-      providerId: 'rss',
-      providerName: 'RSS Procurement Feeds',
-      projectTitle: 'Automated Microservices & Cloud Infrastructure Deployment (RSS Stream)',
-      projectDescription: 'Ingested from RSS Feed. Client seeks Node.js microservices agency for Kubernetes deployment and Docker containerization.',
-      budget: '$20,000 – $30,000',
-      budgetCurrency: 'USD',
-      estimatedValueNumber: 25000,
-      budgetType: 'Fixed-Price',
-      clientCountry: 'United States 🇺🇸',
-      clientTimezone: 'EST (UTC-5)',
-      technologyStack: ['Node.js', 'Docker', 'Kubernetes', 'AWS', 'Microservices'],
-      skills: ['Node.js', 'Docker', 'Kubernetes'],
-      industry: 'Cloud Infrastructure',
-      projectType: 'DevOps & Microservices',
-      experienceLevel: 'Expert',
-      engagementModel: 'Dedicated Team',
-      urgency: 'Immediate',
-      postedDate: 'Just now (RSS)',
-      proposalDeadline: '5 Days',
-      projectUrl: customUrl || 'https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss',
-      sourceUrl: customUrl || 'https://weworkremotely.com',
-      aiOpportunityScore: 96,
-      duplicateHash: generateDuplicateHash('Automated Microservices & Cloud Infrastructure Deployment (RSS Stream)', 'United States 🇺🇸', '$20,000 – $30,000', customUrl || 'https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss'),
-      status: 'QUALIFIED',
-      tags: ['RSS Ingestion', 'DevOps', 'Microservices'],
-      revenuePotential: '$20,000 – $30,000',
-      complexity: 'High',
-      deliveryRisk: 'Low (8%)',
-      estimatedTeamSize: '1 DevOps Engineer, 1 Node.js Lead',
-      estimatedTimeline: '4 Weeks',
-      winningStrategy: 'Position Tiny Script cloud automation scripts and Docker CI/CD pipelines.',
-    };
-
-    const isDup = globalOpportunityStore.some(o => o.duplicateHash === rssOpp.duplicateHash);
-    if (!isDup) {
-      globalOpportunityStore.unshift(rssOpp);
-    }
-
-    return {
-      newOpportunities: isDup ? 0 : 1,
-      totalParsed: 12,
-    };
-  } catch (err: unknown) {
-    logger.error('Failed to refresh RSS feeds', err);
-    throw new AppError('RSS feed refresh failed.', 500);
-  }
+  await AuthService.verifySession();
+  logger.info(`RSS feed polling requested (Type: ${feedType || 'all'}, URL: ${customUrl || 'default'}) — RSS auto-ingestion is not yet a live integration.`);
+  // No RSS parser is wired up yet — return honestly rather than fabricate a parsed feed result.
+  return { newOpportunities: 0, totalParsed: 0 };
 }
 
 /**
@@ -600,27 +384,54 @@ export async function refreshRssFeeds(feedType?: 'tech' | 'startup' | 'remote' |
  */
 export async function getProviderHealthList(): Promise<ProviderHealthTelemetry[]> {
   try {
-    const registered = providerRegistry.getAllProviders();
-    const list: ProviderHealthTelemetry[] = [];
+    // Automatic marketplace scraping providers are all "Coming Soon" — none are
+    // registered as live in the provider registry. Report that honestly instead
+    // of fabricating sync timestamps or random "opportunities retrieved" counts.
+    const marketplaceProviderNames: Record<string, string> = {
+      upwork: 'Upwork Enterprise',
+      freelancer: 'Freelancer.com',
+      guru: 'Guru.com',
+      toptal: 'Toptal Direct Contract',
+      rss: 'RSS Procurement Feeds',
+    };
 
-    for (const p of registered) {
-      if (p.getCapabilities().supportsProjects || ['upwork', 'freelancer', 'guru', 'toptal', 'rss', 'manual', 'webhook'].includes(p.id)) {
-        const status = await p.getStatus();
-        const health = p.getHealthStatus ? await p.getHealthStatus() : 'Healthy';
+    const list: ProviderHealthTelemetry[] = Object.entries(marketplaceProviderNames).map(([providerId, providerName]) => ({
+      providerId,
+      providerName,
+      status: 'Coming Soon',
+      health: 'Coming Soon',
+      lastSync: 'Not yet connected',
+      opportunitiesRetrieved: globalOpportunityStore.filter(o => o.providerId === providerId).length,
+      avgResponseTimeMs: 0,
+      errorsCount: 0,
+      isLive: false,
+    }));
 
-        list.push({
-          providerId: p.id,
-          providerName: p.name,
-          status: status || 'Connected',
-          health: health || 'Healthy',
-          lastSync: 'Synced 2 mins ago',
-          opportunitiesRetrieved: Math.floor(Math.random() * 25) + 10,
-          avgResponseTimeMs: p.avgResponseTimeMs || 280,
-          errorsCount: 0,
-          isLive: true,
-        });
+    // Manual CSV import and inbound webhooks are genuinely functional today.
+    list.push(
+      {
+        providerId: 'manual',
+        providerName: 'Manual CSV Import',
+        status: 'Connected',
+        health: 'Healthy',
+        lastSync: 'On demand',
+        opportunitiesRetrieved: globalOpportunityStore.filter(o => o.providerId === 'manual').length,
+        avgResponseTimeMs: 0,
+        errorsCount: 0,
+        isLive: true,
+      },
+      {
+        providerId: 'webhook',
+        providerName: 'Inbound Webhook',
+        status: 'Connected',
+        health: 'Healthy',
+        lastSync: 'On demand',
+        opportunitiesRetrieved: globalOpportunityStore.filter(o => o.providerId === 'webhook').length,
+        avgResponseTimeMs: 0,
+        errorsCount: 0,
+        isLive: true,
       }
-    }
+    );
 
     return list;
   } catch (err: unknown) {
@@ -631,17 +442,26 @@ export async function getProviderHealthList(): Promise<ProviderHealthTelemetry[]
 
 /**
  * Manual Trigger Sync for a specific Marketplace Provider.
+ * Only Manual CSV Import and Inbound Webhook are live today; every automatic
+ * scraping provider is "Coming Soon" and honestly reports that instead of a fake success.
  */
 export async function syncMarketplaceProvider(providerId: string): Promise<{ success: boolean; message: string; itemsRetrieved: number }> {
   try {
     await AuthService.verifySession();
     logger.info(`Triggering manual sync for Marketplace Provider ID '${providerId}'...`);
-    const provider = providerRegistry.getProvider(providerId);
+
+    if (providerId !== 'manual' && providerId !== 'webhook') {
+      return {
+        success: false,
+        message: `Automatic sync for '${providerId}' is coming soon. Use CSV Import or the Webhook endpoint to add real opportunities today.`,
+        itemsRetrieved: 0,
+      };
+    }
 
     return {
       success: true,
-      message: `Provider '${provider.name}' synced successfully. Ingested new opportunities into pipeline.`,
-      itemsRetrieved: 18,
+      message: `'${providerId === 'manual' ? 'Manual CSV Import' : 'Inbound Webhook'}' is already live — use the Import/Webhook tools to add opportunities.`,
+      itemsRetrieved: globalOpportunityStore.filter(o => o.providerId === providerId).length,
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Provider sync failed.';

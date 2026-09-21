@@ -32,6 +32,22 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
       }
     });
 
+    try {
+      const { getApolloPeopleMapFromDb } = await import('@/features/apollo/actions');
+      const apolloSavedJson = await getApolloPeopleMapFromDb();
+      if (apolloSavedJson) {
+        const apolloSavedMap = JSON.parse(apolloSavedJson);
+        Object.values(apolloSavedMap).forEach((p: any) => {
+          const dom = (p.organizationDomain || p.organizationName || '').toLowerCase().trim();
+          if (dom && dom !== 'organization' && dom !== 'target account' && !dom.includes('likesoft')) {
+            targetDomains.add(dom.includes('.') ? dom : `${dom.replace(/[^a-z0-9]/g, '')}.com`);
+          }
+        });
+      }
+    } catch (e) {
+      logger.error('Failed to load Apollo saved contacts for prioritization', e);
+    }
+
     const domainsList = Array.from(targetDomains);
     const accounts: BuyingReadinessDetails[] = [];
 
@@ -110,8 +126,8 @@ export async function getPrioritizationTelemetryAction(): Promise<Prioritization
       estimatedPipelineValueInr: `₹${(totalValInr / 100000).toFixed(1)} Lakhs`,
       predictedMonthlyRevenue: `₹${(monthlyRevInr / 100000).toFixed(1)} Lakhs`,
       averageBuyingScore: Math.round(accounts.reduce((acc, a) => acc + a.buyingReadinessScore, 0) / (accounts.length || 1)),
-      aiWinProbabilityPercent: 92,
-      averageResponseProbabilityPercent: 88,
+      aiWinProbabilityPercent: Math.round(accounts.reduce((acc, a) => acc + a.winProbabilityPercent, 0) / (accounts.length || 1)) || 0,
+      averageResponseProbabilityPercent: Math.round(accounts.reduce((acc, a) => acc + a.executiveEngagementScore, 0) / (accounts.length || 1)) || 0,
       todaysRecommendedTasksCount: accounts.length * 2,
     };
   } catch (err: unknown) {

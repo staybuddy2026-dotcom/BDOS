@@ -7,43 +7,6 @@ import { AppError } from '@/lib/errors';
 import { PostStatus } from '@prisma/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
-export type MarketplaceProjectItem = {
-  id: string;
-  providerId: string;
-  providerName: string;
-  title: string;
-  clientName: string;
-  clientCountry: string;
-  clientRating: number;
-  clientSpend: string;
-  paymentVerified: boolean;
-  budget: string;
-  budgetType: 'Fixed-Price' | 'Hourly';
-  hourlyRateRange?: string;
-  experienceLevel: 'Entry' | 'Intermediate' | 'Expert';
-  projectSize: 'Small' | 'Medium' | 'Large' | 'Enterprise';
-  urgency: 'Immediate' | 'High' | 'Normal';
-  postedAgo: string;
-  proposalCount: string;
-  description: string;
-  requiredSkills: string[];
-  opportunityScore: number;
-  qualification: 'Perfect Match' | 'Good Match' | 'Stretch Project' | 'Not Recommended';
-  estimatedDealSize: string;
-  recommendedServices: string[];
-  postUrl?: string;
-};
-
-export type MarketplaceKpis = {
-  projectsToday: number;
-  highBudgetProjects: number;
-  urgentProjects: number;
-  aiQualifiedMatches: number;
-  savedProjects: number;
-  averageBudget: string;
-  newClientsThisWeek: number;
-};
-
 export type ProjectAiAnalysis = {
   opportunityScore: number;
   qualification: 'Perfect Match' | 'Good Match' | 'Stretch Project' | 'Not Recommended';
@@ -62,222 +25,44 @@ export type ProjectAiAnalysis = {
 };
 
 /**
- * Fetch Marketplace Project opportunities across registered providers.
- */
-export async function getMarketplaceProjects(params: {
-  providerId?: string;
-  keywords?: string;
-  budgetType?: string;
-  minBudget?: number;
-  category?: string;
-  technology?: string;
-  country?: string;
-  page?: number;
-}): Promise<{ projects: MarketplaceProjectItem[]; totalCount: number }> {
-  try {
-    await AuthService.verifySession();
-    logger.info(`Querying Project Marketplace Intelligence Hub (Provider: ${params.providerId || 'all'})...`);
-
-    const mockProjects: MarketplaceProjectItem[] = [
-      {
-        id: 'proj_mp_1',
-        providerId: 'upwork',
-        providerName: 'Upwork Enterprise',
-        title: 'Full-Stack React.js & Node.js SaaS Platform Redesign for Healthcare Client',
-        clientName: 'MediScale Solutions',
-        clientCountry: 'United States 🇺🇸',
-        clientRating: 4.9,
-        clientSpend: '$120,000+',
-        paymentVerified: true,
-        budget: '$18,000 – $25,000',
-        budgetType: 'Fixed-Price',
-        experienceLevel: 'Expert',
-        projectSize: 'Enterprise',
-        urgency: 'Immediate',
-        postedAgo: '15 mins ago',
-        proposalCount: '5 to 10 proposals',
-        description: 'We are seeking an established software agency to completely redesign and scale our core HIPAA-compliant healthcare SaaS web portal. The project requires migrating legacy REST endpoints to TypeScript Node.js microservices and building a high-performance React 19 frontend.',
-        requiredSkills: ['React.js', 'Node.js', 'TypeScript', 'PostgreSQL', 'AWS', 'HIPAA'],
-        opportunityScore: 98,
-        qualification: 'Perfect Match',
-        estimatedDealSize: '$22,500',
-        recommendedServices: ['Full-Stack Web App Dev', 'TypeScript Backend Refactoring', 'Dedicated Tech Team'],
-        postUrl: 'https://upwork.com/jobs/react-healthcare-saas-redesign',
-      },
-      {
-        id: 'proj_mp_2',
-        providerId: 'freelancer',
-        providerName: 'Freelancer.com',
-        title: 'Cross-Platform Flutter Mobile Application for Logistics Fleet Tracking',
-        clientName: 'Apex Logistics Inc',
-        clientCountry: 'Canada 🇨🇦',
-        clientRating: 5.0,
-        clientSpend: '$85,000+',
-        paymentVerified: true,
-        budget: '$65 / hr – $90 / hr',
-        budgetType: 'Hourly',
-        hourlyRateRange: '$65 - $90 / hr (Est. 300 hrs)',
-        experienceLevel: 'Expert',
-        projectSize: 'Large',
-        urgency: 'High',
-        postedAgo: '42 mins ago',
-        proposalCount: 'Less than 5 proposals',
-        description: 'Looking for an experienced Flutter development agency to build a cross-platform iOS & Android mobile application for real-time fleet GPS tracking, driver dispatch notifications, and offline map syncing.',
-        requiredSkills: ['Flutter', 'Dart', 'Firebase', 'Google Maps API', 'REST API'],
-        opportunityScore: 94,
-        qualification: 'Perfect Match',
-        estimatedDealSize: '$24,000',
-        recommendedServices: ['Cross-Platform Flutter Mobile Dev', 'GPS & Real-Time Syncing'],
-        postUrl: 'https://freelancer.com/projects/flutter-logistics-fleet-app',
-      },
-      {
-        id: 'proj_mp_3',
-        providerId: 'guru',
-        providerName: 'Guru.com',
-        title: 'Python AI / ML Fine-Tuning & Local LLM Integration for Document Analytics',
-        clientName: 'DocuIntel AI',
-        clientCountry: 'United Kingdom 🇬🇧',
-        clientRating: 4.8,
-        clientSpend: '$45,000+',
-        paymentVerified: true,
-        budget: '$12,000 – $15,000',
-        budgetType: 'Fixed-Price',
-        experienceLevel: 'Expert',
-        projectSize: 'Medium',
-        urgency: 'High',
-        postedAgo: '1 hr ago',
-        proposalCount: '5 to 10 proposals',
-        description: 'Need an AI engineering team to fine-tune Llama 3 / Mistral models on proprietary legal contracts, deploy local inference nodes, and integrate structured JSON outputs with our Python FastAPI backend.',
-        requiredSkills: ['Python', 'PyTorch', 'LLM Fine-Tuning', 'FastAPI', 'LangChain', 'Docker'],
-        opportunityScore: 92,
-        qualification: 'Perfect Match',
-        estimatedDealSize: '$14,500',
-        recommendedServices: ['AI/ML Model Fine-Tuning', 'Local LLM Deployment', 'Python FastAPI Backend'],
-        postUrl: 'https://guru.com/jobs/python-ai-llm-fine-tuning',
-      },
-      {
-        id: 'proj_mp_4',
-        providerId: 'toptal',
-        providerName: 'Toptal Direct Contract',
-        title: 'Enterprise Next.js Web Portal & Microservices Architecture Scaleup',
-        clientName: 'FinFlow Global',
-        clientCountry: 'Germany 🇩🇪',
-        clientRating: 5.0,
-        clientSpend: '$200,000+',
-        paymentVerified: true,
-        budget: '$80 / hr – $110 / hr',
-        budgetType: 'Hourly',
-        hourlyRateRange: '$80 - $110 / hr (Est. 400 hrs)',
-        experienceLevel: 'Expert',
-        projectSize: 'Enterprise',
-        urgency: 'Normal',
-        postedAgo: '2 hrs ago',
-        proposalCount: '5 to 10 proposals',
-        description: 'High-growth European FinTech scaling user portal to handle 50,000 concurrent active users. Seeking senior Next.js App Router and Node.js microservices developers to join core engineering squad.',
-        requiredSkills: ['Next.js', 'React 19', 'TypeScript', 'Node.js', 'Redis', 'Kubernetes'],
-        opportunityScore: 88,
-        qualification: 'Good Match',
-        estimatedDealSize: '$36,000',
-        recommendedServices: ['Enterprise Architecture Scaling', 'Dedicated Senior Developer Squad'],
-        postUrl: 'https://toptal.com/jobs/nextjs-fintech-microservices',
-      },
-      {
-        id: 'proj_mp_5',
-        providerId: 'weworkremotely',
-        providerName: 'We Work Remotely',
-        title: 'Senior Full-Stack Developer Team for E-Commerce Marketplace Expansion',
-        clientName: 'ShopCraft Inc',
-        clientCountry: 'Australia 🇦🇺',
-        clientRating: 4.7,
-        clientSpend: '$60,000+',
-        paymentVerified: true,
-        budget: '$15,000 – $20,000',
-        budgetType: 'Fixed-Price',
-        experienceLevel: 'Intermediate',
-        projectSize: 'Medium',
-        urgency: 'Normal',
-        postedAgo: '3 hrs ago',
-        proposalCount: '10 to 15 proposals',
-        description: 'E-commerce platform expanding to international multi-currency checkouts. Requires custom Stripe connect integration, React checkout frontend, and Node.js background queue processing.',
-        requiredSkills: ['React.js', 'Node.js', 'Stripe Connect', 'GraphQL', 'TailwindCSS'],
-        opportunityScore: 85,
-        qualification: 'Good Match',
-        estimatedDealSize: '$17,500',
-        recommendedServices: ['E-Commerce Backend Systems', 'Stripe & Payment Gateway Integration'],
-        postUrl: 'https://weworkremotely.com/jobs/fullstack-ecommerce-checkout',
-      },
-    ];
-
-    // Filter by tech or keywords if provided
-    let filtered = mockProjects;
-    if (params.technology) {
-      filtered = filtered.filter(p => 
-        p.requiredSkills.some(s => s.toLowerCase().includes(params.technology!.toLowerCase())) ||
-        p.title.toLowerCase().includes(params.technology!.toLowerCase())
-      );
-    }
-
-    return {
-      projects: filtered,
-      totalCount: filtered.length,
-    };
-  } catch (err: unknown) {
-    logger.error('Failed to query marketplace projects', err);
-    throw new AppError('Marketplace query failed.', 500);
-  }
-}
-
-/**
- * Fetch top Marketplace KPI Metrics.
- */
-export async function getMarketplaceKpis(): Promise<MarketplaceKpis> {
-  return {
-    projectsToday: 38,
-    highBudgetProjects: 12,
-    urgentProjects: 7,
-    aiQualifiedMatches: 14,
-    savedProjects: 5,
-    averageBudget: '$18,450',
-    newClientsThisWeek: 9,
-  };
-}
-
-/**
- * Run AI Opportunity Analysis on a Marketplace Project.
+ * Run AI Opportunity Analysis on a Marketplace Project, derived from its real
+ * budget, technology stack and urgency rather than a fixed template.
  */
 export async function analyzeProjectOpportunity(
-  projectId: string, 
-  title: string
+  projectId: string,
+  title: string,
+  context?: { budget?: string; technologyStack?: string[]; urgency?: string; estimatedValueNumber?: number }
 ): Promise<ProjectAiAnalysis> {
   try {
     await AuthService.verifySession();
     logger.info(`Analyzing Project Opportunity ID: ${projectId} ("${title}")...`);
 
+    const value = context?.estimatedValueNumber || 0;
+    const techStack = context?.technologyStack || [];
+    const isHighValue = value >= 25000;
+    const isUrgent = context?.urgency === 'Immediate';
+
+    const opportunityScore = Math.min(98, 70 + (isHighValue ? 15 : 5) + (techStack.length > 0 ? 10 : 0) + (isUrgent ? 5 : 0));
+    const qualification: ProjectAiAnalysis['qualification'] = opportunityScore >= 90 ? 'Perfect Match' : opportunityScore >= 75 ? 'Good Match' : opportunityScore >= 60 ? 'Stretch Project' : 'Not Recommended';
+    const complexity: ProjectAiAnalysis['complexity'] = value >= 35000 ? 'Enterprise' : value >= 20000 ? 'High' : value >= 10000 ? 'Medium' : 'Low';
+
     return {
-      opportunityScore: 96,
-      qualification: 'Perfect Match',
-      revenuePotential: '$18,000 – $28,000',
-      technologyMatchScore: 98,
-      estimatedTimeline: '6 to 8 Weeks',
-      complexity: 'High',
-      requiredTeam: '1 Tech Lead, 2 Senior Full-Stack Engineers, 1 QA Engineer',
-      confidenceScore: 95,
-      winningStrategy: 'Position Tiny Script as a specialized software agency with pre-built healthcare HIPAA & React state architecture modules.',
-      winningAngle: 'Emphasize 0-delay onboarding, proven React 19 performance benchmarks, and dedicated full-stack squad allocation.',
-      riskFactors: [
-        'Client has tight 8-week launch deadline',
-        'Requires HIPAA compliance audit sign-off',
-      ],
-      recommendedPortfolio: [
-        'Tiny Script Healthcare SaaS Portal Case Study',
-        'HIPAA-Compliant Microservices Blueprint',
-        'React 19 State Management Architecture Benchmark',
-      ],
-      suggestedCaseStudies: [
-        'MediScale Cloud Web App (200k Active Patients)',
-        'Logistics Fleet Flutter Mobile Engine',
-      ],
-      similarProjectsCount: 4,
+      opportunityScore,
+      qualification,
+      revenuePotential: context?.budget || 'Not specified',
+      technologyMatchScore: techStack.length > 0 ? Math.min(96, 70 + techStack.length * 5) : 60,
+      estimatedTimeline: complexity === 'Enterprise' ? '8 to 12 Weeks' : complexity === 'High' ? '6 to 8 Weeks' : complexity === 'Medium' ? '4 to 6 Weeks' : '2 to 4 Weeks',
+      complexity,
+      requiredTeam: complexity === 'Enterprise' ? '1 Tech Lead, 2 Senior Full-Stack Engineers, 1 QA Engineer' : complexity === 'High' ? '1 Tech Lead, 1 Senior Engineer' : '1 Full-Stack Engineer',
+      confidenceScore: techStack.length > 0 ? 85 : 60,
+      winningStrategy: techStack.length > 0
+        ? `Position Tiny Script's ${techStack.slice(0, 2).join(' & ')} expertise directly against the stated requirements.`
+        : 'Request a technical scoping call to clarify requirements before proposing.',
+      winningAngle: isUrgent ? 'Emphasize immediate squad availability and fast onboarding.' : 'Emphasize proven delivery track record and transparent sprint cycles.',
+      riskFactors: isUrgent ? ['Tight delivery timeline stated by client'] : [],
+      recommendedPortfolio: [],
+      suggestedCaseStudies: [],
+      similarProjectsCount: 0,
     };
   } catch (err: unknown) {
     logger.error(`Failed to analyze project opportunity ${projectId}`, err);

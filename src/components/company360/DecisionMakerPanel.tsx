@@ -8,13 +8,13 @@ export function DecisionMakerPanel({ decisionMakers }: { decisionMakers: Decisio
     <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <UserCheck size={18} style={{ color: '#a5b4fc' }} />
+          <UserCheck size={18} style={{ color: 'var(--accent-indigo)' }} />
           <h3 style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
             Executive Decision Makers ({decisionMakers.length})
           </h3>
         </div>
 
-        <span style={{ fontSize: '0.65rem', background: 'var(--accent-indigo-glow)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+        <span style={{ fontSize: '0.65rem', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
           Sourced from Apollo.io Provider
         </span>
       </div>
@@ -30,7 +30,7 @@ export function DecisionMakerPanel({ decisionMakers }: { decisionMakers: Decisio
                 <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
                   {dm.name}
                 </h4>
-                <div style={{ fontSize: '0.76rem', color: '#a5b4fc', fontWeight: 600, marginTop: '2px' }}>
+                <div style={{ fontSize: '0.76rem', color: 'var(--accent-indigo)', fontWeight: 600, marginTop: '2px' }}>
                   {dm.jobTitle}
                 </div>
               </div>

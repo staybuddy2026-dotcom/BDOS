@@ -144,7 +144,6 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       },
       provenance: {
         companyName: 'Apollo',
-        publicReposCount: 'GitHub',
         opportunityScore: 'AI',
       },
     };

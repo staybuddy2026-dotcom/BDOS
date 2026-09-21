@@ -28,6 +28,8 @@ import {
 import { validateBooleanQuery } from '@/features/keywords/validation';
 import { Priority, KeywordStatus } from '@prisma/client';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+import { CustomDropdown } from '@/components/CustomDropdown';
+import blob from '@/assets/blob.png';
 import '@/styles/keywords.css';
 
 export default function KeywordsPage() {
@@ -351,7 +353,60 @@ export default function KeywordsPage() {
   const totalMatches = keywords.reduce((sum, k) => sum + k.matchesFound, 0);
 
   return (
-    <div className="keywords-page">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box' }}>
+      {/* HEADER BANNER */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid var(--border-subtle)',
+        height: '65px',
+        flexShrink: 0,
+        padding: '0 28px',
+        background: 'var(--bg-primary)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)', padding: '8px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(245, 158, 11, 0.3)' }}>
+            <Search size={20} style={{ color: '#ffffff' }} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 700, background: 'linear-gradient(135deg, #0f172a, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+              Keyword Library & Boolean Queries
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+              Configure search keywords and Boolean queries to scan for buying signals
+            </p>
+          </div>
+        </div>
+
+        <div className="header-actions">
+          <button onClick={handleOpenCreateModal} className="btn-primary">
+            <Plus size={16} /> Create Search Term
+          </button>
+          <a href="/api/keywords/export" download className="btn-secondary">
+            <Download size={16} /> Export
+          </a>
+          <button onClick={() => { setShowCsvModal(true); setCsvFile(null); setCsvErrorList([]); setImportSuccess(null); }} className="btn-secondary">
+            <Upload size={16} /> Import CSV
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="dashboard-scrollable-content keywords-page"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px 28px 24px 28px',
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'top right',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed'
+        }}
+      >
       {/* Notifications */}
       {notification && (
         <div className={`notification ${notification.type === 'success' ? 'success' : 'error'}`}>
@@ -413,32 +468,13 @@ export default function KeywordsPage() {
         badge="Signal Filters"
       />
 
-      {/* Page Title Header */}
-      <div className="page-header">
-        <div className="header-title">
-          <h2>Keyword Library</h2>
-          <p>Configure search keywords and Boolean queries to scan LinkedIn for buying signals.</p>
-        </div>
-        <div className="header-actions">
-          <button onClick={handleOpenCreateModal} className="btn-primary">
-            <Plus size={16} /> Create Search Term
-          </button>
-          <a href="/api/keywords/export" download className="btn-secondary">
-            <Download size={16} /> Export
-          </a>
-          <button onClick={() => { setShowCsvModal(true); setCsvFile(null); setCsvErrorList([]); setImportSuccess(null); }} className="btn-secondary">
-            <Upload size={16} /> Import CSV
-          </button>
-        </div>
-      </div>
-
       {/* Statistics Cards */}
       <div className="stats-grid">
         <div className="stat-card card-glass">
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Total Keywords</span>
-              <span className="text-[1.6rem] font-bold text-[var(--text-primary)]">{pageLoading ? '...' : totalCount}</span>
+              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : totalCount}</span>
             </div>
             <div className="stat-icon-wrapper">
               <FileSpreadsheet className="stat-icon" />
@@ -446,11 +482,11 @@ export default function KeywordsPage() {
           </div>
         </div>
 
-        <div className="stat-card border-[var(--accent-indigo)] bg-[var(--accent-indigo-glow)] shadow-[0_0_12px_rgba(0,208,156,0.15)] card-glass">
+        <div className="stat-card border-(--accent-indigo) bg-(--accent-indigo-glow) shadow-[0_0_12px_rgba(0,208,156,0.15)] card-glass">
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Active (Discovery)</span>
-              <span className="text-[1.6rem] font-bold text-[var(--text-primary)]">{pageLoading ? '...' : activeCount}</span>
+              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : activeCount}</span>
             </div>
             <div className="stat-icon-wrapper">
               <CheckCircle className="stat-icon" style={{ color: 'var(--color-success)' }} />
@@ -462,7 +498,7 @@ export default function KeywordsPage() {
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Starred Terms</span>
-              <span className="text-[1.6rem] font-bold text-[var(--text-primary)]">{pageLoading ? '...' : favoriteCount}</span>
+              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : favoriteCount}</span>
             </div>
             <div className="stat-icon-wrapper">
               <Star className="stat-icon" style={{ color: 'var(--color-warning)', fill: '#fbbf24' }} />
@@ -474,7 +510,7 @@ export default function KeywordsPage() {
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Discovery Matches</span>
-              <span className="text-[1.6rem] font-bold text-[var(--text-primary)]">{pageLoading ? '...' : totalMatches}</span>
+              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : totalMatches}</span>
             </div>
             <div className="stat-icon-wrapper">
               <Search className="stat-icon" style={{ color: 'var(--accent-cyan)' }} />
@@ -505,50 +541,56 @@ export default function KeywordsPage() {
           </div>
           <div className="filter-right">
             {/* Category Filter */}
-            <select 
-              value={categoryFilter} 
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer filter-select"
-            >
-              <option value="">All Categories</option>
-              {categoriesList.map(cat => (
-                <option key={cat} value={cat}>{cat.toUpperCase()}</option>
-              ))}
-            </select>
+            <div style={{ minWidth: '160px' }}>
+              <CustomDropdown
+                value={categoryFilter}
+                onChange={(val) => setCategoryFilter(val)}
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...categoriesList.map(cat => ({ value: cat, label: cat.toUpperCase() }))
+                ]}
+              />
+            </div>
 
             {/* Priority Filter */}
-            <select 
-              value={priorityFilter} 
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer filter-select"
-            >
-              <option value="">All Priorities</option>
-              <option value={Priority.LOW}>Low</option>
-              <option value={Priority.MEDIUM}>Medium</option>
-              <option value={Priority.HIGH}>High</option>
-            </select>
+            <div style={{ minWidth: '160px' }}>
+              <CustomDropdown
+                value={priorityFilter}
+                onChange={(val) => setPriorityFilter(val)}
+                options={[
+                  { value: '', label: 'All Priorities' },
+                  { value: Priority.LOW, label: 'Low' },
+                  { value: Priority.MEDIUM, label: 'Medium' },
+                  { value: Priority.HIGH, label: 'High' }
+                ]}
+              />
+            </div>
 
             {/* Status Filter */}
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer filter-select"
-            >
-              <option value="">All Statuses</option>
-              <option value={KeywordStatus.ACTIVE}>Active Only</option>
-              <option value={KeywordStatus.INACTIVE}>Inactive Only</option>
-            </select>
+            <div style={{ minWidth: '160px' }}>
+              <CustomDropdown
+                value={statusFilter}
+                onChange={(val) => setStatusFilter(val)}
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: KeywordStatus.ACTIVE, label: 'Active Only' },
+                  { value: KeywordStatus.INACTIVE, label: 'Inactive Only' }
+                ]}
+              />
+            </div>
 
             {/* Starred Filter */}
-            <select 
-              value={favoriteFilter} 
-              onChange={(e) => setFavoriteFilter(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer filter-select"
-            >
-              <option value="all">All Stars</option>
-              <option value="favorite">Starred Only</option>
-              <option value="regular">Regular Only</option>
-            </select>
+            <div style={{ minWidth: '160px' }}>
+              <CustomDropdown
+                value={favoriteFilter}
+                onChange={(val) => setFavoriteFilter(val)}
+                options={[
+                  { value: 'all', label: 'All Stars' },
+                  { value: 'favorite', label: 'Starred Only' },
+                  { value: 'regular', label: 'Regular Only' }
+                ]}
+              />
+            </div>
           </div>
         </div>
 
@@ -720,7 +762,7 @@ export default function KeywordsPage() {
                   placeholder='("AI Development" OR "Machine Learning") AND ("looking for" OR "need help")'
                   value={keywordText}
                   onChange={handleKeywordChange}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white"
+                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-(--text-primary) text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-(--accent-indigo) focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white"
                   autoFocus
                 />
                 <span className="helper-text">
@@ -735,7 +777,7 @@ export default function KeywordsPage() {
                   placeholder="e.g. Sales, Recruiting, HR"
                   value={categoryText}
                   onChange={(e) => setCategoryText(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white"
+                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-(--text-primary) text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-(--accent-indigo) focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white"
                   list="existing-categories-modal"
                 />
                 <datalist id="existing-categories-modal">
@@ -747,15 +789,15 @@ export default function KeywordsPage() {
 
               <div className="form-group">
                 <label>Priority Level</label>
-                <select 
-                  value={priorityValue} 
-                  onChange={(e) => setPriorityValue(e.target.value as Priority)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer"
-                >
-                  <option value={Priority.LOW}>Low Priority</option>
-                  <option value={Priority.MEDIUM}>Medium Priority</option>
-                  <option value={Priority.HIGH}>High Priority</option>
-                </select>
+                <CustomDropdown
+                  value={priorityValue}
+                  onChange={(val) => setPriorityValue(val as Priority)}
+                  options={[
+                    { value: Priority.LOW, label: 'Low Priority' },
+                    { value: Priority.MEDIUM, label: 'Medium Priority' },
+                    { value: Priority.HIGH, label: 'High Priority' }
+                  ]}
+                />
               </div>
 
               <div className="form-group">
@@ -872,6 +914,7 @@ export default function KeywordsPage() {
         </div>
       )}
 
+    </div>
     </div>
   );
 }

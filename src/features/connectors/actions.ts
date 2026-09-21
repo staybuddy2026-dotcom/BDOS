@@ -7,6 +7,8 @@ import { safeRevalidatePath } from '@/lib/revalidate';
 
 import { ProviderStatus, HealthStatus } from '@/features/providers/types';
 import { providerRegistry } from '@/features/providers/registry';
+import { SettingsService } from '@/lib/settings';
+import { db } from '@/lib/db';
 
 export type ConnectorCapabilities = {
   search: boolean;
@@ -68,23 +70,50 @@ export async function getMarketplaceConnectors(): Promise<ConnectorCardItem[]> {
     const list: ConnectorCardItem[] = [];
     const providerIds = ['apollo', 'linkedin', 'crunchbase', 'github'];
 
+    const apolloKey = await SettingsService.get('apolloApiKey', '');
+    const linkedinKey = await SettingsService.get('linkedinApiKey', '');
+    const crunchbaseKey = await SettingsService.get('crunchbaseApiKey', '');
+    const githubKey = await SettingsService.get('githubApiKey', '');
+
+    // Get today's total discovered leads count dynamically
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCount = await db.linkedInPost.count({
+      where: { discoveredAt: { gte: today } }
+    }).catch(() => 0);
+
     for (const id of providerIds) {
       const provider = providerRegistry.getProvider(id);
       const status = await provider.getStatus();
       const health = provider.getHealthStatus ? await provider.getHealthStatus() : 'Coming Soon';
       const isLive = provider.isLive === true && status === 'Connected';
+      
+      let keyToMask = '';
+      if (id === 'apollo') keyToMask = apolloKey;
+      else if (id === 'linkedin') keyToMask = linkedinKey;
+      else if (id === 'crunchbase') keyToMask = crunchbaseKey;
+      else if (id === 'github') keyToMask = githubKey;
+
+      const masked = keyToMask && keyToMask.length > 10 
+        ? `${keyToMask.slice(0, 7)}••••••••${keyToMask.slice(-4)}`
+        : keyToMask ? '••••••••' : 'Not configured';
+
+      let category: 'Apollo Prospecting' | 'Marketplace RFP' | 'RSS / Webhook' | 'Email / Import' = 'Apollo Prospecting';
+      if (id === 'apollo') category = 'Apollo Prospecting';
+      else if (id === 'linkedin') category = 'Marketplace RFP';
+      else category = 'RSS / Webhook';
 
       list.push({
         id: provider.id,
         name: provider.name,
-        category: 'Apollo Prospecting',
+        category,
         status,
         health,
-        lastSync: isLive ? 'Synced 5 mins ago' : 'Not connected',
+        lastSync: isLive ? 'Synced recently' : 'Not connected',
         responseMs: provider.avgResponseTimeMs || 0,
-        importedToday: isLive ? 42 : 0,
+        importedToday: isLive ? todayCount : 0,
         errorsCount: 0,
-        apiKeyMasked: isLive ? 'ap_live_••••••••94b2' : 'Not configured',
+        apiKeyMasked: masked,
         capabilities: {
           search: isLive,
           liveSync: isLive,
@@ -93,8 +122,8 @@ export async function getMarketplaceConnectors(): Promise<ConnectorCardItem[]> {
           reviewQueue: isLive,
           crm: isLive,
           contactEnrichment: isLive,
-          budgetDetection: isLive,
-          techExtraction: isLive,
+          budgetDetection: id === 'crunchbase' ? isLive : false,
+          techExtraction: id === 'github' ? isLive : false,
         },
       });
     }

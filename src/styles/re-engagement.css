@@ -1,101 +1,71 @@
 /* Re-engagement Engine Light SaaS Styles */
+@reference "tailwindcss";
 
 .reengagement-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  @apply flex flex-col gap-5 max-w-[1400px] mx-auto;
   min-height: calc(100vh - 120px);
 }
 
 .reengagement-workspace {
-  display: grid;
+  @apply grid gap-5 flex-1 min-h-0;
   grid-template-columns: 360px 1fr;
-  gap: 20px;
-  flex: 1;
-  min-height: 0;
 }
 
 @media (max-width: 992px) {
   .reengagement-workspace {
-    grid-template-columns: 1fr;
+    @apply grid-cols-1;
   }
 }
 
 .reengagement-list-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 0;
+  @apply flex flex-col gap-3.5 min-h-0;
 }
 
 .reengagement-items-scroll {
-  overflow-y: auto;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-right: 4px;
+  @apply overflow-y-auto flex-1 flex flex-col gap-3 p-2;
 }
 
 .reengagement-card-item {
+  @apply rounded-[12px] cursor-pointer p-4 flex flex-col gap-2.5 relative;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  cursor: pointer;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: var(--glass-shadow);
-  position: relative;
 }
 
 .reengagement-card-item:hover {
+  @apply -translate-y-0.5 shadow-[0_8px_24px_rgba(99,102,241,0.12)];
   background: var(--bg-primary);
   border-color: var(--accent-indigo);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
 }
 
 .reengagement-card-item.active-item {
+  @apply -translate-y-0.5;
   background: var(--bg-primary);
   border: 2px solid var(--accent-indigo);
   padding: 15px; /* compensate for border */
   box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15), 0 0 0 1px var(--accent-indigo);
-  transform: translateY(-2px);
 }
 
 .reengagement-detail-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-height: 0;
-  max-height: 100%;
+  @apply flex flex-col gap-5 min-h-0 max-h-full;
 }
 
 .comparison-box {
-  display: grid;
+  @apply grid gap-4;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
 }
 
 @media (max-width: 768px) {
   .comparison-box {
-    grid-template-columns: 1fr;
+    @apply grid-cols-1;
   }
 }
 
 .comparison-card {
-  padding: 18px;
+  @apply p-[18px] rounded-[12px] flex flex-col gap-2.5;
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .comparison-card.highlight {
@@ -104,43 +74,30 @@
 }
 
 .comparison-card .card-title-lbl {
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  @apply text-[0.72rem] font-extrabold uppercase tracking-wide;
   color: var(--text-muted);
-  letter-spacing: 0.05em;
 }
 
 .comparison-card p {
-  font-size: 0.88rem;
+  @apply text-[0.88rem] leading-relaxed font-medium;
   color: var(--text-primary);
-  line-height: 1.5;
-  font-weight: 500;
 }
 
 .badge-reengage {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 4px 10px;
-  border-radius: 8px;
-  text-transform: uppercase;
-  width: fit-content;
+  @apply text-[0.72rem] font-extrabold px-2.5 py-1 rounded-[8px] uppercase w-fit;
 }
 
 .badge-reengage.pending {
-  background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  @apply bg-[rgba(245,158,11,0.12)] text-[#d97706] border border-[rgba(245,158,11,0.3)];
 }
 
 .badge-reengage.approved {
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  @apply bg-[rgba(16,185,129,0.12)] text-[#059669] border border-[rgba(16,185,129,0.3)];
 }
 
 .badge-reengage.dismissed {
+  @apply border;
   background: var(--bg-secondary);
   color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
+  border-color: var(--border-subtle);
 }

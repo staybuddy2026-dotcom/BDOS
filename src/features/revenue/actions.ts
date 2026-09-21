@@ -68,15 +68,19 @@ export async function getRevenueDealsAction(): Promise<RevenueDeal[]> {
         }
       }
 
+      const score = post.opportunityScore || 85;
+      const baseValInr = Math.round((score * score) * 650); // e.g. 90 -> ~52 Lakhs
+      const baseValUsd = Math.round(baseValInr / 83);
+
       return {
         id: post.id || `deal-${idx}`,
         companyId: `comp-${post.id || idx}`,
         companyName: companyClean,
         domain: domainClean,
         stage,
-        dealValueInr: '₹50,00,000',
-        dealValueUsd: '$60,000',
-        buyingScore: post.opportunityScore || 90,
+        dealValueInr: `₹${baseValInr.toLocaleString('en-IN')}`,
+        dealValueUsd: `$${baseValUsd.toLocaleString('en-US')}`,
+        buyingScore: score,
         winProbability: {
           currentWinPercent: isApproved ? 75 : 40,
           revenueProbabilityPercent: isApproved ? 75 : 40,

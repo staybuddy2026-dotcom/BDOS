@@ -6,25 +6,27 @@ import { AppError } from '@/lib/errors';
 import { answerCopilotQuestion } from './assistant';
 import { getObjectionHandlingGuides } from './objections';
 import { generatePlaybookTimeline } from './playbook';
-import { 
-  CopilotQuestionAnswer, 
-  ObjectionItem, 
-  PlaybookTimelineStep, 
-  SimilarSuccessStory, 
-  CopilotConfidenceMeter 
+import { Company360Profile } from '../company360/types';
+import {
+  CopilotQuestionAnswer,
+  ObjectionItem,
+  PlaybookTimelineStep,
+  SimilarSuccessStory,
+  CopilotConfidenceMeter
 } from './types';
 
 /**
  * Server Action: Process BDE question to AI Sales Copilot.
+ * Uses the real, already-resolved Company 360 profile — no fabricated facts.
  */
 export async function askSalesCopilotAction(
-  companyName: string,
+  profile: Company360Profile,
   question: string
 ): Promise<CopilotQuestionAnswer> {
   try {
     await AuthService.verifySession();
-    logger.info(`Server Action: Sales Copilot Q&A for '${companyName}': "${question}"`);
-    return answerCopilotQuestion(companyName, question);
+    logger.info(`Server Action: Sales Copilot Q&A for '${profile.overview.companyName}': "${question}"`);
+    return answerCopilotQuestion(profile, question);
   } catch (err: unknown) {
     logger.error('Ask Sales Copilot Action failed', { error: String(err) });
     throw new AppError('Copilot response failed.', 500);
@@ -34,7 +36,7 @@ export async function askSalesCopilotAction(
 /**
  * Server Action: Fetches complete AI Copilot intelligence suite for Company 360 page.
  */
-export async function getCopilotIntelligenceAction(companyName: string): Promise<{
+export async function getCopilotIntelligenceAction(profile: Company360Profile): Promise<{
   objections: ObjectionItem[];
   playbook: PlaybookTimelineStep[];
   similarStories: SimilarSuccessStory[];
@@ -42,11 +44,13 @@ export async function getCopilotIntelligenceAction(companyName: string): Promise
 }> {
   try {
     await AuthService.verifySession();
+    const companyName = profile.overview.companyName;
     logger.info(`Server Action: Fetching Copilot intelligence suite for '${companyName}'`);
 
     const objections = getObjectionHandlingGuides(companyName);
-    const playbook = generatePlaybookTimeline(companyName);
+    const playbook = generatePlaybookTimeline(profile);
 
+    // Reference case studies: illustrative past engagement patterns, not claims about this specific company.
     const similarStories: SimilarSuccessStory[] = [
       {
         companyType: 'Healthcare SaaS Startup',
@@ -64,13 +68,14 @@ export async function getCopilotIntelligenceAction(companyName: string): Promise
       },
     ];
 
+    const scoring = profile.opportunityScoring;
     const confidenceMeter: CopilotConfidenceMeter = {
-      icpScorePercent: 96,
-      overallConfidencePercent: 94,
-      serviceMatchPercent: 98,
-      budgetEstimatePercent: 91,
-      buyingIntentPercent: 95,
-      decisionMakerPercent: 97,
+      icpScorePercent: scoring.overallScore,
+      overallConfidencePercent: scoring.confidenceScorePercent,
+      serviceMatchPercent: profile.recommendedServices?.[0]?.fitScore ?? scoring.confidenceScorePercent,
+      budgetEstimatePercent: scoring.confidenceScorePercent,
+      buyingIntentPercent: scoring.winProbabilityPercent,
+      decisionMakerPercent: profile.decisionMakers?.length ? 95 : 40,
     };
 
     return {

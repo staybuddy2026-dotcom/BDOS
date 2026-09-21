@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { safeRevalidatePath } from '@/lib/revalidate';
 import { db } from '@/lib/db';
+import { PostStatus } from '@prisma/client';
 import { getUniversalLeadDiscoveryDataAction } from '@/features/discovery/actions';
 
 export type CrmStage = 
@@ -160,16 +161,108 @@ export async function getCrmAccounts(params?: {
     logger.info('Querying Enterprise CRM Accounts & LifeCycle Data...');
     await loadCrmStoreFromDb();
 
-    // Deduplicate the global store by domain or name
+    // 1. Fetch real approved outreach posts from PostgreSQL Database
+    const dbPosts = await db.linkedInPost.findMany({
+      where: {
+        AND: [
+          { status: { not: PostStatus.DISMISSED } },
+          {
+            OR: [
+              { status: PostStatus.APPROVED },
+              { status: PostStatus.REVIEW_QUEUE },
+              { drafts: { some: {} } }
+            ]
+          }
+        ]
+      },
+      include: {
+        analysis: true,
+        drafts: { orderBy: { generatedAt: 'desc' } }
+      },
+      orderBy: { discoveredAt: 'desc' }
+    }).catch(() => []);
+
+    // 2. Deduplicate existing store accounts
     const uniqueMap = new Map<string, CrmAccount>();
     for (const acc of crmAccountsStore) {
-      const key = (acc.domain || acc.name).toLowerCase().trim();
+      const key = acc.id || (acc.domain || acc.name).toLowerCase().trim();
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, acc);
       }
     }
+
+    // 3. Merge Database Posts into CRM automatically
+    let updatedStore = false;
+    for (const post of dbPosts) {
+      const key = post.id;
+      if (!uniqueMap.has(key)) {
+        const score = post.opportunityScore || 85;
+        const baseValInr = Math.round((score * score) * 650);
+
+        let companyClean = post.companyName || 'Enterprise Lead';
+        if (companyClean.toUpperCase() === 'ENTERPRISE.COM') {
+          companyClean = 'Enterprise Lead';
+        }
+
+        let domainClean = companyClean.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+        if (post.postUrl) {
+          const parts = post.postUrl.split('/').filter(Boolean);
+          const slug = parts[parts.length - 1] || '';
+          if (slug && !slug.startsWith('urn:')) {
+            domainClean = slug.replace(/\.com$/i, '') + '.com';
+          }
+        }
+
+        const newAccount: CrmAccount = {
+          id: key,
+          name: companyClean,
+          domain: domainClean,
+          industry: post.analysis?.industry || 'Technology & B2B SaaS',
+          location: 'Global',
+          revenue: 'Active Prospect',
+          employeeCount: 150,
+          stage: 'Lead',
+          dealValue: `$${Math.round(baseValInr / 83).toLocaleString()}`,
+          dealValueNumber: Math.round(baseValInr / 83),
+          winProbability: 50,
+          owner: 'Akash (BD Owner)',
+          technologies: post.analysis?.technologyStack || ['React', 'TypeScript', 'Node.js'],
+          decisionMakers: [{
+            name: post.authorName || 'Key Contact',
+            title: post.authorHeadline || 'Decision Maker',
+            linkedinUrl: post.postUrl || undefined
+          }],
+          meetings: [],
+          proposals: [],
+          tasks: [{
+            id: `task_db_${key}`,
+            title: `Review automated outreach for ${companyClean}`,
+            priority: 'HIGH',
+            dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+            completed: false,
+            assignedUser: 'Akash'
+          }],
+          timeline: [{
+            id: `act_db_${key}`,
+            type: 'LinkedIn Discovery',
+            title: 'Auto-synced from Pipeline',
+            timeAgo: 'Just now',
+            details: `Opportunity Score: ${score}/100. Matched keyword: ${post.matchedKeyword}`
+          }],
+          tags: ['Pipeline-Auto-Sync', 'Outreach'],
+          createdDate: post.discoveredAt ? new Date(post.discoveredAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        };
+        uniqueMap.set(key, newAccount);
+        updatedStore = true;
+      }
+    }
+
     crmAccountsStore.length = 0;
     crmAccountsStore.push(...uniqueMap.values());
+
+    if (updatedStore) {
+      await saveCrmStoreToDb();
+    }
 
     let filtered = [...crmAccountsStore];
     if (params?.search) {

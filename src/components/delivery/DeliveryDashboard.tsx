@@ -46,28 +46,32 @@ export function DeliveryDashboard({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Telemetry KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '14px' }}>
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(16, 185, 129, 0.15)' } as React.CSSProperties}>
           <div style={{ fontSize: '0.68rem', color: 'var(--color-success)', fontWeight: 700, textTransform: 'uppercase' }}>Active Projects</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--color-success)', marginTop: '2px' }}>{telemetry.activeProjectsCount} Projects</div>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{telemetry.projectsAtRiskCount} Projects at Risk</div>
+          <div className="kpi-glow" />
         </div>
 
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-focus)', borderRadius: '12px', padding: '14px' }}>
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(99, 102, 241, 0.15)' } as React.CSSProperties}>
           <div style={{ fontSize: '0.68rem', color: 'var(--accent-indigo)', fontWeight: 700, textTransform: 'uppercase' }}>Revenue in Delivery</div>
           <div style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '2px' }}>{telemetry.revenueInDeliveryInr}</div>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{telemetry.revenueInDeliveryUsd} USD</div>
+          <div className="kpi-glow" />
         </div>
 
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '12px', padding: '14px' }}>
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(234, 179, 8, 0.15)' } as React.CSSProperties}>
           <div style={{ fontSize: '0.68rem', color: 'var(--color-warning)', fontWeight: 700, textTransform: 'uppercase' }}>Upcoming Milestones</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#eab308', marginTop: '2px' }}>{telemetry.upcomingMilestonesCount} Milestones</div>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Sprint Velocity {telemetry.sprintVelocityPoints} pts</div>
+          <div className="kpi-glow" />
         </div>
 
-        <div style={{ background: 'var(--bg-primary)', border: '1px solid rgba(129, 140, 248, 0.25)', borderRadius: '12px', padding: '14px' }}>
+        <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(139, 92, 246, 0.15)' } as React.CSSProperties}>
           <div style={{ fontSize: '0.68rem', color: 'var(--accent-violet)', fontWeight: 700, textTransform: 'uppercase' }}>Resource Utilization</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--accent-violet)', marginTop: '2px' }}>{telemetry.resourceUtilizationPercent}%</div>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Delivery Health {telemetry.deliveryHealthPercent}%</div>
+          <div className="kpi-glow" />
         </div>
       </div>
 

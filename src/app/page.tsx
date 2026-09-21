@@ -40,6 +40,7 @@ import {
   X,
   Mail
 } from 'lucide-react';
+import { CustomDropdown } from '@/components/CustomDropdown';
 import Link from 'next/link';
 import '@/styles/globals.css';
 import '@/styles/dashboard.css';
@@ -211,7 +212,6 @@ export default function BdeCommandCenterHome() {
   const [data, setData] = useState<BdeCommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTaskTab, setActiveTaskTab] = useState<'Today' | 'Overdue' | 'Upcoming' | 'Completed'>('Today');
-  const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(1);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [morningMetrics, setMorningMetrics] = useState<MorningCommandMetrics | null>(null);
 
@@ -1667,25 +1667,16 @@ export default function BdeCommandCenterHome() {
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                     Meeting Type
                   </label>
-                  <select
+                  <CustomDropdown
                     value={newMeetingType}
-                    onChange={(e) => setNewMeetingType(e.target.value as any)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '0.85rem',
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                      background: '#ffffff',
-                    }}
-                  >
-                    <option value="Discovery Call">Discovery Call</option>
-                    <option value="Demo">Product Demo</option>
-                    <option value="Proposal Review">Proposal Review</option>
-                    <option value="Follow-up Reminder">Follow-up Call</option>
-                  </select>
+                    onChange={(val) => setNewMeetingType(val as any)}
+                    options={[
+                      { value: 'Discovery Call', label: 'Discovery Call' },
+                      { value: 'Demo', label: 'Product Demo' },
+                      { value: 'Proposal Review', label: 'Proposal Review' },
+                      { value: 'Follow-up Reminder', label: 'Follow-up Call' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
@@ -1922,27 +1913,18 @@ export default function BdeCommandCenterHome() {
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                     Initial Stage
                   </label>
-                  <select
+                  <CustomDropdown
                     value={newPropStage}
-                    onChange={(e) => setNewPropStage(e.target.value as any)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '0.85rem',
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                      background: '#ffffff',
-                    }}
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Sent">Sent</option>
-                    <option value="Viewed">Viewed</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Won">Won</option>
-                    <option value="Lost">Lost</option>
-                  </select>
+                    onChange={(val) => setNewPropStage(val as any)}
+                    options={[
+                      { value: 'Draft', label: 'Draft' },
+                      { value: 'Sent', label: 'Sent' },
+                      { value: 'Viewed', label: 'Viewed' },
+                      { value: 'Negotiation', label: 'Negotiation' },
+                      { value: 'Won', label: 'Won' },
+                      { value: 'Lost', label: 'Lost' }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1987,7 +1969,7 @@ export default function BdeCommandCenterHome() {
 
       {/* CREATE TASK MODAL */}
       {isTaskModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
           <div style={{ background: '#ffffff', width: '100%', maxWidth: '440px', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Add New Task</h3>
@@ -2009,11 +1991,15 @@ export default function BdeCommandCenterHome() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Priority</label>
-                  <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as any)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', background: '#fff' }}>
-                    <option value="HIGH">High</option>
-                    <option value="NORMAL">Normal</option>
-                    <option value="LOW">Low</option>
-                  </select>
+                  <CustomDropdown 
+                    value={newTaskPriority}
+                    onChange={(val) => setNewTaskPriority(val as any)}
+                    options={[
+                      { value: 'HIGH', label: 'High' },
+                      { value: 'NORMAL', label: 'Normal' },
+                      { value: 'LOW', label: 'Low' }
+                    ]}
+                  />
                 </div>
               </div>
               <button type="submit" style={{ marginTop: '8px', width: '100%', background: '#4f46e5', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s' }}>

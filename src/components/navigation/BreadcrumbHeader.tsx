@@ -18,95 +18,32 @@ export function BreadcrumbHeader({
 }: BreadcrumbHeaderProps) {
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        width: '100%',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-
-
-
-
+    <div className="flex items-center justify-between flex-wrap gap-3 w-full">
+      <div className="flex items-center gap-2.5 flex-wrap">
         {/* Breadcrumb Path */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
-          fontSize: '0.82rem', 
-          background: '#ffffff',
-          padding: '6px 16px',
-          borderRadius: '100px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-          fontWeight: 600 
-        }}>
+        <div className="flex items-center gap-2 text-[0.82rem] bg-white px-4 py-1.5 rounded-full border border-[#e2e8f0] shadow-[0_2px_8px_rgba(15,23,42,0.04)] font-semibold">
           <Link
             href="/"
-            style={{
-              color: '#64748b',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#3b82f6';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#64748b';
-            }}
+            className="flex items-center gap-1.5 no-underline text-[#64748b] transition-colors duration-200 hover:text-[#3b82f6]"
           >
-            <Home size={14} style={{ color: '#94a3b8' }} /> Dashboard
+            <Home size={14} className="text-[#94a3b8]" /> Dashboard
           </Link>
-          <ChevronRight size={14} style={{ color: '#cbd5e1' }} />
-          <span style={{
-            color: '#4f46e5', // Premium Indigo
-            fontWeight: 800,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
+          <ChevronRight size={14} className="text-[#cbd5e1]" />
+          <span className="flex items-center gap-1.5 text-[#4f46e5] font-extrabold">
             {currentTitle}
           </span>
         </div>
       </div>
 
       {/* Step Badge / Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="flex items-center gap-2">
         {stepNumber && (
-          <span
-            style={{
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              background: 'rgba(79, 70, 229, 0.1)',
-              color: '#4f46e5',
-              border: '1.5px solid rgba(79, 70, 229, 0.25)',
-              padding: '4px 10px',
-              borderRadius: '20px',
-            }}
-          >
+          <span className="text-[0.74rem] font-extrabold bg-[rgba(79,70,229,0.1)] text-[#4f46e5] border-[1.5px] border-[rgba(79,70,229,0.25)] px-2.5 py-1 rounded-full">
             Step {stepNumber} of {totalSteps} in Guided Sales Flow
           </span>
         )}
         {badge && (
-          <span
-            style={{
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              background: '#f1f5f9',
-              color: '#334155',
-              border: '1px solid #cbd5e1',
-              padding: '4px 10px',
-              borderRadius: '20px',
-            }}
-          >
+          <span className="text-[0.75rem] font-bold bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] px-2.5 py-1 rounded-full">
             {badge}
           </span>
         )}

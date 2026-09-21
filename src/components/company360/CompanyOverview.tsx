@@ -3,13 +3,20 @@
 import { CompanyOverviewData, DataSourceOrigin } from '@/features/company360/types';
 import { Building, Globe, MapPin, Users, DollarSign, Award, ExternalLink, ShieldCheck } from 'lucide-react';
 
-export function CompanyOverviewPanel({ overview }: { overview: CompanyOverviewData; provenance?: Record<string, DataSourceOrigin> }) {
+export function CompanyOverviewPanel({ overview, provenance }: { overview: CompanyOverviewData; provenance?: Record<string, DataSourceOrigin> }) {
+  const sources = Array.from(new Set(['Apollo', ...Object.values(provenance || {})]));
+  const sourceStyle = (source: DataSourceOrigin): { background: string; color: string } => {
+    if (source === 'CRM') return { background: 'var(--color-success-bg)', color: 'var(--color-success)' };
+    if (source === 'AI') return { background: 'rgba(234, 179, 8, 0.2)', color: 'var(--color-warning)' };
+    return { background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)' };
+  };
+
   return (
     <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Header Row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(15,23,42,0.05)' }}>
             <Building size={26} style={{ color: 'var(--accent-indigo)' }} />
           </div>
           <div>
@@ -37,10 +44,9 @@ export function CompanyOverviewPanel({ overview }: { overview: CompanyOverviewDa
         {/* Data Provenance Badge */}
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', background: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border-subtle)' }}>
           <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>Fused Data Sources:</span>
-          <span style={{ fontSize: '0.65rem', background: 'var(--accent-indigo-glow)', color: '#a5b4fc', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>Apollo</span>
-          <span style={{ fontSize: '0.65rem', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>GitHub</span>
-          <span style={{ fontSize: '0.65rem', background: 'var(--color-success-bg)', color: 'var(--color-success)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>CRM</span>
-          <span style={{ fontSize: '0.65rem', background: 'rgba(234, 179, 8, 0.2)', color: 'var(--color-warning)', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>AI</span>
+          {sources.map((source) => (
+            <span key={source} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 700, ...sourceStyle(source as DataSourceOrigin) }}>{source}</span>
+          ))}
         </div>
       </div>
 
@@ -73,7 +79,7 @@ export function CompanyOverviewPanel({ overview }: { overview: CompanyOverviewDa
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
             <Award size={13} /> Funding Stage
           </div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#a5b4fc', marginTop: '3px' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-indigo)', marginTop: '3px' }}>
             {overview.fundingStage}
           </div>
         </div>

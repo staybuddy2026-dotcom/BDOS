@@ -304,7 +304,12 @@ export default function ProjectMarketplacePage() {
     setShowAnalysisModal(true);
     setAnalysisLoading(true);
     try {
-      const analysis = await analyzeProjectOpportunity(opp.id, opp.projectTitle);
+      const analysis = await analyzeProjectOpportunity(opp.id, opp.projectTitle, {
+        budget: opp.budget,
+        technologyStack: opp.technologyStack,
+        urgency: opp.urgency,
+        estimatedValueNumber: opp.estimatedValueNumber,
+      });
       setAiAnalysis(analysis);
     } catch {
       triggerNotification('error', 'AI Opportunity Analysis failed.');
@@ -670,7 +675,7 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>12</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{opportunities.filter(o => o.aiOpportunityScore >= 85).length}</div>
               <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '8px', fontWeight: 600 }}>High win probability</div>
             </div>
             <div style={{ border: '1px solid #d1fae5', borderRadius: '50%', padding: '6px', color: '#10b981', display: 'flex', background: '#ecfdf5' }}>
@@ -692,7 +697,7 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>4</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{opportunities.filter(o => o.aiOpportunityScore < 85).length}</div>
               <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '8px', fontWeight: 600 }}>Requires manual review</div>
             </div>
             <div style={{ border: '1px solid #fef3c7', borderRadius: '50%', padding: '6px', color: '#f59e0b', display: 'flex', background: '#fffbeb' }}>
@@ -714,8 +719,8 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>$142.5k</div>
-              <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 600 }}>52% Avg Gross Margin</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>${(opportunities.reduce((sum, o) => sum + (o.estimatedValueNumber || 0), 0) / 1000).toFixed(1)}k</div>
+              <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 600 }}>Across {opportunities.length} opportunities</div>
             </div>
             <div style={{ border: '1px solid #e9d5ff', borderRadius: '50%', padding: '6px', color: '#8b5cf6', display: 'flex', background: '#f3e8ff' }}>
               <DollarSign size={14} strokeWidth={2.5} />
@@ -944,7 +949,7 @@ export default function ProjectMarketplacePage() {
                               {opp.budget}
                             </div>
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                              Est. Gross Margin: <strong style={{ color: 'var(--color-success)' }}>52%</strong>
+                              AI Score: <strong style={{ color: 'var(--color-success)' }}>{opp.aiOpportunityScore}/100</strong>
                             </div>
                           </div>
                         </div>
@@ -1040,32 +1045,34 @@ export default function ProjectMarketplacePage() {
             </div>
 
             {/* RIGHT COLUMN: AI Ingestion Telemetry & Recommendation Panel */}
-            <div style={{ background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRight: '4px solid #818cf8', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '14px' }}>
-                <Sparkles size={20} style={{ color: '#818cf8' }} />
+            <div style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-subtle)', borderRight: '4px solid var(--accent-indigo)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(15,23,42,0.04)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px' }}>
+                <Sparkles size={20} style={{ color: 'var(--accent-indigo)' }} />
                 <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>AI Qualification Telemetry</h3>
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Ingestion Signal Intelligence</span>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>AI Qualification Telemetry</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ingestion Signal Intelligence</span>
                 </div>
               </div>
 
               <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700 }}>Average Pipeline Deal Size</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--accent-violet)', marginTop: '2px' }}>$21,500</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--accent-violet)', marginTop: '2px' }}>
+                  ${opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + (o.estimatedValueNumber || 0), 0) / opportunities.length).toLocaleString() : '0'}
+                </div>
               </div>
 
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Deduplication:</span>
-                  <strong style={{ color: 'var(--accent-indigo)' }}>MD5 + Semantic AI</strong>
+                  <strong style={{ color: 'var(--accent-indigo)' }}>MD5 Hash Match</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Duplicate Check:</span>
-                  <strong style={{ color: 'var(--color-success)' }}>100% Unique RFPs</strong>
+                  <span style={{ color: 'var(--text-muted)' }}>Duplicates Filtered:</span>
+                  <strong style={{ color: 'var(--color-success)' }}>{duplicatesFiltered}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Avg Gross Margin:</span>
-                  <strong style={{ color: 'var(--color-warning)' }}>52% Net</strong>
+                  <span style={{ color: 'var(--text-muted)' }}>Avg AI Score:</span>
+                  <strong style={{ color: 'var(--color-warning)' }}>{opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + o.aiOpportunityScore, 0) / opportunities.length) : 0}/100</strong>
                 </div>
               </div>
             </div>
@@ -1226,7 +1233,7 @@ export default function ProjectMarketplacePage() {
                 <div style={{ background: intelligenceReport.recommendation === 'BID' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15))' : 'var(--color-warning-bg)', border: '1px solid #10b981', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-success)' }}>AI Recommendation Verdict</span>
-                    <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--bg-primary)', margin: '2px 0 0 0' }}>
+                    <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', margin: '2px 0 0 0' }}>
                       {intelligenceReport.recommendation === 'BID' ? '✅ HIGHLY RECOMMENDED TO BID' : '⚠️ CONSIDER AFTER REVIEW'}
                     </h3>
                     <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
@@ -1286,7 +1293,7 @@ export default function ProjectMarketplacePage() {
 
                 {/* 4. AI EXPLANATION & PITCH STRATEGY */}
                 <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '10px', padding: '14px' }}>
-                  <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: '#a5b4fc', margin: '0 0 6px 0' }}>
+                  <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--accent-indigo)', margin: '0 0 6px 0' }}>
                     AI Pitch Strategy & Positioning
                   </h4>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0, lineHeight: '1.45' }}>
@@ -1320,7 +1327,7 @@ export default function ProjectMarketplacePage() {
                 onChange={(e) => handlePreviewCsv(e.target.value)}
                 placeholder="Title,Description,Budget,Country,Technology&#10;React Native Mobile App,Seeking React Native agency,$15,000,United States,React Native"
                 rows={6}
-                style={{ width: '100%', background: '#090d16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'monospace' }}
+                style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '10px', color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'monospace' }}
               />
 
               {csvPreview && (
@@ -1366,8 +1373,8 @@ export default function ProjectMarketplacePage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '0.72rem', color: '#a5b4fc', fontWeight: 700 }}>Live Inbound HTTP POST Endpoint</div>
-                <div style={{ fontSize: '0.82rem', fontFamily: 'monospace', color: 'var(--bg-primary)', marginTop: '4px' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>Live Inbound HTTP POST Endpoint</div>
+                <div style={{ fontSize: '0.82rem', fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: '4px' }}>
                   POST /api/marketplace/webhook
                 </div>
               </div>
@@ -1449,7 +1456,7 @@ export default function ProjectMarketplacePage() {
                 </div>
 
                 <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99, 102, 241, 0.2)', padding: '12px', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#a5b4fc', textTransform: 'uppercase' }}>Winning Strategy</div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-indigo)', textTransform: 'uppercase' }}>Winning Strategy</div>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-primary)', marginTop: '4px', margin: 0, lineHeight: '1.4' }}>
                     {selectedOpportunity.winningStrategy}
                   </p>
@@ -1489,9 +1496,9 @@ export default function ProjectMarketplacePage() {
                     borderRadius: '6px',
                     fontSize: '0.74rem',
                     fontWeight: 600,
-                    border: proposalType === tab.type ? '1px solid #818cf8' : '1px solid rgba(255,255,255,0.1)',
-                    background: proposalType === tab.type ? 'rgba(99, 102, 241, 0.25)' : 'var(--bg-secondary)',
-                    color: proposalType === tab.type ? '#ffffff' : '#94a3b8',
+                    border: proposalType === tab.type ? '1px solid var(--accent-indigo)' : '1px solid var(--border-subtle)',
+                    background: proposalType === tab.type ? 'var(--accent-indigo)' : 'var(--bg-secondary)',
+                    color: proposalType === tab.type ? '#ffffff' : 'var(--text-secondary)',
                     cursor: 'pointer',
                   }}
                 >
@@ -1511,7 +1518,7 @@ export default function ProjectMarketplacePage() {
                   value={generatedProposalText}
                   onChange={(e) => setGeneratedProposalText(e.target.value)}
                   rows={12}
-                  style={{ width: '100%', background: '#090d16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '12px', color: 'var(--text-primary)', fontSize: '0.82rem', fontFamily: 'monospace', lineHeight: '1.45' }}
+                  style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px', color: 'var(--text-primary)', fontSize: '0.82rem', fontFamily: 'monospace', lineHeight: '1.45' }}
                 />
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px' }}>

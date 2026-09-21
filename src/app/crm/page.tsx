@@ -340,19 +340,19 @@ export default function EnterpriseCrmPage() {
   return (
     <div className="crm-workspace" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box' }}>
       <style>{`
-        .premium-kpi-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 1); border-radius: 12px; padding: 16px; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.04), inset 0 0 0 1px rgba(255, 255, 255, 0.5); position: relative; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; gap: 4px; min-width: 0; box-sizing: border-box; }
-        .premium-kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--glow-color) 0%, transparent 50%); opacity: 0.3; transition: opacity 0.4s ease; pointer-events: none; }
+        .premium-kpi-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(226, 232, 240, 0.8); border-radius: 16px; padding: 18px 20px; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 4px 15px rgba(15, 23, 42, 0.02), inset 0 0 0 1px rgba(255, 255, 255, 0.5); position: relative; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-width: 0; box-sizing: border-box; }
+        .premium-kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--glow-color) 0%, transparent 50%); opacity: 0.15; transition: opacity 0.4s ease; pointer-events: none; }
         .premium-kpi-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.8); border-color: transparent; }
-        .premium-kpi-card:hover::before { opacity: 0.6; }
-        .kpi-glow { position: absolute; bottom: -30px; right: -30px; width: 100px; height: 100px; border-radius: 50%; background: var(--glow-color); filter: blur(30px); opacity: 0.5; transition: all 0.5s ease; pointer-events: none; }
-        .premium-kpi-card:hover .kpi-glow { transform: scale(1.3); opacity: 0.8; }
+        .premium-kpi-card:hover::before { opacity: 0.3; }
+        .kpi-glow { position: absolute; bottom: -30px; right: -30px; width: 100px; height: 100px; border-radius: 50%; background: var(--glow-color); filter: blur(30px); opacity: 0.3; transition: all 0.5s ease; pointer-events: none; }
+        .premium-kpi-card:hover .kpi-glow { transform: scale(1.3); opacity: 0.6; }
       `}</style>
       {/* Toast Notification */}
       {notification && (
         <div style={{
           position: 'fixed',
           top: '24px',
-          right: '24px',
+          right: '32px',
           zIndex: 10000,
           background: notification.type === 'success' ? '#0f172a' : '#ef4444',
           color: '#ffffff',
@@ -380,18 +380,18 @@ export default function EnterpriseCrmPage() {
         flexWrap: 'wrap',
         gap: '16px',
         flexShrink: 0,
-        padding: '12px 24px',
+        padding: '12px 16px',
         background: 'var(--bg-primary)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 400px', minWidth: '400px' }}>
-          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Building2 size={18} style={{ color: '#ffffff' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1 1 400px', minWidth: '400px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '10px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Building2 size={20} style={{ color: '#ffffff' }} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 900, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0, letterSpacing: '-0.01em' }}>
+            <h1 style={{ fontSize: '1.35rem', fontWeight: 900, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0, letterSpacing: '0.02em' }}>
               Enterprise CRM Workspace
             </h1>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, marginTop: '4px', margin: 0 }}>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600, margin: '2px 0 0 0' }}>
               Manage your end-to-end sales lifecycle and pipeline velocity.
             </p>
           </div>
@@ -404,14 +404,14 @@ export default function EnterpriseCrmPage() {
             <button
               className={`apollo-toggle-btn ${viewMode === 'detail' ? 'active' : ''}`}
               onClick={() => setViewMode('detail')}
-              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+              style={{ fontSize: '0.78rem', padding: '6px 14px' }}
             >
               <List size={14} /> 3-Pane View
             </button>
             <button
               className={`apollo-toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`}
               onClick={() => setViewMode('kanban')}
-              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+              style={{ fontSize: '0.78rem', padding: '6px 14px' }}
             >
               <Kanban size={14} /> Stage Funnel
             </button>
@@ -421,7 +421,7 @@ export default function EnterpriseCrmPage() {
           {accounts.length > 0 && (
             <button
               onClick={handleClearAll}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '8px', background: '#ffffff', color: '#ef4444', fontWeight: 700, fontSize: '0.78rem', border: '1px solid rgba(239, 68, 68, 0.3)', cursor: 'pointer', transition: 'all 0.15s ease', whiteSpace: 'nowrap' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: '#ffffff', color: '#ef4444', fontWeight: 700, fontSize: '0.78rem', border: '1px solid rgba(239, 68, 68, 0.3)', cursor: 'pointer', transition: 'all 0.15s ease', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(239,68,68,0.05)' }}
               title="Clear all CRM accounts"
             >
               <Trash2 size={14} /> Clear All
@@ -438,12 +438,12 @@ export default function EnterpriseCrmPage() {
           overflowY: 'auto',
           boxSizing: 'border-box',
           position: 'relative',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.7), rgba(248, 250, 252, 0.7)), url(${blob.src})`,
           backgroundSize: 'cover',
           backgroundPosition: 'top right',
           backgroundRepeat: 'no-repeat',
           backgroundAttachment: 'fixed',
-          padding: '16px 28px 40px 28px'
+          padding: '16px'
         }}
       >
         {/* Top Navigation & Actions Row */}
@@ -585,16 +585,13 @@ export default function EnterpriseCrmPage() {
                               Win: <strong style={{ color: 'var(--accent-indigo)' }}>{acc.winProbability}%</strong>
                             </span>
 
-                            <select
-                              value={acc.stage}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => handleStageChange(acc, e.target.value as CrmStage)}
-                              style={{ fontSize: '0.78rem', padding: '3px 8px', borderRadius: '4px', background: '#ffffff', color: '#0f172a', border: '1px solid var(--border-subtle)', fontWeight: 700, outline: 'none' }}
-                            >
-                              {CRM_STAGES.map((s) => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
+                            <div onClick={(e) => e.stopPropagation()} style={{ minWidth: '140px' }}>
+                              <CustomDropdown
+                                value={acc.stage}
+                                onChange={(val) => handleStageChange(acc, val as CrmStage)}
+                                options={CRM_STAGES.map((s) => ({ value: s, label: s }))}
+                              />
+                            </div>
                           </div>
                         </div>
                       ))
@@ -638,20 +635,15 @@ export default function EnterpriseCrmPage() {
               </div>
 
               {/* Stage Filter Dropdown */}
-              <div style={{ position: 'relative' }}>
-                <select
+              <div style={{ minWidth: '220px' }}>
+                <CustomDropdown
                   value={selectedStageFilter}
-                  onChange={(e) => setSelectedStageFilter(e.target.value)}
-                  style={{ width: '100%', height: '40px', padding: '0 12px', paddingRight: '30px', borderRadius: '8px', background: '#ffffff', color: '#0f172a', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 700, outline: 'none', cursor: 'pointer', appearance: 'none', boxSizing: 'border-box', transition: 'all 0.2s' }}
-                  onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
-                >
-                  <option value="">All Lifecycle Stages</option>
-                  {CRM_STAGES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <div style={{ position: 'absolute', right: '12px', top: '16px', pointerEvents: 'none', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #64748b' }} />
+                  onChange={(val) => setSelectedStageFilter(val)}
+                  options={[
+                    { value: '', label: 'All Lifecycle Stages' },
+                    ...CRM_STAGES.map((s) => ({ value: s, label: s }))
+                  ]}
+                />
               </div>
 
               {/* Account List Items */}
@@ -697,16 +689,16 @@ export default function EnterpriseCrmPage() {
                           boxShadow: isSelected ? '0 4px 14px rgba(99, 102, 241, 0.12)' : '0 2px 4px rgba(0,0,0,0.01)',
                           transform: isSelected ? 'translateX(2px)' : 'none',
                         }}
-                        onMouseEnter={(e) => { 
-                          if(!isSelected) {
-                            e.currentTarget.style.borderColor = '#cbd5e1'; 
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.borderColor = '#cbd5e1';
                             e.currentTarget.style.transform = 'translateY(-1px)';
                             e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.04)';
                           }
                         }}
-                        onMouseLeave={(e) => { 
-                          if(!isSelected) {
-                            e.currentTarget.style.borderColor = '#e2e8f0'; 
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.borderColor = '#e2e8f0';
                             e.currentTarget.style.transform = 'none';
                             e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.01)';
                           }
@@ -720,7 +712,7 @@ export default function EnterpriseCrmPage() {
                             {acc.dealValue}
                           </span>
                         </div>
-                        
+
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
                           <span style={{ fontSize: '0.74rem', color: '#4f46e5', fontWeight: 700, background: '#e0e7ff', padding: '2px 6px', borderRadius: '4px' }}>
                             {acc.stage}
@@ -729,9 +721,9 @@ export default function EnterpriseCrmPage() {
                             Win: <strong style={{ color: '#0f172a', fontWeight: 700 }}>{acc.winProbability}%</strong>
                           </span>
                         </div>
-                        
+
                         <div style={{ fontSize: '0.72rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <Building2 size={12} style={{ opacity: 0.6 }} /> 
+                          <Building2 size={12} style={{ opacity: 0.6 }} />
                           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {acc.industry}
                           </span>
@@ -789,28 +781,28 @@ export default function EnterpriseCrmPage() {
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button
                         onClick={() => setShowMeetingModal(true)}
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '8px', 
-                          padding: '8px 18px', 
-                          fontSize: '0.85rem', 
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', 
-                          color: '#ffffff', 
-                          fontWeight: 800, 
-                          border: 'none', 
-                          borderRadius: '10px', 
-                          cursor: 'pointer', 
-                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                          boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)' 
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 18px',
+                          fontSize: '0.85rem',
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)'
                         }}
-                        onMouseEnter={(e) => { 
-                          e.currentTarget.style.transform = 'translateY(-2px)'; 
-                          e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 70, 229, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)'; 
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 70, 229, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)';
                         }}
-                        onMouseLeave={(e) => { 
-                          e.currentTarget.style.transform = 'none'; 
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)'; 
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)';
                         }}
                       >
                         <Video size={16} style={{ color: '#ffffff' }} /> Log Meeting
@@ -871,13 +863,13 @@ export default function EnterpriseCrmPage() {
                         onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#334155'; } }}
                         onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b'; } }}
                       >
-                        {t.label} 
-                        <span style={{ 
-                          fontSize: '0.7rem', 
-                          background: isActive ? '#4f46e5' : '#f1f5f9', 
-                          color: isActive ? '#ffffff' : '#64748b', 
-                          padding: '2px 10px', 
-                          borderRadius: '12px', 
+                        {t.label}
+                        <span style={{
+                          fontSize: '0.7rem',
+                          background: isActive ? '#4f46e5' : '#f1f5f9',
+                          color: isActive ? '#ffffff' : '#64748b',
+                          padding: '2px 10px',
+                          borderRadius: '12px',
                           fontWeight: 900
                         }}>
                           {t.count}
@@ -923,7 +915,7 @@ export default function EnterpriseCrmPage() {
                                   {dm.name.charAt(0)}
                                 </div>
                               </div>
-                              
+
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
                                 {dm.email && (
                                   <a href={`mailto:${dm.email}`} style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
@@ -937,7 +929,7 @@ export default function EnterpriseCrmPage() {
                                 )}
                                 {dm.linkedinUrl && (
                                   <a href={dm.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#0ea5e9', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', marginTop: '2px' }}>
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" /></svg>
                                     LinkedIn Profile ➔
                                   </a>
                                 )}
@@ -983,28 +975,28 @@ export default function EnterpriseCrmPage() {
                       </h4>
                       <button
                         onClick={() => setShowMeetingModal(true)}
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '8px', 
-                          padding: '8px 16px', 
-                          fontSize: '0.8rem', 
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
-                          color: '#ffffff', 
-                          fontWeight: 800, 
-                          border: 'none', 
-                          borderRadius: '10px', 
-                          cursor: 'pointer', 
-                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)' 
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 16px',
+                          fontSize: '0.8rem',
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          border: 'none',
+                          borderRadius: '10px',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)'
                         }}
-                        onMouseEnter={(e) => { 
-                          e.currentTarget.style.transform = 'translateY(-2px)'; 
-                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)'; 
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)';
                         }}
-                        onMouseLeave={(e) => { 
-                          e.currentTarget.style.transform = 'none'; 
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)'; 
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'none';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255,255,255,0.2)';
                         }}
                       >
                         <Plus size={15} style={{ color: '#ffffff' }} /> Log Meeting
@@ -1338,18 +1330,11 @@ export default function EnterpriseCrmPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>Lifecycle Stage</label>
-                    <div style={{ position: 'relative' }}>
-                      <select value={newAccStage} onChange={(e) => setNewAccStage(e.target.value as CrmStage)}
-                        style={{ width: '100%', height: '42px', padding: '0 12px', paddingRight: '30px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#0f172a', fontSize: '0.96rem', fontWeight: 700, outline: 'none', appearance: 'none', cursor: 'pointer', transition: 'all 0.2s', boxSizing: 'border-box' }}
-                        onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)'; }}
-                        onBlur={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
-                      >
-                        {CRM_STAGES.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                      <div style={{ position: 'absolute', right: '12px', top: '18px', pointerEvents: 'none', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #64748b' }} />
-                    </div>
+                    <CustomDropdown
+                      value={newAccStage}
+                      onChange={(val) => setNewAccStage(val as CrmStage)}
+                      options={CRM_STAGES.map((s) => ({ value: s, label: s }))}
+                    />
                   </div>
                   <div>
                     <label style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>Location</label>
@@ -1584,18 +1569,15 @@ export default function EnterpriseCrmPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>Priority</label>
-                    <div style={{ position: 'relative' }}>
-                      <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as 'HIGH' | 'NORMAL' | 'LOW')}
-                        style={{ width: '100%', height: '42px', padding: '0 12px', paddingRight: '30px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#ffffff', color: '#0f172a', fontSize: '0.96rem', fontWeight: 700, outline: 'none', appearance: 'none', cursor: 'pointer', transition: 'all 0.2s', boxSizing: 'border-box' }}
-                        onFocus={(e) => { e.target.style.borderColor = '#10b981'; e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.1)'; }}
-                        onBlur={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
-                      >
-                        <option value="HIGH">HIGH Priority</option>
-                        <option value="NORMAL">NORMAL</option>
-                        <option value="LOW">LOW</option>
-                      </select>
-                      <div style={{ position: 'absolute', right: '12px', top: '18px', pointerEvents: 'none', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #64748b' }} />
-                    </div>
+                    <CustomDropdown
+                      value={taskPriority}
+                      onChange={(val) => setTaskPriority(val as 'HIGH' | 'NORMAL' | 'LOW')}
+                      options={[
+                        { value: 'HIGH', label: 'HIGH Priority' },
+                        { value: 'NORMAL', label: 'NORMAL' },
+                        { value: 'LOW', label: 'LOW' }
+                      ]}
+                    />
                   </div>
                   <div>
                     <label style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>Due Date</label>

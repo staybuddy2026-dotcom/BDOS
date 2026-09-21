@@ -1,19 +1,10 @@
 import { NextBestAction, PriorityTier } from './types';
+import { Company360Profile } from '../company360/types';
 
 /**
  * Next Best Action Engine for AI Account Prioritization.
  * Generates tailored sales actions based on Priority Tier and detected signals.
  */
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-import { Company360Profile } from '../company360/types';
 
 export function generateNextBestActions(
   profile: Company360Profile,

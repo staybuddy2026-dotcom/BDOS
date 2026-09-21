@@ -7,6 +7,8 @@ import blob from '@/assets/blob.png';
 import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DailyPrioritiesPage() {
   await AuthService.verifySession();
 

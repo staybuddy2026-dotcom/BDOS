@@ -36,6 +36,45 @@ export async function getStyleInsights(): Promise<StylePatternsReport> {
 }
 
 /**
+ * Fetch Service Catalog from Database
+ */
+export async function getServiceCatalog(): Promise<any[]> {
+  try {
+    const rawData = await SettingsService.get('serviceCatalog', '[]');
+    const catalog = JSON.parse(rawData);
+    if (Array.isArray(catalog) && catalog.length > 0) {
+      return catalog;
+    }
+  } catch (err: unknown) {
+    logger.warn('Failed to parse service catalog from settings', { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Return defaults if empty
+  return [
+    { id: '1', name: 'AI, Machine Learning & LLM Systems', minInr: '₹35,00,000', minUsd: '$45,000', stack: 'TensorFlow, PyTorch, Python, OpenCV, Hugging Face, LangChain, LLAMA, Pandas, Scikit-learn, Numpy, AWS SageMaker, Google Vertex AI', model: 'AI Consulting', threshold: 85 },
+    { id: '2', name: 'Native & Cross-Platform Mobile Applications', minInr: '₹25,00,000', minUsd: '$30,000', stack: 'Swift, SwiftUI, Kotlin, Jetpack, Flutter, React Native, Firebase, GraphQL, Xcode, Android Studio, App Store, Google Play', model: 'Dedicated Team', threshold: 80 },
+    { id: '3', name: 'Modern Web Architecture & Web Platforms', minInr: '₹25,00,000', minUsd: '$30,000', stack: 'HTML5, CSS3, JavaScript, React, Next.js, Vue.js, TypeScript, Node.js, Express, MongoDB, PostgreSQL, WordPress, Shopify', model: 'Dedicated Team', threshold: 80 },
+    { id: '4', name: 'Enterprise Backend, Cloud & DevOps Infrastructure', minInr: '₹30,00,000', minUsd: '$38,000', stack: 'Python, Django, C#, C++, .NET, AWS, Azure, Docker, Kubernetes, PostgreSQL, MongoDB', model: 'Fixed Price', threshold: 80 },
+    { id: '5', name: 'E-Commerce Platforms & Headless Digital Retail', minInr: '₹20,00,000', minUsd: '$25,000', stack: 'Shopify, WooCommerce, BigCommerce, Magento, React', model: 'Staff Augmentation', threshold: 75 },
+    { id: '6', name: 'UI/UX Design Systems & Product Prototyping', minInr: '₹15,00,000', minUsd: '$18,000', stack: 'Figma, Adobe XD, HTML5, CSS3', model: 'Fixed Price', threshold: 70 },
+  ];
+}
+
+/**
+ * Update Service Catalog in Database
+ */
+export async function updateServiceCatalog(catalog: any[]) {
+  try {
+    await SettingsService.set('serviceCatalog', JSON.stringify(catalog));
+    safeRevalidatePath('/settings');
+    return { success: true };
+  } catch (err: unknown) {
+    logger.error('Failed to update service catalog', { error: err instanceof Error ? err.message : String(err) });
+    return { success: false };
+  }
+}
+
+/**
  * Fetch all App Settings.
  */
 export async function getAppSettings(): Promise<AppConfigData> {

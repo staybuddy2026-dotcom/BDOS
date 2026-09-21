@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -12,333 +12,225 @@ import {
   Building2,
   Send,
   Activity,
-  ChevronDown,
+  ChevronUp,
   User,
   LogOut,
-  Target
+  Target,
+  type LucideIcon,
 } from 'lucide-react';
 
 interface NavItem {
   name: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
+  /** Extra route prefixes that should also mark this item as active. */
+  alsoActiveFor?: string[];
 }
 
-const navItems: NavItem[] = [
-  { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'BDE Workflow', href: '/priorities', icon: Target },
-  { name: 'Universal Search', href: '/discovery', icon: Search },
-  { name: 'Company 360', href: '/company', icon: Building2 },
-  { name: 'Outreach', href: '/engagement', icon: Send },
-  { name: 'Activity', href: '/crm', icon: Activity },
-  { name: 'Settings', href: '/settings', icon: Settings },
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    label: 'Overview',
+    items: [
+      { name: 'Dashboard', href: '/', icon: Home },
+      {
+        name: 'BDE Workflow',
+        href: '/priorities',
+        icon: Target,
+        alsoActiveFor: ['/apollo-search', '/review', '/re-engagement', '/revenue'],
+      },
+    ],
+  },
+  {
+    label: 'Prospecting',
+    items: [
+      { name: 'Universal Search', href: '/discovery', icon: Search },
+      { name: 'Company 360', href: '/company', icon: Building2 },
+    ],
+  },
+  {
+    label: 'Engagement',
+    items: [
+      { name: 'Outreach', href: '/engagement', icon: Send },
+      { name: 'Activity', href: '/crm', icon: Activity },
+    ],
+  },
+  {
+    label: 'System',
+    items: [{ name: 'Settings', href: '/settings', icon: Settings }],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMenuOpen]);
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <Image
-          src={logoImg}
-          alt="BDOS Logo"
-          width={160}
-          height={40}
-          style={{ objectFit: 'contain', objectPosition: 'center' }}
-          priority
-        />
+    <aside
+      aria-label="Sidebar"
+      className="fixed inset-y-0 left-0 z-[1000] flex h-screen w-[var(--sidebar-width,250px)] flex-col overflow-hidden border-r border-white/[0.06] text-white max-[768px]:hidden"
+      style={{
+        backgroundColor: '#070818',
+        backgroundImage:
+          'radial-gradient(120% 60% at 0% 0%, rgba(99, 102, 241, 0.22) 0%, transparent 60%), radial-gradient(90% 50% at 100% 100%, rgba(37, 99, 235, 0.28) 0%, transparent 65%)',
+      }}
+    >
+      {/* Brand */}
+      <div className="relative z-10 px-5 pt-4 pb-4">
+        <Link href="/" aria-label="BDOS home" className="flex items-center">
+          <Image
+            src={logoImg}
+            alt="BDOS Logo"
+            width={160}
+            height={40}
+            style={{ objectFit: 'contain', objectPosition: 'left center' }}
+            priority
+          />
+        </Link>
+        <div className="mt-4 h-px bg-gradient-to-r from-white/20 via-white/10 to-transparent" />
       </div>
 
-      <nav className="sidebar-nav">
-        <ul>
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
-            const Icon = item.icon;
-            return (
-              <li key={item.name}>
-                <Link
-                  href={item.href}
-                  className={`nav-link ${isActive ? 'active' : ''}`}
-                >
-                  <Icon className="nav-icon" />
-                  <span className="nav-text">{item.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      {/* Navigation */}
+      <nav aria-label="Main navigation" className="relative z-10 flex-1 overflow-y-auto px-3 pb-2">
+        {navSections.map((section) => (
+          <div key={section.label} className="mb-5">
+            <p className="px-3 pb-2 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+              {section.label}
+            </p>
+            <ul className="m-0 flex list-none flex-col gap-1 p-0">
+              {section.items.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== '/' && !!pathname?.startsWith(item.href)) ||
+                  !!item.alsoActiveFor?.some((prefix) => pathname?.startsWith(prefix));
+                const Icon = item.icon;
+
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`group relative flex items-center gap-3 rounded-[12px] border px-2.5 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 ${
+                        isActive
+                          ? 'border-white/[0.08] bg-gradient-to-r from-indigo-500/[0.22] via-violet-500/[0.09] to-transparent'
+                          : 'border-transparent hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      {isActive && (
+                        <span
+                          aria-hidden
+                          className="absolute top-1/2 -left-3 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-violet-300 to-blue-400 shadow-[0_0_12px_rgba(167,139,250,0.9)]"
+                        />
+                      )}
+
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] transition-all duration-200 ${
+                          isActive
+                            ? 'bg-gradient-to-br from-violet-500 to-blue-500 text-white shadow-[0_4px_14px_rgba(99,102,241,0.5)]'
+                            : 'bg-white/[0.05] text-slate-400 group-hover:bg-white/[0.1] group-hover:text-white'
+                        }`}
+                      >
+                        <Icon size={17} strokeWidth={2.2} />
+                      </span>
+
+                      <span
+                        className={`truncate text-[0.88rem] transition-colors duration-200 ${
+                          isActive ? 'font-semibold text-white' : 'font-medium text-slate-300 group-hover:text-white'
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+
+                      {isActive && (
+                        <span
+                          aria-hidden
+                          className="ml-auto h-1.5 w-1.5 rounded-full bg-violet-300 shadow-[0_0_8px_rgba(196,181,253,0.95)]"
+                        />
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      <div className="sidebar-footer">
-        <div style={{ position: 'relative' }}>
-          {isMenuOpen && (
-            <div className="profile-dropdown-menu">
-              <button className="dropdown-item">
-                <User size={16} /> Profile
-              </button>
-              <button className="dropdown-item logout">
-                <LogOut size={16} /> Logout
-              </button>
-            </div>
-          )}
-          
-          <div className="user-profile" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-            <div className="user-avatar">
-              A
-            </div>
-            <div className="user-info">
-              <span className="user-name">Akash</span>
-              <span className="user-role">BD Team</span>
-            </div>
-            <ChevronDown size={16} className="chevron" style={{ transform: isMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+      {/* Profile */}
+      <div ref={profileRef} className="relative z-10 border-t border-white/[0.06] px-3 py-3">
+        {isMenuOpen && (
+          <div
+            role="menu"
+            className="absolute right-3 bottom-[calc(100%-4px)] left-3 z-50 flex flex-col gap-1 rounded-[14px] border border-white/10 bg-[rgba(15,23,42,0.96)] p-1.5 shadow-[0_16px_32px_-8px_rgba(0,0,0,0.6)] backdrop-blur-[16px] [animation:fade-in-up_0.2s_cubic-bezier(0.16,1,0.3,1)]"
+          >
+            <button
+              role="menuitem"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border-none bg-transparent px-3 py-2.5 text-left text-[0.85rem] font-medium text-slate-200 transition-colors duration-200 hover:bg-white/[0.08] hover:text-white"
+            >
+              <User size={16} /> Profile
+            </button>
+            <button
+              role="menuitem"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-[10px] border-none bg-transparent px-3 py-2.5 text-left text-[0.85rem] font-medium text-red-300 transition-colors duration-200 hover:bg-red-500/15 hover:text-red-200"
+            >
+              <LogOut size={16} /> Logout
+            </button>
           </div>
-        </div>
+        )}
+
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={isMenuOpen}
+          onClick={() => setIsMenuOpen((open) => !open)}
+          className="flex w-full cursor-pointer items-center gap-3 rounded-[14px] border border-white/[0.06] bg-white/[0.04] p-2.5 text-left transition-colors duration-200 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60"
+        >
+          <span className="relative shrink-0">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-blue-400 text-[1rem] font-extrabold text-slate-950">
+              A
+            </span>
+            <span
+              aria-hidden
+              className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#0b0d1f]"
+            />
+          </span>
+
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[0.88rem] font-semibold text-white">Akash</span>
+            <span className="truncate text-[0.72rem] font-medium text-slate-400">BD Team</span>
+          </span>
+
+          <ChevronUp
+            size={16}
+            className={`shrink-0 text-slate-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-0' : 'rotate-180'}`}
+          />
+        </button>
       </div>
-
-      <style jsx>{`
-        .sidebar {
-          width: var(--sidebar-width, 260px);
-          min-width: 260px;
-          height: 100vh;
-          position: fixed;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          background-color: #060714;
-          background-image: 
-            linear-gradient(to bottom, #060714 30%, transparent 80%),
-            conic-gradient(from 315deg at 50% 100%, transparent 0deg, rgba(25, 70, 220, 0.4) 45deg, transparent 90deg);
-          border-right: 1px solid rgba(255, 255, 255, 0.04);
-          display: flex;
-          flex-direction: column;
-          z-index: 1000;
-          padding: 4px 0 24px 0;
-          box-sizing: border-box;
-          color: white;
-          overflow: hidden;
-        }
-        
-        .sidebar-brand, .nav-menu, .sidebar-footer {
-          position: relative;
-          z-index: 1;
-        }
-
-        .sidebar-brand {
-          display: flex;
-          align-items: center;
-          justify-content: start;
-          padding: 10px 24px 10px 24px;
-          margin-bottom: 12px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        :global(.brand-icon) {
-          color: white;
-          width: 24px;
-          height: 24px;
-        }
-
-        .brand-text h1 {
-          font-size: 1.25rem;
-          font-weight: 800;
-          color: #ffffff;
-          letter-spacing: 0.02em;
-          line-height: 1.1;
-          margin: 0;
-        }
-
-        .brand-text span {
-          font-size: 0.58rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: #94a3b8;
-          font-weight: 600;
-          display: block;
-          margin-top: 3px;
-        }
-
-        .sidebar-nav {
-          flex: 1;
-          padding: 0 16px;
-          overflow-y: auto;
-        }
-
-        .sidebar-nav ul {
-          list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          margin: 0;
-          padding: 0;
-        }
-
-        :global(.nav-link) {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 16px;
-          color: #cbd5e1 !important;
-          text-decoration: none !important;
-          border-radius: 6px;
-          font-size: 0.9rem;
-          font-weight: 500;
-          transition: all 0.2s ease;
-          position: relative;
-        }
-
-        :global(.nav-link:hover) {
-          background: rgba(255, 255, 255, 0.05);
-          color: #ffffff !important;
-        }
-
-        :global(.nav-link.active) {
-          background: linear-gradient(90deg, #8b5cf6, #3b82f6);
-          color: #ffffff !important;
-          font-weight: 600;
-          box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-        }
-
-        :global(.nav-icon) {
-          width: 18px;
-          height: 18px;
-          color: #cbd5e1;
-          transition: color 0.2s ease;
-          flex-shrink: 0;
-        }
-
-        :global(.nav-link:hover .nav-icon) {
-          color: #ffffff;
-        }
-
-        :global(.nav-link.active .nav-icon) {
-          color: #ffffff;
-        }
-
-        .nav-text {
-          text-decoration: none !important;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .sidebar-footer {
-          padding: 16px 20px 0 20px;
-        }
-
-        .user-profile {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 14px;
-          border-radius: 10px;
-          background: rgba(10, 15, 40, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.04);
-          transition: background 0.2s;
-          cursor: pointer;
-        }
-
-        .user-profile:hover {
-          background: rgba(255, 255, 255, 0.06);
-        }
-
-        .profile-dropdown-menu {
-          position: absolute;
-          bottom: calc(100% + 12px);
-          left: 0;
-          right: 0;
-          background: rgba(15, 23, 42, 0.95);
-          backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-          z-index: 50;
-          animation: fade-in-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .dropdown-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 12px;
-          background: transparent;
-          border: none;
-          color: #e2e8f0;
-          font-size: 0.85rem;
-          font-weight: 500;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s;
-          text-align: left;
-          width: 100%;
-        }
-
-        .dropdown-item:hover {
-          background: rgba(255, 255, 255, 0.08);
-          color: #ffffff;
-        }
-
-        .dropdown-item.logout {
-          color: #fca5a5;
-        }
-
-        .dropdown-item.logout:hover {
-          background: rgba(239, 68, 68, 0.15);
-          color: #f87171;
-        }
-
-        .user-avatar {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #a78bfa, #60a5fa);
-          color: #020617;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 1.1rem;
-        }
-
-        .user-info {
-          display: flex;
-          flex-direction: column;
-          flex: 1;
-        }
-
-        .user-name {
-          font-size: 0.88rem;
-          font-weight: 600;
-          color: #ffffff;
-        }
-
-        :global(.chevron) {
-          color: #94a3b8;
-        }
-
-        .user-role {
-          font-size: 0.72rem;
-          color: #64748b;
-          font-weight: 500;
-          margin-top: 1px;
-        }
-
-        @media (max-width: 768px) {
-          .sidebar {
-            display: none;
-          }
-        }
-      `}</style>
     </aside>
   );
 }

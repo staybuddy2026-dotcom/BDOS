@@ -345,12 +345,8 @@ export default function ApolloSearchPage() {
   const executePeopleSearch = useCallback(async (targetPage = 1) => {
     setLoading(true);
     try {
-      // Smart Fallback: If user typed a company name in jobTitle field (e.g. "Lyn Enterprise Cloud"), search by company name as well
-      const isJobTitleCompanyName = jobTitle.trim().length > 3 &&
-        !['cto', 'ceo', 'vp', 'founder', 'director', 'manager', 'engineer', 'lead', 'head', 'architect', 'ciso', 'cpo', 'cro', 'owner', 'developer', 'analyst', 'specialist', 'executive'].some(t => jobTitle.toLowerCase().includes(t));
-
-      const targetCompany = personCompanyName.trim() || (isJobTitleCompanyName ? jobTitle.trim() : undefined);
-      const targetJobTitle = isJobTitleCompanyName ? undefined : (jobTitle || undefined);
+      const targetCompany = personCompanyName.trim() || undefined;
+      const targetJobTitle = jobTitle.trim() || undefined;
 
       const res = await searchApolloPeople({
         jobTitle: targetJobTitle,
@@ -381,7 +377,7 @@ export default function ApolloSearchPage() {
   }, [jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity]);
 
   // Run Company Search
-  const executeCompanySearch = useCallback(async (targetPage = 1) => {
+  const executeCompanySearch = useCallback(async (targetPage = 1, overrideHiringKeywords?: string) => {
     setLoading(true);
     try {
       const res = await searchApolloOrganizations({
@@ -391,7 +387,7 @@ export default function ApolloSearchPage() {
         location: companyLocation || undefined,
         employeeCountRange: employeeCountRange || undefined,
         techUsage: companyTechUsage || undefined,
-        hiringKeywords: companyHiringKeywords || undefined,
+        hiringKeywords: (overrideHiringKeywords !== undefined ? overrideHiringKeywords : companyHiringKeywords) || undefined,
         fundingPresetDays,
         fundingStage: fundingStage || undefined,
         page: targetPage,
@@ -633,7 +629,22 @@ export default function ApolloSearchPage() {
       setEmployeeCountRange('1,50');
       triggerNotification('success', 'Applied Company Preset: ⚡ Newly Founded Startups');
     }
+    
+    // Automatically switch to fresh data tab when preset is applied
+    setActiveDataTab('fresh');
   };
+
+  // Auto-trigger search when a preset is applied (state must settle first, so we use an effect)
+  useEffect(() => {
+    if (activePresetKey) {
+      if (searchMode === 'people') {
+        executePeopleSearch(1);
+      } else {
+        executeCompanySearch(1);
+      }
+    }
+  }, [activePresetKey, searchMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Company-First to People-First Workflow: "Find Decision Makers"
   const handleFindDecisionMakers = (org: ApolloOrganizationMatch) => {
@@ -844,11 +855,11 @@ export default function ApolloSearchPage() {
 
       {/* SCROLLABLE MAIN CONTENT */}
       <div
-        className="flex flex-col gap-5 max-w-full w-full box-border text-[var(--text-primary)] px-7 py-4 pb-10 min-h-screen dashboard-scrollable-content"
+        className="flex flex-col gap-5 max-w-full w-full box-border text-(--text-primary) px-7 py-4 pb-10 dashboard-scrollable-content"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '16px 28px 40px 28px',
+          padding: '16px 28px 80px 28px',
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
@@ -1162,7 +1173,7 @@ export default function ApolloSearchPage() {
               if (searchMode === 'people') {
                 executePeopleSearch(1);
               } else {
-                executeCompanySearch(1);
+                executeCompanySearch(1, keyword);
               }
               triggerNotification('success', `Applied active hiring filter: "${keyword || 'All Hiring Openings'}"`);
             }}
@@ -1190,7 +1201,7 @@ export default function ApolloSearchPage() {
               {searchMode === 'people' ? (
                 /* FIND PEOPLE FILTERS */
                 <>
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">SECTION A — PERSON</div>
+                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">SECTION A — PERSON</div>
                   <div className="flex flex-col gap-1.5">
                     <label>Person Job Title</label>
                     <input
@@ -1200,7 +1211,7 @@ export default function ApolloSearchPage() {
                       placeholder="e.g. Founder, CTO, CEO, VP Engineering"
 
                     />
-                    <span className="text-[0.68rem] text-[var(--text-muted)] leading-[1.3]">Target executive job titles.</span>
+                    <span className="text-[0.68rem] text-(--text-muted) leading-[1.3]">Target executive job titles.</span>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -1231,7 +1242,7 @@ export default function ApolloSearchPage() {
                     />
                   </div>
 
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">SECTION B — COMPANY</div>
+                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">SECTION B — COMPANY</div>
                   <div className="flex flex-col gap-1.5">
                     <label>Target Company Name</label>
                     <input
@@ -1241,7 +1252,7 @@ export default function ApolloSearchPage() {
                       placeholder="e.g. Microsoft, Stripe, Cloudflare"
 
                     />
-                    <span className="text-[0.68rem] text-[var(--text-muted)] leading-[1.3]">Filter decision makers by company name.</span>
+                    <span className="text-[0.68rem] text-(--text-muted) leading-[1.3]">Filter decision makers by company name.</span>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -1269,7 +1280,7 @@ export default function ApolloSearchPage() {
               ) : (
                 /* FIND COMPANIES FILTERS */
                 <>
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">GROUP 1 — COMPANY IDENTITY</div>
+                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 1 — COMPANY IDENTITY</div>
                   <div className="flex flex-col gap-1.5">
                     <label>Company Name</label>
                     <input
@@ -1314,7 +1325,7 @@ export default function ApolloSearchPage() {
                     />
                   </div>
 
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">GROUP 2 — COMPANY SIZE</div>
+                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 2 — COMPANY SIZE</div>
                   <div className="flex flex-col gap-1.5">
                     <label>Employee Count Range</label>
                     <CustomDropdown
@@ -1334,7 +1345,7 @@ export default function ApolloSearchPage() {
                     />
                   </div>
 
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">GROUP 3 — TECHNOLOGY STACK</div>
+                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 3 — TECHNOLOGY STACK</div>
                   <div className="flex flex-col gap-1.5">
                     <label>Technology Used</label>
                     <input
@@ -1346,7 +1357,7 @@ export default function ApolloSearchPage() {
                     />
                   </div>
 
-                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-[var(--accent-indigo)] uppercase pb-1.5 border-b border-[var(--border-subtle)] mt-2">GROUP 4 — FUNDING & GROWTH</div>
+                  <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 4 — FUNDING & GROWTH</div>
                   <div className="flex flex-col gap-1.5">
                     <label>Funding Stage</label>
                     <CustomDropdown

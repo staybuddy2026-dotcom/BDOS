@@ -19,7 +19,8 @@ export async function generateOutreachDraftAction(
   companyIdOrDomain: string,
   channel: OutreachChannel = 'EMAIL',
   category: OutreachCategory = 'COLD_OUTREACH',
-  tone: ToneSetting = 'EXECUTIVE'
+  tone: ToneSetting = 'EXECUTIVE',
+  persist: boolean = true
 ): Promise<OutreachMessageDraft> {
   try {
     await AuthService.verifySession();
@@ -31,9 +32,10 @@ export async function generateOutreachDraftAction(
     draftStore.set(draft.id, draft);
 
     // Persist to PostgreSQL Database so /review and /pipeline pick it up
-    try {
-      const postUrl = `https://linkedin.com/company/${profile.overview.domain || profile.companyId}`;
-      let dbPost = await db.linkedInPost.findFirst({
+    if (persist) {
+      try {
+        const postUrl = `https://linkedin.com/company/${profile.overview.domain || profile.companyId}`;
+        let dbPost = await db.linkedInPost.findFirst({
         where: {
           OR: [
             { postUrl },
@@ -43,14 +45,17 @@ export async function generateOutreachDraftAction(
       });
 
       if (!dbPost) {
+        const dmName = profile.decisionMakers?.[0]?.name;
+        const resolvedAuthorName = (!dmName || dmName === 'Decision Maker') ? `${profile.overview.companyName} Executive` : dmName;
+        
         dbPost = await db.linkedInPost.create({
           data: {
             postUrl,
-            authorName: profile.decisionMakers?.[0]?.name || 'Decision Maker',
+            authorName: resolvedAuthorName,
             authorHeadline: profile.decisionMakers?.[0]?.jobTitle || 'Executive Lead',
             companyName: profile.overview.companyName,
             postPreview: `Live outreach target for ${profile.overview.companyName} (${profile.overview.domain})`,
-            matchedKeyword: profile.engineering?.primaryLanguages?.[0] || 'Apollo Lead',
+            matchedKeyword: profile.engineering?.primaryLanguages?.[0] || 'Target Lead',
             opportunityScore: 92, // Keep base score or make dynamic if wanted
             status: PostStatus.REVIEW_QUEUE,
           }
@@ -70,10 +75,12 @@ export async function generateOutreachDraftAction(
         });
 
         const dm = profile.decisionMakers?.[0];
+        const resolvedPersonName = (!dm?.name || dm.name === 'Decision Maker') ? `${profile.overview.companyName} Executive` : dm.name;
+        
         await db.apolloEnrichment.upsert({
           where: { linkedPostId: dbPost.id },
           update: {
-            personName: dm?.name || 'Decision Maker',
+            personName: resolvedPersonName,
             jobTitle: dm?.jobTitle || 'Executive Lead',
             organizationName: profile.overview.companyName,
             organizationDomain: profile.overview.domain,
@@ -81,7 +88,7 @@ export async function generateOutreachDraftAction(
           },
           create: {
             linkedPostId: dbPost.id,
-            personName: dm?.name || 'Decision Maker',
+            personName: resolvedPersonName,
             jobTitle: dm?.jobTitle || 'Executive Lead',
             organizationName: profile.overview.companyName,
             organizationDomain: profile.overview.domain,
@@ -108,8 +115,9 @@ export async function generateOutreachDraftAction(
     } catch (e) {
       logger.warn('Failed to persist draft to DB (continuing in-memory)', { error: String(e) });
     }
+  }
 
-    return draft;
+  return draft;
   } catch (err: unknown) {
     logger.error(`Failed to generate outreach draft for '${companyIdOrDomain}'`, { error: String(err) });
     throw new AppError('Failed to generate AI outreach draft.', 500);

@@ -2,6 +2,7 @@
 
 import { BuyingReadinessDetails, PriorityTier } from '@/features/prioritization/types';
 import { ArrowRight, ShieldCheck, Zap, TrendingUp, Clock } from 'lucide-react';
+import { CustomDropdown } from '@/components/CustomDropdown';
 
 function formatCleanCompanyName(rawName: string, domain: string): string {
   if (!rawName) return domain || 'Target Account';
@@ -98,33 +99,19 @@ export function PriorityCard({
           </div>
 
           {/* Styled Priority Tier Selector Pill */}
-          <select
-            value={account.priorityTier}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              e.stopPropagation();
-              onTierChange?.(account.companyId, e.target.value as PriorityTier);
-            }}
-            style={{
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              background: tierStyle.bg,
-              color: tierStyle.color,
-              border: `1.5px solid ${tierStyle.border}`,
-              padding: '6px 12px',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              outline: 'none',
-              boxShadow: `0 2px 8px ${tierStyle.glow}`,
-              fontFamily: 'inherit',
-            }}
-          >
-            <option value="IMMEDIATE">🚀 Immediate</option>
-            <option value="HIGH">⚡ High Priority</option>
-            <option value="MEDIUM">✨ Medium Tier</option>
-            <option value="MONITOR">👀 Active Monitor</option>
-            <option value="ARCHIVE">⚪ Archive</option>
-          </select>
+          <div onClick={(e) => e.stopPropagation()} style={{ minWidth: '160px' }}>
+            <CustomDropdown
+              value={account.priorityTier}
+              onChange={(val) => onTierChange?.(account.companyId, val as PriorityTier)}
+              options={[
+                { value: 'IMMEDIATE', label: '🚀 Immediate' },
+                { value: 'HIGH', label: '⚡ High Priority' },
+                { value: 'MEDIUM', label: '✨ Medium Tier' },
+                { value: 'MONITOR', label: '👀 Active Monitor' },
+                { value: 'ARCHIVE', label: '⚪ Archive' }
+              ]}
+            />
+          </div>
         </div>
       </div>
 

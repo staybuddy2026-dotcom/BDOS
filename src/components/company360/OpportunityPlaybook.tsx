@@ -18,7 +18,7 @@ export function OpportunityPlaybook({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Header Banner */}
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-focus)', borderRadius: '14px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-focus)', borderRadius: '14px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 24px rgba(15,23,42,0.03)' }}>
         <div>
           <span style={{ fontSize: '0.7rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <BookOpen size={12} /> AI Sales Copilot • Opportunity Playbook Refinement

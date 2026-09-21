@@ -26,7 +26,9 @@ import {
   togglePlaybookStatus,
   PlaybookData
 } from '@/features/playbooks/actions';
+import { CustomDropdown } from '@/components/CustomDropdown';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+import blob from '@/assets/blob.png';
 import '@/styles/globals.css';
 import '@/styles/playbooks.css';
 
@@ -280,7 +282,57 @@ export default function PlaybooksPage() {
   };
 
   return (
-    <div className="playbooks-page">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box' }}>
+      {/* HEADER BANNER */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        borderBottom: '1px solid var(--border-subtle)',
+        height: '65px',
+        flexShrink: 0,
+        padding: '0 28px',
+        background: 'var(--bg-primary)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', padding: '8px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(139, 92, 246, 0.3)' }}>
+            <BookOpen size={20} style={{ color: '#ffffff' }} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 700, background: 'linear-gradient(135deg, #0f172a, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+              Outreach Playbooks & Cadences
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+              Configure multi-step outreach schedules and AI guidelines
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={resetFormForNew}
+          className="btn-primary"
+          style={{ gap: '6px' }}
+          disabled={pageLoading}
+        >
+          <FolderPlus size={16} /> Add Playbook
+        </button>
+      </div>
+
+      <div
+        className="dashboard-scrollable-content playbooks-page"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px 28px 24px 28px',
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'top right',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed'
+        }}
+      >
       {/* Notifications */}
       {notification && (
         <div className={`notification ${notification.type === 'success' ? 'success' : 'error'}`}>
@@ -342,20 +394,6 @@ export default function PlaybooksPage() {
         badge="Multi-Step Sequence Templates"
       />
 
-      <div className="page-header">
-        <div className="header-title">
-          <h2>Outreach Playbooks</h2>
-          <p>Configure multi-step outreach schedules and AI guidelines matching target tones.</p>
-        </div>
-        <button 
-          onClick={resetFormForNew} 
-          className="btn-primary" 
-          style={{ gap: '6px' }}
-          disabled={pageLoading}
-        >
-          <FolderPlus size={16} /> Add Playbook
-        </button>
-      </div>
 
       <div className="playbooks-workspace">
         
@@ -470,16 +508,16 @@ export default function PlaybooksPage() {
 
               <div className="form-group">
                 <label>Default AI Generation Tone</label>
-                <select 
+                <CustomDropdown 
                   value={playbookDefaultTone}
-                  onChange={(e) => setPlaybookDefaultTone(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer"
-                >
-                  <option value="Professional">Professional (Consultative)</option>
-                  <option value="Casual">Casual (Friendly)</option>
-                  <option value="Insightful">Insightful (Expert/Teardown)</option>
-                  <option value="Direct">Direct (Short Pitch)</option>
-                </select>
+                  onChange={(val) => setPlaybookDefaultTone(val)}
+                  options={[
+                    { value: 'Professional', label: 'Professional (Consultative)' },
+                    { value: 'Casual', label: 'Casual (Friendly)' },
+                    { value: 'Insightful', label: 'Insightful (Expert/Teardown)' },
+                    { value: 'Direct', label: 'Direct (Short Pitch)' }
+                  ]}
+                />
               </div>
             </div>
 
@@ -595,17 +633,17 @@ export default function PlaybooksPage() {
 
                       <div className="form-group">
                         <label>AI Writing Tone Override</label>
-                        <select 
+                        <CustomDropdown 
                           value={step.tone || ''}
-                          onChange={(e) => handleUpdateStepField(index, 'tone', e.target.value)}
-                          className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-[var(--text-primary)] text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-[var(--accent-indigo)] focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white text-[var(--text-primary)] cursor-pointer"
-                        >
-                          <option value="">Use Playbook default ({playbookDefaultTone})</option>
-                          <option value="Professional">Professional</option>
-                          <option value="Casual">Casual</option>
-                          <option value="Insightful">Insightful</option>
-                          <option value="Direct">Direct</option>
-                        </select>
+                          onChange={(val) => handleUpdateStepField(index, 'tone', val)}
+                          options={[
+                            { value: '', label: `Use Playbook default (${playbookDefaultTone})` },
+                            { value: 'Professional', label: 'Professional' },
+                            { value: 'Casual', label: 'Casual' },
+                            { value: 'Insightful', label: 'Insightful' },
+                            { value: 'Direct', label: 'Direct' }
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -653,6 +691,7 @@ export default function PlaybooksPage() {
 
       </div>
 
+      </div>
     </div>
   );
 }

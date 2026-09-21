@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RevenueContract } from '@/features/revenue/types';
 import { ShieldCheck, CheckCircle, Copy, Send, Sparkles, FileText } from 'lucide-react';
+import { CustomDropdown } from '@/components/CustomDropdown';
 
 export function ContractPanel({ 
   contracts: initialContracts,
@@ -86,12 +87,16 @@ export function ContractPanel({
 
             <div>
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Contract Type</label>
-              <select value={contractType} onChange={(e) => setContractType(e.target.value as any)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.84rem', fontWeight: 700 }}>
-                <option value="MSA">📜 Master Services Agreement (MSA)</option>
-                <option value="SOW">📝 Statement of Work (SOW)</option>
-                <option value="NDA">🔒 Non-Disclosure Agreement (NDA)</option>
-                <option value="INVOICE">💳 Milestone Invoice (50% Deposit)</option>
-              </select>
+              <CustomDropdown
+                value={contractType}
+                onChange={(val) => setContractType(val as any)}
+                options={[
+                  { value: 'MSA', label: '📜 Master Services Agreement (MSA)' },
+                  { value: 'SOW', label: '📝 Statement of Work (SOW)' },
+                  { value: 'NDA', label: '🔒 Non-Disclosure Agreement (NDA)' },
+                  { value: 'INVOICE', label: '💳 Milestone Invoice (50% Deposit)' },
+                ]}
+              />
             </div>
 
             <div>
