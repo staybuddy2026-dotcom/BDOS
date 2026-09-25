@@ -263,7 +263,7 @@ export function MorningDashboard({ metrics }: { metrics: MorningCommandMetrics }
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{metrics.fundingTodayCount}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{metrics.fundingTodayCount}</div>
               <div style={{ fontSize: '0.8rem', color: '#d97706', marginTop: '8px', fontWeight: 600 }}>Deals closing or raised capital</div>
             </div>
             <div style={{ border: '1px solid #fef3c7', borderRadius: '50%', padding: '6px', color: '#d97706', display: 'flex', background: '#fffbeb' }}>
@@ -285,7 +285,7 @@ export function MorningDashboard({ metrics }: { metrics: MorningCommandMetrics }
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{metrics.hiringTodayCount}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{metrics.hiringTodayCount}</div>
               <div style={{ fontSize: '0.8rem', color: '#059669', marginTop: '8px', fontWeight: 600 }}>Active squad & dev openings</div>
             </div>
             <div style={{ border: '1px solid #ecfdf5', borderRadius: '50%', padding: '6px', color: '#059669', display: 'flex', background: '#ecfdf5' }}>
@@ -307,7 +307,7 @@ export function MorningDashboard({ metrics }: { metrics: MorningCommandMetrics }
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{metrics.newCtosCount}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{metrics.newCtosCount}</div>
               <div style={{ fontSize: '0.8rem', color: '#2563eb', marginTop: '8px', fontWeight: 600 }}>Leadership changes detected</div>
             </div>
             <div style={{ border: '1px solid #eff6ff', borderRadius: '50%', padding: '6px', color: '#2563eb', display: 'flex', background: '#eff6ff' }}>
@@ -329,7 +329,7 @@ export function MorningDashboard({ metrics }: { metrics: MorningCommandMetrics }
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{metrics.newProductHuntLaunchesCount}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{metrics.newProductHuntLaunchesCount}</div>
               <div style={{ fontSize: '0.8rem', color: '#9333ea', marginTop: '8px', fontWeight: 600 }}>Repos with fresh commits</div>
             </div>
             <div style={{ border: '1px solid #faf5ff', borderRadius: '50%', padding: '6px', color: '#9333ea', display: 'flex', background: '#faf5ff' }}>

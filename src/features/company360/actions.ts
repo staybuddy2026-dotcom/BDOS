@@ -4,6 +4,8 @@ import { AuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { Company360Profile, Company360SearchResult, CompanyOverviewData, DecisionMakerContact } from './types';
+import { GrowthIntelligenceData } from '../crunchbase/types';
+import { LinkedInIntelligenceData } from '../linkedin/types';
 import { fuseCompanyProfiles, normalizeCompanyDomain } from './merge';
 import { getMigratedCompaniesFromDbAction } from '../discovery/actions';
 import { calculateAiOpportunityScore, generateRecommendedServices, generateExecutiveBriefing } from './scoring';
@@ -40,22 +42,31 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       perPage: 1
     }).catch(() => null);
 
-    let orgData: any = null;
+    interface ApolloOrgData {
+      name?: string;
+      latestFundingStage?: string;
+      latestFundingAmount?: number;
+      latestFundingDate?: string;
+      openJobsCount?: number;
+      estimatedNumEmployees?: string;
+    }
+    
+    let orgData: ApolloOrgData | null = null;
     if (apolloRes && apolloRes.organizations && apolloRes.organizations.length > 0) {
-       orgData = apolloRes.organizations[0];
+       orgData = apolloRes.organizations[0] as ApolloOrgData;
     }
 
     if (existing) {
       if (orgData) {
         existing.growth = {
           latestRoundName: orgData.latestFundingStage || 'Undisclosed',
-          latestRoundAmountUsd: orgData.latestFundingAmount ? `$${orgData.latestFundingAmount.toLocaleString()}` : 'Undisclosed',
+          latestRoundAmountUsd: orgData.latestFundingAmount ? `$${Number(orgData.latestFundingAmount).toLocaleString()}` : 'Undisclosed',
           growthOpportunityScore: orgData.latestFundingDate ? 95 : 75
-        } as any;
+        } as GrowthIntelligenceData;
         existing.linkedin = {
           activeJobOpeningsCount: orgData.openJobsCount || 0,
           engineeringExpansionIndex: (orgData.openJobsCount || 0) > 0 ? 90 : 70
-        } as any;
+        } as LinkedInIntelligenceData;
       }
       return existing;
     }
@@ -67,26 +78,26 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
     const dbLeadsData = await getMigratedCompaniesFromDbAction().catch(() => null);
     const migratedLead = dbLeadsData?.migratedLeadsMap?.[cleaned] || dbLeadsData?.migratedLeadsMap?.[companyIdOrDomain];
 
-    let growth: any = null;
-    let linkedin: any = null;
+    let growth: GrowthIntelligenceData | undefined = undefined;
+    let linkedin: LinkedInIntelligenceData | undefined = undefined;
 
     if (orgData) {
       growth = {
         latestRoundName: orgData.latestFundingStage || 'Undisclosed',
-        latestRoundAmountUsd: orgData.latestFundingAmount ? `$${orgData.latestFundingAmount.toLocaleString()}` : 'Undisclosed',
+        latestRoundAmountUsd: orgData.latestFundingAmount ? `$${Number(orgData.latestFundingAmount).toLocaleString()}` : 'Undisclosed',
         growthOpportunityScore: orgData.latestFundingDate ? 95 : 75
-      } as any;
+      } as GrowthIntelligenceData;
       linkedin = {
         activeJobOpeningsCount: orgData.openJobsCount || 0,
         engineeringExpansionIndex: (orgData.openJobsCount || 0) > 0 ? 90 : 70
-      } as any;
+      } as LinkedInIntelligenceData;
     }
 
     const productHunt = undefined; // disabled
     const reddit = undefined; // disabled
 
     const apolloSeed: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[] } = {
-      companyName: migratedLead?.companyName || companyName,
+      companyName: migratedLead?.companyName || (companyName as string),
       domain: cleaned,
     };
 
@@ -96,12 +107,15 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       apolloSeed.employeeCount = migratedLead.employeeCount;
       apolloSeed.fundingStage = migratedLead.fundingSummary;
       
-      if (migratedLead.recommendedContactName) {
+      const rcName = migratedLead.recommendedContactName || '';
+      const isDummy = !rcName || rcName.toLowerCase().includes('decision maker') || rcName.toLowerCase() === 'executive';
+
+      if (!isDummy) {
         apolloSeed.decisionMakers = [
           {
             id: `dm_${cleaned}_1`,
-            name: migratedLead.recommendedContactName,
-            jobTitle: migratedLead.recommendedContactTitle,
+            name: rcName,
+            jobTitle: migratedLead.recommendedContactTitle || 'Executive',
             department: 'Engineering',
             seniority: 'Director',
             email: migratedLead.contactEmail || `contact@${cleaned}`,
@@ -115,6 +129,30 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
 
     if (orgData && !apolloSeed.employeeCount) {
         apolloSeed.employeeCount = orgData.estimatedNumEmployees ? parseInt(orgData.estimatedNumEmployees) : 0;
+    }
+
+    if (!apolloSeed.decisionMakers || apolloSeed.decisionMakers.length === 0) {
+      try {
+        const peopleRes = await apolloProvider.searchPeopleAdvanced({
+          domain: cleaned,
+          perPage: 3
+        });
+        if (peopleRes && peopleRes.people && peopleRes.people.length > 0) {
+          apolloSeed.decisionMakers = peopleRes.people.filter(p => !p.personName.toLowerCase().includes('decision maker')).map((p, idx) => ({
+            id: `dm_${cleaned}_${idx}`,
+            name: p.personName,
+            jobTitle: p.jobTitle || 'Executive',
+            department: 'Engineering',
+            seniority: (p.seniority as "Manager" | "Director" | "C-Level" | "VP" | "Lead") || 'Director',
+            email: p.hasEmailAvailable ? `${p.personName.split(' ')[0].toLowerCase()}@${cleaned}` : `contact@${cleaned}`,
+            emailStatus: p.hasEmailAvailable ? 'Verified' : 'Unverified',
+            linkedinUrl: p.linkedinUrl || `https://linkedin.com/company/${cleaned}`,
+            source: 'Apollo'
+          }));
+        }
+      } catch (err) {
+        logger.error('Failed to fetch real decision makers for company360', err);
+      }
     }
 
     const fused = fuseCompanyProfiles(apolloSeed, undefined, growth, productHunt, reddit, linkedin);

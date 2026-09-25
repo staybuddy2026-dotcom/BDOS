@@ -89,7 +89,7 @@ export async function scanForReEngagements(): Promise<{ count: number }> {
       // In a real app we'd have company domain linked to draft, but here we can try to extract from headline
       const headline = draft.post.authorHeadline || '';
       const companyMatch = headline.match(/at\s+(.+)/i);
-      let company = draft.post.companyName || (companyMatch ? companyMatch[1].trim() : 'Organization');
+      const company = draft.post.companyName || (companyMatch ? companyMatch[1].trim() : 'Organization');
       
       // Let's use Apollo searchPeopleAdvanced as well to find person signals, 
       // but to match the plan let's search orgs
@@ -111,7 +111,7 @@ export async function scanForReEngagements(): Promise<{ count: number }> {
           fundingPresetDays: 30, // Last 30 days
           perPage: 1
         });
-      } catch (e) {
+      } catch {
         orgSearchRes = { organizations: [], totalCount: 0 };
       }
 
@@ -202,9 +202,9 @@ CRITICAL Guidelines:
             } else if (response.status === 429) {
                 throw new Error("RATE_LIMIT");
             }
-          } catch (err: any) {
-            if (err.message === "RATE_LIMIT") throw err;
-            logger.error('Failed to run Gemini for re-engagement draft. Falling back to template.', err);
+          } catch (err: unknown) {
+            if (err instanceof Error && err.message === "RATE_LIMIT") throw err;
+            logger.error('Failed to run Gemini for re-engagement draft. Falling back to template.', err instanceof Error ? err.message : String(err));
           }
         }
 
@@ -227,9 +227,9 @@ CRITICAL Guidelines:
     logger.info(`Re-engagement scan completed. Created ${newEventsCount} new events.`);
     safeRevalidatePath('/re-engagement');
     return { count: newEventsCount };
-  } catch (error: any) {
-    logger.error('Failed to run scan for re-engagements', error);
-    if (error.message === 'RATE_LIMIT' || (error.message && error.message.toLowerCase().includes('rate limit'))) {
+  } catch (error: unknown) {
+    logger.error('Failed to run scan for re-engagements', error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && (error.message === 'RATE_LIMIT' || error.message.toLowerCase().includes('rate limit'))) {
       throw new AppError('APOLLO_RATE_LIMIT', 429);
     }
     throw new AppError('Failed to scan for re-engagements.', 500);

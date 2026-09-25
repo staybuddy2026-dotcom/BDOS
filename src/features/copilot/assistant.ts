@@ -26,22 +26,22 @@ export function answerCopilotQuestion(
   let confidencePercent = scoring.confidenceScorePercent;
   const reasoningSources = ['Company 360 Profile', 'Apollo Executive Lookup'];
 
-  if (q.includes('contact') || q.includes('should i')) {
-    answer = `${companyName} has an ICP opportunity score of ${scoring.overallScore}/100 (${scoring.salesPriority} priority)${funding ? `, and has raised ${funding}` : ''}. ${scoring.winProbabilityPercent}% estimated win probability based on current signals — worth reaching out.`;
-  } else if (q.includes('service') || q.includes('pitch')) {
-    answer = topService
-      ? `Recommend "${topService.serviceName}" (${topService.fitScore}% fit score) — ${topService.reasoning}`
-      : `No specific service recommendation is on file yet for ${companyName}. Run a fresh Company 360 scan to generate one from their tech stack and hiring signals.`;
-  } else if (q.includes('who') || q.includes('executive') || q.includes('first')) {
+  if (q.includes('who') || q.includes('executive') || q.includes('decision maker') || q.includes('contact first')) {
     answer = primaryContact
       ? `Contact ${primaryContact.name}, ${primaryContact.jobTitle} (${primaryContact.seniority}). Email status: ${primaryContact.emailStatus}. Source: ${primaryContact.source}.`
       : `No verified decision maker is on file for ${companyName} yet. Run an Apollo People search on this domain to surface one.`;
-  } else if (q.includes('problem') || q.includes('pain')) {
+  } else if (q.includes('service') || q.includes('pitch') || q.includes('offer')) {
+    answer = topService
+      ? `Recommend "${topService.serviceName}" (${topService.fitScore}% fit score) — ${topService.reasoning}`
+      : `No specific service recommendation is on file yet for ${companyName}. Run a fresh Company 360 scan to generate one from their tech stack and hiring signals.`;
+  } else if (q.includes('problem') || q.includes('pain') || q.includes('facing')) {
     answer = profile.engineering.hiringSignalScore > 60
       ? `${companyName} shows a hiring signal score of ${profile.engineering.hiringSignalScore}/100 — ${profile.engineering.recentActivitySummary || 'active engineering hiring is likely creating delivery bottlenecks.'}`
       : `No strong hiring or delivery-pressure signal is currently detected for ${companyName}. Consider a discovery call to surface their actual priorities.`;
-  } else if (q.includes('avoid') || q.includes('don\'t')) {
+  } else if (q.includes('avoid') || q.includes('don\'t') || q.includes('not say')) {
     answer = `Avoid positioning Tiny Script as an entry-level freelancer or cheap agency${funding ? ` — ${companyName} has ${funding} and needs enterprise-grade squad velocity and compliance.` : `; lead with technical depth and delivery track record instead of price.`}`;
+  } else if (q.includes('should i') || q.includes('contact today')) {
+    answer = `${companyName} has an ICP opportunity score of ${scoring.overallScore}/100 (${scoring.salesPriority} priority)${funding ? `, and has raised ${funding}` : ''}. ${scoring.winProbabilityPercent}% estimated win probability based on current signals — worth reaching out.`;
   } else {
     answer = `${companyName} is a ${scoring.salesPriority.toLowerCase()}-priority target with an estimated deal size of ${scoring.estimatedDealSizeUsd}. ${primaryContact ? `Approach ${primaryContact.name} (${primaryContact.jobTitle})` : 'Identify a decision maker via Apollo People search'} with a technical consultative angle.`;
   }

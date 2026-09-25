@@ -192,71 +192,47 @@ export default function ReEngagementPage() {
   };
 
   return (
-    <div className="dashboard-page" style={{ 
-      display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', gap: 0, paddingBottom: 0, boxSizing: 'border-box',
-      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-      backgroundSize: 'cover', backgroundPosition: 'top right', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
-    }}>
+    <div 
+      className="flex flex-col h-screen overflow-hidden box-border bg-cover bg-right-top bg-no-repeat bg-fixed"
+      style={{ backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})` }}
+    >
       
       {/* Notifications */}
       {notification && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: `2px solid ${notification.type === 'success' ? 'var(--accent-indigo)' : 'var(--color-warning)'}`, padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
-          {notification.type === 'success' ? <CheckCircle size={20} style={{ color: 'var(--accent-indigo)' }} /> : <AlertTriangle size={20} style={{ color: 'var(--color-warning)' }} />}
+        <div className={`fixed bottom-6 right-6 z-[999999] bg-white text-slate-800 border-2 px-5 py-3.5 rounded-xl shadow-[0_12px_32px_rgba(99,102,241,0.2)] flex items-center gap-2.5 text-[0.9rem] font-bold ${notification.type === 'success' ? 'border-indigo-500' : 'border-amber-500'}`}>
+          {notification.type === 'success' ? <CheckCircle size={20} className="text-indigo-500" /> : <AlertTriangle size={20} className="text-amber-500" />}
           <span>{notification.message}</span>
         </div>
       )}
 
-
-
-      {/* HEADER BANNER */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        borderBottom: '1px solid var(--border-subtle)',
-        height: '65px',
-        flexShrink: 0,
-        padding: '0 28px',
-        background: 'var(--bg-primary)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)' }}>
-            <Calendar size={18} style={{ color: 'var(--bg-primary)' }} />
+      {/* HEADER BANNER - CLEAN DESIGN */}
+      <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-200 h-[65px] shrink-0 px-7 bg-white">
+        <div className="flex items-center gap-3.5">
+          <div className="bg-gradient-to-br from-indigo-500 to-blue-500 p-2.5 rounded-lg shadow-[0_4px_16px_rgba(99,102,241,0.3)]">
+            <Calendar size={18} className="text-white" />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.3rem', fontWeight: 800, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+            <h1 className="text-[1.3rem] font-extrabold bg-gradient-to-br from-slate-900 to-blue-500 bg-clip-text text-transparent m-0">
               Automated Re-engagement Sequences
             </h1>
-            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+            <p className="text-[0.8rem] text-slate-400 font-semibold tracking-wide mt-1 m-0">
               Scan social feeds, track buying intent, and orchestrate automated multi-channel follow-ups
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ fontSize: '0.72rem', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: '1px solid var(--border-focus)', padding: '6px 12px', borderRadius: '8px', fontWeight: 800 }}>
+        <div className="flex items-center gap-4">
+          <div className="text-[0.72rem] bg-indigo-50/50 text-indigo-600 border border-indigo-200/50 px-3 py-1.5 rounded-lg font-extrabold">
             {events.filter(e => e.approvalStatus === ApprovalStatus.PENDING).length} Follow-ups Pending Review 🔔
           </div>
         </div>
       </div>
       
-      <WorkflowGuide activeStep={6} />
-
       {/* SCROLLABLE MAIN CONTENT */}
-      <div
-        className="dashboard-scrollable-content"
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '16px 28px 24px 28px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px',
-          position: 'relative'
-        }}
-      >
+      <div className="flex-1 overflow-y-auto flex flex-col relative">
+      <WorkflowGuide activeStep={6} />
+      
+      <div className="px-7 pt-4 pb-6 flex flex-col gap-5 flex-1">
         {/* Top Navigation & Breadcrumb */}
         <BreadcrumbHeader
           currentTitle="Automated Re-engagement Sequences"
@@ -265,13 +241,13 @@ export default function ReEngagementPage() {
           badge="Follow-up Schedules"
         />
 
-        <div className="reengagement-workspace">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-0 flex-1">
         {/* Left Opportunity Master Panel */}
-        <div className="reengagement-list-panel">
-          <div className="panel-header card-glass" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Re-engagement Alerts</h3>
-              <span className="text-[0.72rem] bg-white/5 py-0.5 px-2 rounded text-slate-400 font-semibold" style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem' }}>
+        <div className="lg:col-span-4 flex flex-col gap-4 min-h-0">
+          <div className="bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] flex flex-col gap-3">
+            <div className="flex justify-between items-center">
+              <h3 className="text-[0.95rem] font-bold text-slate-800 m-0">Re-engagement Alerts</h3>
+              <span className="text-[0.72rem] bg-slate-100 text-slate-500 font-bold py-1 px-2.5 rounded-lg border border-slate-200">
                 {events.filter(e => e.approvalStatus === ApprovalStatus.PENDING).length} pending
               </span>
             </div>
@@ -279,123 +255,130 @@ export default function ReEngagementPage() {
             <button 
               onClick={handleRunScan}
               disabled={scanLoading}
-              className="btn-primary"
-              style={{ width: '100%', justifyContent: 'center', gap: '8px' }}
+              className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-slate-800 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw size={14} className={scanLoading ? 'animate-spin' : ''} />
               {scanLoading ? 'Checking Feeds...' : 'Scan Feeds for Buying Signals'}
             </button>
           </div>
 
-          <div className="reengagement-items-scroll">
+          <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 custom-scrollbar">
             {pageLoading ? (
-              <div className="loader-spinner-wrapper" style={{ margin: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '150px' }}>
-                <div className="pulse-loader" style={{ borderColor: 'var(--accent-indigo)' }} />
+              <div className="m-auto flex flex-col items-center justify-center h-[150px]">
+                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
               </div>
             ) : events.map(ev => (
               <div 
                 key={ev.id}
                 onClick={() => handleSelectCard(ev.id)}
-                className={`reengagement-card-item card-glass ${ev.id === selectedId ? 'active-item' : ''}`}
+                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                  ev.id === selectedId 
+                    ? 'bg-indigo-50/50 border-indigo-300 shadow-[0_4px_16px_rgba(99,102,241,0.1)]' 
+                    : 'bg-white/70 border-slate-200/80 hover:border-indigo-200 hover:shadow-sm'
+                }`}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{ev.prospectName}</span>
-                  <span className={`badge-reengage ${ev.approvalStatus.toLowerCase()}`}>
+                <div className="flex justify-between items-start mb-1.5">
+                  <span className={`text-[0.85rem] font-bold ${ev.id === selectedId ? 'text-indigo-900' : 'text-slate-800'}`}>{ev.prospectName}</span>
+                  <span className={`text-[0.65rem] font-black px-2 py-0.5 rounded-md uppercase tracking-wide border ${
+                    ev.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                    ev.approvalStatus === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                    'bg-slate-50 text-slate-500 border-slate-200'
+                  }`}>
                     {ev.approvalStatus}
                   </span>
                 </div>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <p className="text-[0.72rem] text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis m-0">
                   {ev.newBuyingSignal}
                 </p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  <span>Detected: {ev.detectionDate.toLocaleDateString()}</span>
-                  <span style={{ color: 'var(--accent-cyan)' }}>Signal match</span>
+                <div className="flex justify-between items-center text-[0.65rem] mt-2.5">
+                  <span className="text-slate-400 font-medium">Detected: {ev.detectionDate.toLocaleDateString()}</span>
+                  <span className="text-blue-500 font-bold flex items-center gap-1"><Sparkles size={10} /> Signal match</span>
                 </div>
               </div>
             ))}
 
             {!pageLoading && events.length === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)', gap: '8px', border: '2px dashed var(--border-subtle)', borderRadius: '12px', background: 'var(--bg-card)' }}>
-                <Sparkles size={24} style={{ strokeWidth: 1.5, color: 'var(--accent-indigo)' }} />
-                <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>No re-engagement events found. Run a new scan.</p>
+              <div className="flex flex-col items-center justify-center h-[200px] text-slate-400 gap-2 border-2 border-dashed border-slate-200 rounded-2xl bg-white/40">
+                <Sparkles size={24} className="text-indigo-400 stroke-[1.5]" />
+                <p className="text-[0.8rem] font-bold m-0">No re-engagement events found. Run a new scan.</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Right Detail Workspace Drawer */}
-        <div className="reengagement-detail-panel card-glass" style={{ padding: '20px' }}>
+        <div className="lg:col-span-8 bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-6 shadow-[0_4px_24px_rgba(0,0,0,0.03)] flex flex-col min-h-0">
           {activeEvent ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', height: '100%', minHeight: 0 }}>
-              <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
-                <span className="author-name" style={{ fontSize: '1.1rem', fontWeight: 700, display: 'block' }}>
+            <div className="flex flex-col gap-5 h-full min-h-0">
+              <div className="border-b border-slate-100 pb-4 shrink-0">
+                <span className="text-[1.2rem] font-extrabold text-slate-900 block mb-1">
                   {activeEvent.prospectName}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {activeEvent.outreachDraft?.post.authorHeadline || 'Previously Contacted Lead'}
+                <span className="text-[0.8rem] text-slate-500 font-medium flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> {activeEvent.outreachDraft?.post.authorHeadline || 'Previously Contacted Lead'}
                 </span>
               </div>
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0 }}>
-                <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '8px' }}>
+              <div className="flex-1 flex flex-col gap-5 min-h-0">
+                <div className="overflow-y-auto flex-1 flex flex-col gap-5 pr-2 custom-scrollbar">
                 
                 {/* 1. Comparison Box: Old Context vs New signal */}
-                <div className="comparison-box">
-                  <div className="comparison-card">
-                    <span className="card-title-lbl">Previous Outreach Draft</span>
-                    <p style={{ fontStyle: 'italic' }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-2">
+                    <span className="text-[0.65rem] uppercase tracking-wider font-bold text-slate-400 mb-1">Previous Outreach Draft</span>
+                    <p className="text-[0.8rem] text-slate-600 italic m-0 flex-1">
                       &quot;{activeEvent.outreachDraft?.editedDraft || activeEvent.outreachDraft?.originalAiDraft || 'No record'}&quot;
                     </p>
                     {activeEvent.outreachDraft && (
-                      <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', marginTop: 'auto' }}>
+                      <span className="text-[0.65rem] font-bold text-indigo-500 mt-2 block">
                         Playbook: {activeEvent.outreachDraft.playbook?.name || 'Sequence'}
                       </span>
                     )}
                   </div>
 
-                  <div className="comparison-card highlight" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.05), rgba(59,130,246,0.1))', borderColor: 'rgba(59,130,246,0.3)', boxShadow: 'inset 0 0 20px rgba(59,130,246,0.05)' }}>
-                    <span className="card-title-lbl" style={{ color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Sparkles size={14} /> New Detected Buying Signal
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200/60 rounded-xl p-4 flex flex-col gap-2 shadow-[inset_0_0_20px_rgba(59,130,246,0.03)]">
+                    <span className="text-[0.65rem] uppercase tracking-wider font-bold text-blue-500 mb-1 flex items-center gap-1.5">
+                      <Sparkles size={12} /> New Detected Buying Signal
                     </span>
-                    <p style={{ fontWeight: 600, color: '#0f172a' }}>{activeEvent.newBuyingSignal}</p>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'auto', fontWeight: 700 }}>
-                      <Calendar size={12} /> Live Intent Match
+                    <p className="text-[0.85rem] font-bold text-slate-800 m-0 flex-1 leading-snug">
+                      {activeEvent.newBuyingSignal}
+                    </p>
+                    <span className="text-[0.65rem] font-extrabold text-blue-600 mt-2 flex items-center gap-1">
+                      <Calendar size={11} /> Live Intent Match
                     </span>
                   </div>
                 </div>
 
                 {/* 2. Analysis of contexts */}
-                <div className="analysis-field" style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <span className="label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Signal Analysis & Context</span>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+                  <span className="block text-[0.7rem] font-black text-slate-500 mb-2.5 uppercase tracking-wider">Signal Analysis & Context</span>
+                  <p className="text-[0.82rem] text-slate-600 m-0 leading-relaxed">
                     {activeEvent.analysis}
                   </p>
                 </div>
 
                 {/* 3. Suggested Draft (Composer) */}
-                <div className="analysis-field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '200px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span className="label" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>AI Re-Engagement Follow-Up Draft</span>
-                    <span style={{ fontSize: '0.75rem', color: '#d97706', background: '#fef3c7', padding: '4px 10px', borderRadius: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div className="flex flex-col flex-1 min-h-[200px]">
+                  <div className="flex justify-between items-center mb-2.5">
+                    <span className="text-[0.85rem] font-extrabold text-slate-800">AI Re-Engagement Follow-Up Draft</span>
+                    <span className="text-[0.7rem] bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5">
                       <AlertTriangle size={12} /> Human approval required
                     </span>
                   </div>
                   <textarea 
                     value={draftText}
                     onChange={(e) => setDraftText(e.target.value)}
-                    className="outreach-editor-textarea"
-                    style={{ flex: 1, minHeight: '150px', fontSize: '0.9rem', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', resize: 'none', lineHeight: '1.6', background: '#ffffff' }}
+                    className="flex-1 min-h-[150px] text-[0.9rem] p-4 rounded-xl border border-slate-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] resize-none leading-relaxed bg-white text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10 transition-all custom-scrollbar"
                   />
                 </div>
                 </div>
 
                 {/* Actions - Pinned to bottom */}
-                <div style={{ display: 'flex', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
+                <div className="flex gap-3 pt-4 border-t border-slate-100 mt-auto shrink-0 flex-wrap">
                   <button 
                     onClick={handleSaveEdits}
                     disabled={actionLoading}
-                    className="btn-secondary"
-                    style={{ flex: 1, justifyContent: 'center' }}
+                    className="flex-1 bg-white text-slate-700 font-bold border border-slate-200 py-2.5 px-4 rounded-xl hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Save Draft Edits
                   </button>
@@ -405,8 +388,7 @@ export default function ReEngagementPage() {
                       <button 
                         onClick={handleDismissReEngagement}
                         disabled={actionLoading}
-                        className="btn-secondary"
-                        style={{ justifyContent: 'center', gap: '8px', color: '#ef4444', borderColor: '#fecaca', background: '#fef2f2', padding: '10px 20px', fontSize: '0.9rem' }}
+                        className="flex items-center justify-center gap-2 bg-red-50 text-red-500 font-bold border border-red-200 py-2.5 px-5 rounded-xl hover:bg-red-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <XCircle size={16} /> Dismiss
                       </button>
@@ -414,8 +396,7 @@ export default function ReEngagementPage() {
                       <button 
                         onClick={handleApproveReEngagement}
                         disabled={actionLoading || !draftText.trim()}
-                        className="btn-primary"
-                        style={{ flex: 1, justifyContent: 'center', gap: '8px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', boxShadow: '0 4px 14px rgba(16,185,129,0.3)', padding: '10px 20px', fontSize: '0.9rem' }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl shadow-[0_4px_14px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.4)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                       >
                         <CheckCircle size={16} /> Approve & Queue Dispatch
                       </button>
@@ -426,11 +407,12 @@ export default function ReEngagementPage() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '8px' }}>
-              <ArrowRight size={32} style={{ strokeWidth: 1.2 }} />
-              <p style={{ fontSize: '0.85rem' }}>Select an alert from the left column to check history and approve follow-up draft notes.</p>
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+              <ArrowRight size={36} className="text-slate-300 stroke-[1.5]" />
+              <p className="text-[0.9rem] font-medium m-0 text-center max-w-[250px]">Select an alert from the left column to check history and approve follow-up draft notes.</p>
             </div>
           )}
+        </div>
         </div>
       </div>
       </div>

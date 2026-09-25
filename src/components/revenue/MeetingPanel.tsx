@@ -4,6 +4,19 @@ import { useState } from 'react';
 import { RevenueMeeting } from '@/features/revenue/types';
 import { Calendar, Clock, Plus, ExternalLink, CheckCircle, Video, Mail, XCircle, RotateCcw } from 'lucide-react';
 import { CustomDropdown } from '@/components/CustomDropdown';
+import { z } from 'zod';
+
+const MeetingSchema = z.object({
+  title: z.string().min(5, "Topic must be at least 5 characters long").max(100, "Topic is too long"),
+  clientEmail: z.string().email("Please enter a valid email address"),
+  date: z.string().min(1, "Please select a date"),
+  time: z.string().min(1, "Please select a time")
+});
+
+const RescheduleSchema = z.object({
+  date: z.string().min(1, "Please select a new date"),
+  time: z.string().min(1, "Please select a new time")
+});
 
 export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueMeeting[] }) {
   const [meetings, setMeetings] = useState<RevenueMeeting[]>(initialMeetings);
@@ -17,6 +30,8 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
   const [meetingPlatform, setMeetingPlatform] = useState<'GOOGLE_MEET' | 'ZOOM' | 'TEAMS'>('GOOGLE_MEET');
   const customMeetingUrl = '';
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [rescheduleErrors, setRescheduleErrors] = useState<Record<string, string>>({});
 
   const generateMeetingUrl = (platform: 'GOOGLE_MEET' | 'ZOOM' | 'TEAMS', mtgId: string) => {
     if (customMeetingUrl.trim()) return customMeetingUrl.trim();
@@ -26,6 +41,17 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
   };
 
   const handleBookMeeting = () => {
+    const parsed = MeetingSchema.safeParse({ title, clientEmail, date, time });
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      parsed.error.issues.forEach((err) => {
+        if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+
     const id = `mtg_${Date.now()}`;
     const joinUrl = generateMeetingUrl(meetingPlatform, id);
 
@@ -57,6 +83,17 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
   };
 
   const handleRescheduleMeeting = (id: string) => {
+    const parsed = RescheduleSchema.safeParse({ date, time });
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      parsed.error.issues.forEach((err) => {
+        if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
+      });
+      setRescheduleErrors(fieldErrors);
+      return;
+    }
+    setRescheduleErrors({});
+
     setMeetings(prev => prev.map(m => {
       if (m.id === id) {
         return {
@@ -117,22 +154,26 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
             
             <div>
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Meeting Topic / Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.84rem' }} />
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: errors.title ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.84rem' }} />
+              {errors.title && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.title}</span>}
             </div>
 
             <div>
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Client Recipient Email</label>
-              <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.84rem' }} />
+              <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: errors.clientEmail ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.84rem' }} />
+              {errors.clientEmail && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.clientEmail}</span>}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Date</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: errors.date ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                {errors.date && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.date}</span>}
               </div>
               <div>
                 <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Time</label>
-                <input type="text" value={time} onChange={(e) => setTime(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                <input type="text" value={time} onChange={(e) => setTime(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: errors.time ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                {errors.time && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.time}</span>}
               </div>
             </div>
 
@@ -140,7 +181,7 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Online Platform</label>
               <CustomDropdown
                 value={meetingPlatform}
-                onChange={(val) => setMeetingPlatform(val as any)}
+                onChange={(val) => setMeetingPlatform(val as 'GOOGLE_MEET' | 'ZOOM' | 'TEAMS')}
                 options={[
                   { value: 'GOOGLE_MEET', label: '🎥 Google Meet' },
                   { value: 'ZOOM', label: '💻 Zoom Video Conference' },
@@ -166,11 +207,13 @@ export function MeetingPanel({ meetings: initialMeetings }: { meetings: RevenueM
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>New Date</label>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: rescheduleErrors.date ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                {rescheduleErrors.date && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{rescheduleErrors.date}</span>}
               </div>
               <div>
                 <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>New Time</label>
-                <input type="text" value={time} onChange={(e) => setTime(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                <input type="text" value={time} onChange={(e) => setTime(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: rescheduleErrors.time ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                {rescheduleErrors.time && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{rescheduleErrors.time}</span>}
               </div>
             </div>
 

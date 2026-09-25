@@ -77,10 +77,10 @@ export function PriorityDashboard({
       )}
 
       {/* Sales Command Center KPI Header */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderTop: '3px solid var(--accent-indigo)', borderRadius: '14px', padding: '16px', boxShadow: 'var(--glass-shadow)' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contact Today</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: 'var(--accent-indigo)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Flame size={22} /> {telemetry.companiesToContactToday} Accounts
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 600 }}>Immediate 95+ score tier</div>
@@ -88,7 +88,7 @@ export function PriorityDashboard({
 
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderTop: '3px solid var(--accent-violet)', borderRadius: '14px', padding: '16px', boxShadow: 'var(--glass-shadow)' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>High-Priority Accounts</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-violet)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: 'var(--accent-violet)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Target size={20} /> {telemetry.highPriorityAccountsCount} Companies
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 600 }}>Contact within 24 hours</div>
@@ -137,7 +137,7 @@ export function PriorityDashboard({
                   borderRadius: '10px',
                   fontSize: '0.8rem',
                   fontWeight: 800,
-                  border: isSelected ? `1.5px solid ${tier.badgeColor}` : '1px solid var(--border-subtle)',
+                  border: isSelected ? `1.5px solid ${tier.badgeColor}` : '1.5px solid var(--border-subtle)',
                   background: isSelected ? `${tier.badgeColor}18` : 'var(--bg-secondary)',
                   color: isSelected ? tier.badgeColor : 'var(--text-secondary)',
                   cursor: 'pointer',
@@ -145,6 +145,8 @@ export function PriorityDashboard({
                   boxShadow: isSelected ? `0 2px 10px ${tier.badgeColor}33` : 'none',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '34px',
                   gap: '6px',
                 }}
               >

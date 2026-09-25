@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { RevenueProposal } from '@/features/revenue/types';
 import { FileText, CheckCircle, Copy, Download, Send, Sparkles } from 'lucide-react';
+import { z } from 'zod';
+
+const ProposalSchema = z.object({
+  scopeSummary: z.string().min(10, "Scope summary must be at least 10 characters long").max(500, "Scope summary is too long"),
+  budgetInr: z.string().regex(/^₹?[0-9,]+(\s*-\s*₹?[0-9,]+)?$/, "Valid INR budget required (e.g. ₹45,000,00 - ₹65,000,00)"),
+  budgetUsd: z.string().regex(/^\$?[0-9,]+(\s*-\s*\$?[0-9,]+)?( USD)?$/, "Valid USD budget required (e.g. $55,000 - $78,000 USD)"),
+  timelineWeeks: z.number().min(1, "Timeline must be at least 1 week").max(52, "Timeline cannot exceed 52 weeks")
+});
 
 export function ProposalPanel({ 
   proposals: initialProposals,
@@ -20,8 +28,23 @@ export function ProposalPanel({
   const [scopeSummary, setScopeSummary] = useState(`Senior React 19 & Python FastAPI Squad deployment for ${companyName}`);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleGenerateProposal = () => {
+    try {
+      ProposalSchema.parse({ scopeSummary, budgetInr, budgetUsd, timelineWeeks });
+      setErrors({});
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Record<string, string> = {};
+        (error as any).errors.forEach((err: any) => {
+          if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
+        });
+        setErrors(fieldErrors);
+      }
+      return;
+    }
+
     const v = proposals.length + 1;
     const newProp: RevenueProposal = {
       id: `prop_${Date.now()}`,
@@ -93,23 +116,27 @@ export function ProposalPanel({
 
             <div>
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Target Scope Summary</label>
-              <textarea rows={3} value={scopeSummary} onChange={(e) => setScopeSummary(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+              <textarea rows={3} value={scopeSummary} onChange={(e) => setScopeSummary(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: errors.scopeSummary ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+              {errors.scopeSummary && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.scopeSummary}</span>}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Budget Range (INR)</label>
-                <input type="text" value={budgetInr} onChange={(e) => setBudgetInr(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                <input type="text" value={budgetInr} onChange={(e) => setBudgetInr(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: errors.budgetInr ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                {errors.budgetInr && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.budgetInr}</span>}
               </div>
               <div>
                 <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Budget Range (USD)</label>
-                <input type="text" value={budgetUsd} onChange={(e) => setBudgetUsd(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                <input type="text" value={budgetUsd} onChange={(e) => setBudgetUsd(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: errors.budgetUsd ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+                {errors.budgetUsd && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.budgetUsd}</span>}
               </div>
             </div>
 
             <div>
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Delivery Timeline (Weeks)</label>
-              <input type="number" value={timelineWeeks} onChange={(e) => setTimelineWeeks(Number(e.target.value))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+              <input type="number" value={timelineWeeks} onChange={(e) => setTimelineWeeks(Number(e.target.value))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: errors.timelineWeeks ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.82rem' }} />
+              {errors.timelineWeeks && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{errors.timelineWeeks}</span>}
             </div>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>

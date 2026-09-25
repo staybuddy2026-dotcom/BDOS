@@ -20,6 +20,9 @@ export type CommandCenterKpis = {
   averageDealSize: string;
   expectedRevenue: string;
   targetProgress: number;
+  realWeightedRevenue?: number;
+  realWonRevenue?: number;
+  realPendingRevenue?: number;
 };
 
 export type PriorityQueueCard = {
@@ -232,7 +235,7 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
     // Fetch Execution Tasks directly from Database
     const tasks: BdeTask[] = [];
     try {
-      let dbTasks = await db.task.findMany({
+      const dbTasks = await db.task.findMany({
         orderBy: { dueDate: 'asc' },
       });
 
@@ -297,7 +300,7 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
     // Fetch Calendar Events & Meetings from Database
     const calendarEvents: CalendarEvent[] = [];
     try {
-      let dbMeetings = await db.meeting.findMany({
+      const dbMeetings = await db.meeting.findMany({
         orderBy: { startTime: 'asc' },
       });
 
@@ -336,6 +339,7 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
             clientName: lead.authorName || 'Key Contact',
             companyName: company,
             status: lead.status === PostStatus.APPROVED ? 'Confirmed' : 'Scheduled',
+            meetingUrl: 'https://meet.google.com/new',
           });
           timeOffset += 1;
         }
@@ -351,7 +355,7 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
     // Fetch Active Proposals directly from Database
     const proposals: ProposalItem[] = [];
     try {
-      let dbProposals = await db.proposal.findMany({
+      const dbProposals = await db.proposal.findMany({
         orderBy: { updatedAt: 'desc' },
       });
 
@@ -419,9 +423,9 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
       }
 
       // Attach the calculated real metrics to kpis so they can be used below
-      (kpis as any).realWeightedRevenue = realWeightedRevenue;
-      (kpis as any).realWonRevenue = realWonRevenue;
-      (kpis as any).realPendingRevenue = realPendingRevenue;
+      kpis.realWeightedRevenue = realWeightedRevenue;
+      kpis.realWonRevenue = realWonRevenue;
+      kpis.realPendingRevenue = realPendingRevenue;
 
       // Update KPIs dynamically based on real proposal data
       const sentCount = proposals.filter(p => p.stage !== 'Draft').length;
@@ -516,10 +520,10 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
 
     const revenueForecast: RevenueForecast = {
       expectedRevenue: kpis.expectedRevenue,
-      weightedRevenue: (kpis as any).realWeightedRevenue !== undefined ? `$${Math.round((kpis as any).realWeightedRevenue).toLocaleString()}` : '$0',
-      wonRevenue: (kpis as any).realWonRevenue !== undefined ? `$${Math.round((kpis as any).realWonRevenue).toLocaleString()}` : '$0',
-      pendingRevenue: (kpis as any).realPendingRevenue !== undefined ? `$${Math.round((kpis as any).realPendingRevenue).toLocaleString()}` : '$0',
-      quarterlyForecast: (kpis as any).realWonRevenue !== undefined ? `$${Math.round((kpis as any).realWonRevenue + (kpis as any).realPendingRevenue).toLocaleString()}` : '$0',
+      weightedRevenue: kpis.realWeightedRevenue !== undefined ? `$${Math.round(kpis.realWeightedRevenue).toLocaleString()}` : '$0',
+      wonRevenue: kpis.realWonRevenue !== undefined ? `$${Math.round(kpis.realWonRevenue).toLocaleString()}` : '$0',
+      pendingRevenue: kpis.realPendingRevenue !== undefined ? `$${Math.round(kpis.realPendingRevenue).toLocaleString()}` : '$0',
+      quarterlyForecast: kpis.realWonRevenue !== undefined && kpis.realPendingRevenue !== undefined ? `$${Math.round(kpis.realWonRevenue + kpis.realPendingRevenue).toLocaleString()}` : '$0',
       monthlyForecast: kpis.expectedRevenue,
       targetProgress: kpis.targetProgress,
     };
@@ -536,7 +540,7 @@ export async function getBdeCommandCenterData(): Promise<BdeCommandCenterData> {
       todayFocus: totalActiveAccounts > 0
         ? 'Review active qualified leads in Review Queue and send personalized outreach'
         : 'Run Apollo B2B Search or LinkedIn Discovery to populate pipeline',
-      pipelineEstimate: (kpis as any).realWonRevenue !== undefined ? `$${Math.round((kpis as any).realWonRevenue + (kpis as any).realPendingRevenue).toLocaleString()}` : '$0',
+      pipelineEstimate: kpis.realWonRevenue !== undefined && kpis.realPendingRevenue !== undefined ? `$${Math.round(kpis.realWonRevenue + kpis.realPendingRevenue).toLocaleString()}` : '$0',
       recommendedLeadsCount: newLeadsToday,
       targetCompaniesCount: totalActiveAccounts,
       projectsToBidCount: projectsToday,

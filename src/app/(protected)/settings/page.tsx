@@ -29,6 +29,7 @@ import {
   X,
   Check
 } from 'lucide-react';
+import { z } from 'zod';
 import {
   getMarketplaceConnectors,
   getMarketplaceSettings,
@@ -51,6 +52,15 @@ export interface ServiceItem {
   model: string;
   threshold: number;
 }
+
+const ServiceItemSchema = z.object({
+  name: z.string().min(3, "Service name must be at least 3 characters").max(100, "Service name is too long"),
+  minInr: z.string().regex(/^₹?[0-9,]+$/, "Must be a valid INR amount (e.g. ₹20,00,000)"),
+  minUsd: z.string().regex(/^\$?[0-9,]+$/, "Must be a valid USD amount (e.g. $25,000)"),
+  stack: z.string().min(3, "Please provide at least one technology in the stack"),
+  model: z.string().min(1, "Please select a delivery model"),
+  threshold: z.number().min(0, "Threshold cannot be negative").max(100, "Threshold cannot exceed 100")
+});
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'connectors' | 'service-catalog' | 'apollo' | 'github' | 'crunchbase' | 'linkedin' | 'prioritization' | 'outreach' | 'general'>('connectors');
@@ -100,6 +110,7 @@ export default function SettingsPage() {
     model: 'Fixed Price',
     threshold: 80
   });
+  const [serviceFormErrors, setServiceFormErrors] = useState<Record<string, string>>({});
 
   // Connector Manager State
   const [connectors, setConnectors] = useState<ConnectorCardItem[]>([]);
@@ -267,6 +278,7 @@ export default function SettingsPage() {
       model: 'Fixed Price',
       threshold: 80
     });
+    setServiceFormErrors({});
     setServiceModalOpen(true);
   };
 
@@ -280,12 +292,25 @@ export default function SettingsPage() {
       model: srv.model,
       threshold: srv.threshold
     });
+    setServiceFormErrors({});
     setServiceModalOpen(true);
   };
 
   const handleSaveService = async () => {
-    if (!serviceForm.name.trim()) {
-      triggerNotification('error', 'Please enter a valid service name.');
+    try {
+      ServiceItemSchema.parse(serviceForm);
+      setServiceFormErrors({});
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Record<string, string> = {};
+        error.issues.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as string] = err.message;
+          }
+        });
+        setServiceFormErrors(fieldErrors);
+        triggerNotification('error', 'Please fix the errors in the form.');
+      }
       return;
     }
 
@@ -1021,8 +1046,9 @@ export default function SettingsPage() {
                   value={serviceForm.name}
                   onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
                   placeholder="e.g. AI Copilot Integration & Fullstack Dev"
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', outline: 'none', transition: 'border-color 0.2s' }}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: serviceFormErrors.name ? '1px solid #ef4444' : '1px solid #cbd5e1', outline: 'none', transition: 'border-color 0.2s' }}
                 />
+                {serviceFormErrors.name && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{serviceFormErrors.name}</span>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -1032,8 +1058,9 @@ export default function SettingsPage() {
                     type="text"
                     value={serviceForm.minInr}
                     onChange={(e) => setServiceForm({ ...serviceForm, minInr: e.target.value })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', outline: 'none' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: serviceFormErrors.minInr ? '1px solid #ef4444' : '1px solid #cbd5e1', outline: 'none' }}
                   />
+                  {serviceFormErrors.minInr && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{serviceFormErrors.minInr}</span>}
                 </div>
                 <div>
                   <label style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Min Budget (USD)</label>
@@ -1041,8 +1068,9 @@ export default function SettingsPage() {
                     type="text"
                     value={serviceForm.minUsd}
                     onChange={(e) => setServiceForm({ ...serviceForm, minUsd: e.target.value })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', outline: 'none' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: serviceFormErrors.minUsd ? '1px solid #ef4444' : '1px solid #cbd5e1', outline: 'none' }}
                   />
+                  {serviceFormErrors.minUsd && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{serviceFormErrors.minUsd}</span>}
                 </div>
               </div>
 
@@ -1053,23 +1081,27 @@ export default function SettingsPage() {
                   value={serviceForm.stack}
                   onChange={(e) => setServiceForm({ ...serviceForm, stack: e.target.value })}
                   placeholder="React 19, Python, Node.js, AWS"
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', outline: 'none' }}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: serviceFormErrors.stack ? '1px solid #ef4444' : '1px solid #cbd5e1', outline: 'none' }}
                 />
+                {serviceFormErrors.stack && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{serviceFormErrors.stack}</span>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div>
                   <label style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 700, display: 'block', marginBottom: '6px' }}>Delivery Model</label>
-                  <CustomDropdown
-                    value={serviceForm.model}
-                    onChange={(value) => setServiceForm({ ...serviceForm, model: value })}
-                    options={[
-                      { value: 'Fixed Price', label: 'Fixed Price' },
-                      { value: 'Dedicated Team', label: 'Dedicated Team' },
-                      { value: 'Staff Augmentation', label: 'Staff Augmentation' },
-                      { value: 'AI Consulting', label: 'AI Consulting' }
-                    ]}
-                  />
+                  <div style={{ border: serviceFormErrors.model ? '1px solid #ef4444' : 'none', borderRadius: '8px' }}>
+                    <CustomDropdown
+                      value={serviceForm.model}
+                      onChange={(value) => setServiceForm({ ...serviceForm, model: value })}
+                      options={[
+                        { value: 'Fixed Price', label: 'Fixed Price' },
+                        { value: 'Dedicated Team', label: 'Dedicated Team' },
+                        { value: 'Staff Augmentation', label: 'Staff Augmentation' },
+                        { value: 'AI Consulting', label: 'AI Consulting' }
+                      ]}
+                    />
+                  </div>
+                  {serviceFormErrors.model && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{serviceFormErrors.model}</span>}
                 </div>
                 <div>
                   <label style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 700, display: 'block', marginBottom: '6px' }}>ICP Match Confidence (%)</label>
@@ -1077,8 +1109,9 @@ export default function SettingsPage() {
                     type="number"
                     value={serviceForm.threshold}
                     onChange={(e) => setServiceForm({ ...serviceForm, threshold: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', outline: 'none' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '0.9rem', background: '#ffffff', color: '#0f172a', border: serviceFormErrors.threshold ? '1px solid #ef4444' : '1px solid #cbd5e1', outline: 'none' }}
                   />
+                  {serviceFormErrors.threshold && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{serviceFormErrors.threshold}</span>}
                 </div>
               </div>
             </div>

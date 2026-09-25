@@ -27,7 +27,7 @@ export function ICPPanel({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
         <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid var(--border-focus)', borderRadius: '10px', padding: '14px' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>ICP Match Score</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '2px' }}>{icpScore} / 100</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: 'var(--accent-indigo)', marginTop: '2px' }}>{icpScore} / 100</div>
           <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Highly Qualified Prospect</div>
         </div>
 

@@ -28,13 +28,13 @@ export function IcpFitCard({ result }: { result: IcpMatchResult }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
         <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid var(--border-focus)', borderRadius: '10px', padding: '12px' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>ICP Match Score</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '2px' }}>{result.icpMatchScore} / 100</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: 'var(--accent-indigo)', marginTop: '2px' }}>{result.icpMatchScore} / 100</div>
           <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>High Account Fit</div>
         </div>
 
         <div style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '10px', padding: '12px' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--color-warning)', fontWeight: 700 }}>Buying Intent</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#eab308', marginTop: '2px' }}>{result.buyingIntentScore} / 100</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#eab308', marginTop: '2px' }}>{result.buyingIntentScore} / 100</div>
           <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Active Buying Signals</div>
         </div>
 
@@ -46,7 +46,7 @@ export function IcpFitCard({ result }: { result: IcpMatchResult }) {
 
         <div style={{ background: 'rgba(192, 132, 252, 0.1)', border: '1px solid rgba(192, 132, 252, 0.25)', borderRadius: '10px', padding: '12px' }}>
           <div style={{ fontSize: '0.68rem', color: '#c084fc', fontWeight: 700 }}>Closing Probability</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#c084fc', marginTop: '2px' }}>{result.closingProbabilityPercent}%</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#c084fc', marginTop: '2px' }}>{result.closingProbabilityPercent}%</div>
           <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Est. Deal Win Probability</div>
         </div>
       </div>

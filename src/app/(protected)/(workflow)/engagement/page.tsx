@@ -60,21 +60,20 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
         </div>
       </div>
 
-      <WorkflowGuide activeStep={4} />
-
       {/* SCROLLABLE MAIN CONTENT */}
       <div
         className="dashboard-scrollable-content"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '16px 28px 40px 28px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
           position: 'relative'
         }}
       >
+        <WorkflowGuide activeStep={4} />
+
+        <div style={{ padding: '16px 28px 40px 28px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
         <BreadcrumbHeader
           currentTitle="AI Outreach Generator"
           stepNumber={4}
@@ -87,6 +86,7 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
 
         {/* Campaigns Dashboard */}
         <OutreachCampaignDashboard />
+        </div>
       </div>
     </div>
   );

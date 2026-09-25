@@ -3,6 +3,14 @@
 import { useState, useEffect } from 'react';
 import { OutreachMessageDraft } from '@/features/outreach/types';
 import { Send, Check, ShieldCheck, Copy, Pause, Play, Calendar, Mail, CheckCircle2, Clock } from 'lucide-react';
+import { z } from 'zod';
+
+const TestEmailSchema = z.string().email("Please enter a valid test email address");
+const ScheduleDateSchema = z.string().min(1, "Please select a schedule date and time");
+const ContentSchema = z.object({
+  subject: z.string().min(3, "Subject line is required"),
+  body: z.string().min(10, "Email body is required")
+});
 
 const copyToClipboard = (text: string): boolean => {
   if (!text) return false;
@@ -49,6 +57,10 @@ export function OutreachEditor({
   const [testEmailAddress, setTestEmailAddress] = useState('bde.lead@tinyscript.io');
   const [scheduleDateTime, setScheduleDateTime] = useState('2026-08-21T10:00');
   const [notification, setNotification] = useState<string | null>(null);
+  
+  const [testEmailError, setTestEmailError] = useState<string | null>(null);
+  const [scheduleDateError, setScheduleDateError] = useState<string | null>(null);
+  const [contentErrors, setContentErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -75,12 +87,36 @@ export function OutreachEditor({
   };
 
   const handleSendNow = () => {
+    try {
+      ContentSchema.parse({ subject: draft.subjectLine, body: draft.bodyContent });
+      setContentErrors({});
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const fieldErrs: Record<string, string> = {};
+        err.issues.forEach(e => fieldErrs[e.path[0] as string] = e.message);
+        setContentErrors(fieldErrs);
+        triggerToast("Please fix the validation errors before sending.");
+      }
+      return;
+    }
     setSequenceStatus('SENT');
     onApprove(draft.id);
     triggerToast(`🚀 Email sent immediately to ${draft.targetContactName} (${draft.targetContactEmail || 'Lead'})!`);
   };
 
   const handleApproveSchedule = () => {
+    try {
+      ContentSchema.parse({ subject: draft.subjectLine, body: draft.bodyContent });
+      setContentErrors({});
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const fieldErrs: Record<string, string> = {};
+        err.errors.forEach(e => fieldErrs[e.path[0] as string] = e.message);
+        setContentErrors(fieldErrs);
+        triggerToast("Please fix the validation errors before approving.");
+      }
+      return;
+    }
     setSequenceStatus('SCHEDULED');
     onApprove(draft.id);
     triggerToast(`📅 Outreach sequence approved and scheduled for ${draft.companyName}!`);
@@ -97,11 +133,25 @@ export function OutreachEditor({
   };
 
   const handleSendTest = () => {
+    try {
+      TestEmailSchema.parse(testEmailAddress);
+      setTestEmailError(null);
+    } catch (err) {
+      if (err instanceof z.ZodError) setTestEmailError(err.errors[0].message);
+      return;
+    }
     setShowTestModal(false);
     triggerToast(`⚡ Sample preview email dispatched to ${testEmailAddress}!`);
   };
 
   const handleConfirmSchedule = () => {
+    try {
+      ScheduleDateSchema.parse(scheduleDateTime);
+      setScheduleDateError(null);
+    } catch (err) {
+      if (err instanceof z.ZodError) setScheduleDateError(err.errors[0].message);
+      return;
+    }
     setShowScheduleModal(false);
     setSequenceStatus('SCHEDULED');
     onApprove(draft.id);
@@ -305,8 +355,9 @@ export function OutreachEditor({
                 type="email"
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: testEmailError ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
               />
+              {testEmailError && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{testEmailError}</span>}
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
               <button type="button" onClick={() => setShowTestModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>Cancel</button>
@@ -330,8 +381,9 @@ export function OutreachEditor({
                 type="datetime-local"
                 value={scheduleDateTime}
                 onChange={(e) => setScheduleDateTime(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: scheduleDateError ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
               />
+              {scheduleDateError && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{scheduleDateError}</span>}
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
               <button type="button" onClick={() => setShowScheduleModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>Cancel</button>
@@ -400,8 +452,9 @@ export function OutreachEditor({
             type="text"
             value={draft.subjectLine}
             onChange={(e) => setDraft({ ...draft, subjectLine: e.target.value })}
-            style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '0.90rem', fontWeight: 600, outline: 'none' }}
+            style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-card)', border: contentErrors.subject ? '1px solid #ef4444' : '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '0.90rem', fontWeight: 600, outline: 'none' }}
           />
+          {contentErrors.subject && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{contentErrors.subject}</span>}
         </div>
 
         {/* Message Body Field */}
@@ -436,8 +489,9 @@ export function OutreachEditor({
             rows={10}
             value={draft.bodyContent}
             onChange={(e) => setDraft({ ...draft, bodyContent: e.target.value })}
-            style={{ width: '100%', padding: '14px', borderRadius: '10px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '0.88rem', lineHeight: '1.6', fontFamily: 'inherit', outline: 'none' }}
+            style={{ width: '100%', padding: '14px', borderRadius: '10px', background: 'var(--bg-card)', border: contentErrors.body ? '1px solid #ef4444' : '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '0.88rem', lineHeight: '1.6', fontFamily: 'inherit', outline: 'none' }}
           />
+          {contentErrors.body && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{contentErrors.body}</span>}
         </div>
       </div>
     </div>

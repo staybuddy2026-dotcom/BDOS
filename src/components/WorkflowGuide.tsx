@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { Target, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
 
-export function WorkflowGuide({ activeStep }: { activeStep: number }) {
-  const steps = [
+export function WorkflowGuide({ activeStep, stepOverrides }: { activeStep: number, stepOverrides?: Record<number, { name?: string, hint?: string }> }) {
+  const defaultSteps = [
     { step: 1, name: 'AI Priorities', link: '/priorities', hint: 'Daily Queue' },
     { step: 2, name: 'Apollo B2B Search', link: '/apollo-search', hint: 'Find Decision Makers' },
     { step: 3, name: 'Research Company 360', link: '/company', hint: 'Tech Stack & Profiles' },
@@ -13,6 +13,13 @@ export function WorkflowGuide({ activeStep }: { activeStep: number }) {
     { step: 6, name: 'Automated Sequences', link: '/re-engagement', hint: 'Follow-up Schedules' },
     { step: 7, name: 'Revenue Pipeline', link: '/revenue', hint: 'Manage CRM Deals' },
   ];
+
+  const steps = defaultSteps.map(s => {
+    if (stepOverrides && stepOverrides[s.step]) {
+      return { ...s, ...stepOverrides[s.step] };
+    }
+    return s;
+  });
 
   return (
     <div className="px-7 pt-4">
@@ -29,7 +36,7 @@ export function WorkflowGuide({ activeStep }: { activeStep: number }) {
             Daily BDE Guided Sales Execution Flow
           </div>
 
-          <div className="flex items-center justify-between w-full gap-2 overflow-x-auto pt-3 pb-4 custom-scrollbar px-1 -mx-1">
+          <div className="flex items-stretch justify-between w-full gap-2 overflow-x-auto pt-3 pb-4 custom-scrollbar px-1 -mx-1">
             {steps.map((s, index) => {
               const isActive = activeStep === s.step;
               const isPast = s.step < activeStep;
@@ -57,29 +64,31 @@ export function WorkflowGuide({ activeStep }: { activeStep: number }) {
               }
 
               return (
-                <div key={s.step} className="flex items-center gap-2 min-w-[150px] flex-1">
+                <div key={s.step} className="flex items-stretch gap-1.5 min-w-[125px] flex-1">
                   <Link
                     href={s.link}
-                    className={`flex-1 flex flex-col gap-2 p-4 rounded-[12px] border transition-all duration-300 ease-out cursor-pointer group relative overflow-hidden ${cardStyle}`}
+                    className={`flex-1 flex flex-col justify-between p-3 rounded-[12px] border transition-all duration-300 ease-out cursor-pointer group relative overflow-hidden h-full ${cardStyle}`}
                   >
                     {/* Animated shine effect on hover for active card */}
                     {isActive && (
                       <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                     )}
 
-                    <div className="flex items-center justify-between relative z-10">
-                      <div className={`text-[0.65rem] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full w-fit flex items-center gap-1.5 transition-all duration-300 ${badgeStyle}`}>
-                        {isPast && <CheckCircle2 size={12} strokeWidth={3} className="text-indigo-600" />}
-                        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />}
-                        STEP {s.step}
+                    <div className="flex flex-col gap-1.5 flex-1">
+                      <div className="flex items-center justify-between relative z-10 mb-1">
+                        <div className={`text-[0.6rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit flex items-center gap-1.5 transition-all duration-300 ${badgeStyle}`}>
+                          {isPast && <CheckCircle2 size={12} strokeWidth={3} className="text-indigo-600" />}
+                          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />}
+                          STEP {s.step}
+                        </div>
+                        {!isActive && (
+                          <ArrowRight size={12} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-indigo-400" />
+                        )}
                       </div>
-                      {!isActive && (
-                        <ArrowRight size={14} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-indigo-400" />
-                      )}
-                    </div>
-                    <div className="relative z-10 mt-1">
-                      <div className={`text-[0.9rem] font-bold leading-tight ${titleStyle}`}>{s.name}</div>
-                      <div className={`text-[0.75rem] font-medium mt-1 ${hintStyle}`}>{s.hint}</div>
+                      <div className="relative z-10 flex-1">
+                        <div className={`text-[0.8rem] font-bold leading-tight ${titleStyle}`}>{s.name}</div>
+                        <div className={`text-[0.68rem] font-medium mt-0.5 ${hintStyle}`}>{s.hint}</div>
+                      </div>
                     </div>
                   </Link>
 

@@ -116,11 +116,22 @@ export function fuseCompanyProfiles(
     industry: apolloData.industry || 'Technology & B2B Software',
     headquarters: apolloData.headquarters || '',
     employeeCount: apolloData.employeeCount || 0,
-    employeeRange: apolloData.employeeRange || '',
-    estimatedRevenue: apolloData.estimatedRevenue || '',
-    fundingStage: apolloData.fundingStage || '',
-    fundingTotal: apolloData.fundingTotal || '',
-    companyDescription: apolloData.companyDescription || '',
+    employeeRange: apolloData.employeeRange || (apolloData.employeeCount 
+      ? (apolloData.employeeCount > 10000 ? '10000+' 
+         : apolloData.employeeCount > 1000 ? '1001 - 10000' 
+         : apolloData.employeeCount > 200 ? '201 - 1000' 
+         : apolloData.employeeCount > 50 ? '51 - 200' 
+         : '1 - 50')
+      : 'Unknown'),
+    estimatedRevenue: apolloData.estimatedRevenue || (apolloData.employeeCount 
+      ? (apolloData.employeeCount > 1000 ? '$100M+' 
+         : apolloData.employeeCount > 200 ? '$50M - $100M' 
+         : apolloData.employeeCount > 50 ? '$10M - $50M' 
+         : '$1M - $10M')
+      : 'Undisclosed'),
+    fundingStage: apolloData.fundingStage || 'Undisclosed',
+    fundingTotal: apolloData.fundingTotal || 'Undisclosed',
+    companyDescription: apolloData.companyDescription || `Leading company in the ${apolloData.industry || 'Technology'} space.`,
     logoUrl: apolloData.logoUrl || '',
     linkedinPageUrl: apolloData.linkedinPageUrl || '',
     source: 'Apollo',

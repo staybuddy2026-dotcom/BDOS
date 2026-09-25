@@ -12,6 +12,7 @@ export async function executeUniversalCrossProviderSearch(
 ): Promise<UniversalSearchResultItem[]> {
   logger.info(`Universal Search Engine: Scanning active database for query: '${query}'...`);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let dbPosts: any[] = [];
   try {
     dbPosts = await db.linkedInPost.findMany({

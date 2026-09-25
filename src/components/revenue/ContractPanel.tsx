@@ -89,7 +89,7 @@ export function ContractPanel({
               <label style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>Contract Type</label>
               <CustomDropdown
                 value={contractType}
-                onChange={(val) => setContractType(val as any)}
+                onChange={(val) => setContractType(val as 'MSA' | 'SOW' | 'NDA' | 'INVOICE')}
                 options={[
                   { value: 'MSA', label: '📜 Master Services Agreement (MSA)' },
                   { value: 'SOW', label: '📝 Statement of Work (SOW)' },

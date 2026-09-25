@@ -127,6 +127,38 @@ export function calculateIcpMatchScore(
   // Dynamic closing probability based on ICP match
   const closingProb = Math.max(5, Math.floor(icpMatchScore * 0.45));
 
+  // Dynamic Services based on Tech Stack
+  const dynamicServices: string[] = [];
+  const lowerTechStack = techStack.map(t => t.toLowerCase());
+  
+  if (lowerTechStack.some(t => ['react', 'next.js', 'vue', 'angular'].includes(t))) {
+    dynamicServices.push(`Enterprise Frontend Modernization (${techStack.find(t => ['react', 'next.js', 'vue', 'angular'].includes(t.toLowerCase())) || 'React/Next.js'})`);
+  } else {
+    dynamicServices.push('React 19 Enterprise Web Development');
+  }
+
+  if (lowerTechStack.some(t => ['node.js', 'python', 'go', 'java', 'ruby'].includes(t))) {
+    dynamicServices.push(`Scalable Backend & Microservices (${techStack.find(t => ['node.js', 'python', 'go', 'java', 'ruby'].includes(t.toLowerCase())) || 'Node.js'})`);
+  } else {
+    dynamicServices.push('Node.js Backend Architecture');
+  }
+
+  if (industry.toLowerCase().includes('tech') || industry.toLowerCase().includes('software') || hasGoodFunding) {
+    dynamicServices.push('AI Integration & LLM Pipeline');
+  } else {
+    dynamicServices.push('Cloud Infrastructure & DevOps');
+  }
+
+  // Dynamic Squad Composition based on Employee Count & Funding
+  let squadComposition = '2 Engineers (Full-Stack)';
+  if (employeeCount > 1000) {
+    squadComposition = '1 Engineering Manager + 4 Senior Engineers + 2 QA';
+  } else if (employeeCount > 200) {
+    squadComposition = '1 Tech Lead + 3 Senior Engineers';
+  } else if (employeeCount > 50 && hasGoodFunding) {
+    squadComposition = '3 Engineers (Frontend, Backend, DevOps)';
+  }
+
   return {
     companyId,
     companyName,
@@ -138,12 +170,8 @@ export function calculateIcpMatchScore(
     closingProbabilityPercent: closingProb,
     priorityTier: icpMatchScore >= 75 ? 'TIER_A' : icpMatchScore >= 50 ? 'TIER_B' : 'TIER_C',
     actionRecommendation: icpMatchScore >= 75 ? 'CONTACT_IMMEDIATELY' : 'NURTURE_SEQUENCE',
-    recommendedServices: [
-      'React 19 Enterprise Web Development',
-      'Node.js Microservices Architecture',
-      'AI Integration & LLM Pipeline'
-    ],
-    recommendedSquadComposition: employeeCount > 200 ? '3 Senior Engineers + 1 Tech Lead Squad' : '2 Engineers (Full-Stack)',
+    recommendedServices: dynamicServices,
+    recommendedSquadComposition: squadComposition,
     reasoning: signals,
     salesRecommendation: {
       pitchService: 'Dedicated Engineering Squad',

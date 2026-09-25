@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import '../styles/globals.css';
-import { Sidebar } from '@/components/Sidebar';
 
 export const metadata: Metadata = {
   title: 'BDOS - Business Development Operating System',
@@ -15,14 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="app-shell">
-          <Sidebar />
-          <main className="main-content">
-            <div className="page-container animate-fade-in">
-              {children}
-            </div>
-          </main>
-        </div>
+        {children}
       </body>
     </html>
   );

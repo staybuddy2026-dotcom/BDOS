@@ -35,10 +35,20 @@ export async function getStyleInsights(): Promise<StylePatternsReport> {
   return AILearningService.analyzeStylePatterns();
 }
 
+export type ServiceCatalogItem = {
+  id: string;
+  name: string;
+  minInr: string;
+  minUsd: string;
+  stack: string;
+  model: string;
+  threshold: number;
+};
+
 /**
  * Fetch Service Catalog from Database
  */
-export async function getServiceCatalog(): Promise<any[]> {
+export async function getServiceCatalog(): Promise<ServiceCatalogItem[]> {
   try {
     const rawData = await SettingsService.get('serviceCatalog', '[]');
     const catalog = JSON.parse(rawData);
@@ -63,7 +73,7 @@ export async function getServiceCatalog(): Promise<any[]> {
 /**
  * Update Service Catalog in Database
  */
-export async function updateServiceCatalog(catalog: any[]) {
+export async function updateServiceCatalog(catalog: ServiceCatalogItem[]) {
   try {
     await SettingsService.set('serviceCatalog', JSON.stringify(catalog));
     safeRevalidatePath('/settings');

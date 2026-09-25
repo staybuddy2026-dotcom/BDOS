@@ -72,7 +72,7 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     return d.toISOString().split('T')[0];
   };
 
-  const keySignals: any[] = [];
+  const keySignals: Record<string, unknown>[] = [];
   
   if (profile.growth && profile.growth.growthOpportunityScore > 75) {
     keySignals.push({

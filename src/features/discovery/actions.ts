@@ -541,7 +541,7 @@ export async function removeMigratedCompanyAction(domain: string, companyId: str
             domKey ? { postUrl: { contains: domKey } } : undefined,
             domKey ? { companyName: { equals: domKey, mode: 'insensitive' } } : undefined,
             idKey ? { companyName: { equals: idKey, mode: 'insensitive' } } : undefined,
-          ].filter(Boolean) as any
+          ].filter(Boolean) as Record<string, unknown>[]
         },
         data: { status: PostStatus.DISMISSED }
       }).catch(() => null);

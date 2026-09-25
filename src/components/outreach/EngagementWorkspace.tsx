@@ -79,18 +79,17 @@ export function EngagementWorkspace({
           }));
           setQuickSelectLeads(formatted);
 
-          if (!domainQuery || domainQuery === 'acmehealth.com' || domainQuery === 'enterprise.com') {
+          const initialDomain = initialDraft.domain;
+          if (!initialDomain || initialDomain === 'acmehealth.com' || initialDomain === 'enterprise.com') {
             const first = formatted[0];
             if (first && first.domain) {
               setDomainQuery(first.domain);
-              // Disabled auto-generation to prevent polluting Review Queue automatically
-              // handleGenerateCustom(first.domain);
             }
           }
         }
       }
     } catch { }
-  }, []);
+  }, [initialDraft.domain]);
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
@@ -494,7 +493,7 @@ export function EngagementWorkspace({
               <TrendingUp size={16} style={{ color: '#f59e0b' }} />
             </div>
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#f59e0b', letterSpacing: '-0.02em' }}>{telemetry.pipelineInfluencedInr}</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#f59e0b', letterSpacing: '-0.02em' }}>{telemetry.pipelineInfluencedInr}</div>
           <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', fontWeight: 600 }}>{telemetry.proposalRequestsCount} Active RFPs</div>
         </div>
 
@@ -507,7 +506,7 @@ export function EngagementWorkspace({
               <Target size={16} style={{ color: '#6366f1' }} />
             </div>
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#6366f1', letterSpacing: '-0.02em' }}>{telemetry.estimatedRevenueInr}</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#6366f1', letterSpacing: '-0.02em' }}>{telemetry.estimatedRevenueInr}</div>
           <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', fontWeight: 600 }}>Projected Deal Revenue</div>
         </div>
       </div>

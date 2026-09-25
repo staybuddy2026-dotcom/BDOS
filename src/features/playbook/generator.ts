@@ -38,7 +38,26 @@ export function generateOpportunityPlaybook(
         responseProbabilityPercent: Math.max(50, 88 - (idx * 10)),
         recommendedChannel: dm.linkedinUrl ? 'LINKEDIN' : 'EMAIL',
       }))
-    : [];
+    : [
+        {
+          rank: 1,
+          role: 'Chief Technology Officer (CTO)',
+          starRating: 5,
+          reasoning: 'Predicted primary economic buyer for engineering services.',
+          expectedResponsibilities: 'Approves technical budgets and architecture.',
+          responseProbabilityPercent: 65,
+          recommendedChannel: 'EMAIL'
+        },
+        {
+          rank: 2,
+          role: 'VP of Engineering',
+          starRating: 4,
+          reasoning: 'Predicted operational buyer facing delivery pressures.',
+          expectedResponsibilities: 'Evaluates sprint velocity and squad integration.',
+          responseProbabilityPercent: 78,
+          recommendedChannel: 'LINKEDIN'
+        }
+      ];
 
   const outreachChannelTable: OutreachChannelRecommendation[] = decisionMakerRankings.map(dm => ({
     decisionMakerRole: dm.role,
@@ -105,11 +124,28 @@ export function generateOpportunityPlaybook(
     },
   ];
 
-
-
   const nextBestAction = topDM 
     ? `Send 1-Click Personalized LinkedIn InMail to ${topDM.jobTitle} ${topDM.name} using AI Outreach Generator for ${companyName}.`
     : `Identify technical leadership for ${companyName} and execute initial outreach.`;
+
+  const hiringScore = profile?.engineering?.hiringSignalScore || 0;
+  const isAi = (profile?.engineering?.categorizedTechStack?.aiMl?.length || 0) > 0;
+  
+  const dynamicChallenges = [];
+  
+  if (hiringScore > 50) {
+    dynamicChallenges.push({ challenge: 'Engineering Capacity Constraints', description: `High hiring signals suggest ${companyName} needs faster sprint cycles to meet product roadmaps.`, confidencePercent: 85 + (hiringScore % 10) });
+  } else {
+    dynamicChallenges.push({ challenge: 'Delivery Optimization', description: `Potential need to optimize current engineering workflows and reduce maintenance overhead.`, confidencePercent: 70 + (companyName.length % 15) });
+  }
+  
+  if (isAi) {
+    dynamicChallenges.push({ challenge: 'Specialized AI/ML Integration', description: `Scaling AI features requires specialized talent that is hard to source locally.`, confidencePercent: 88 });
+  } else {
+    dynamicChallenges.push({ challenge: 'Specialized Skill Gaps', description: `Sourcing top-tier engineers for ${companyName}'s architecture in the ${profile?.overview?.industry || 'tech'} sector.`, confidencePercent: 75 + (companyName.length % 20) });
+  }
+  
+  dynamicChallenges.push({ challenge: 'Scalability & Cloud DevOps', description: 'Transitioning infrastructure to a highly available auto-scaling architecture.', confidencePercent: 70 + (companyName.length % 25) });
 
   return {
     companyId,
@@ -123,11 +159,7 @@ export function generateOpportunityPlaybook(
       growthStatus: 'Scaling Operations',
       technologyMaturity: 'Advanced',
     },
-    businessChallenges: [
-      { challenge: 'Engineering Capacity Constraints', description: `Need for faster sprint cycles to meet ${companyName}'s product roadmap.`, confidencePercent: 80 + (companyName.length % 15) },
-      { challenge: 'Specialized Skill Gaps', description: `Sourcing top-tier engineers for ${companyName}'s architecture in ${profile?.overview?.industry || 'tech'}.`, confidencePercent: 75 + (companyName.length % 20) },
-      { challenge: 'Scalability & DevOps', description: 'Transitioning infrastructure to an auto-scaling architecture.', confidencePercent: 70 + (companyName.length % 25) },
-    ],
+    businessChallenges: dynamicChallenges,
     whyTinyScript,
     serviceRecommendations: generatePlaybookServiceRecommendations(companyName),
     decisionMakerRankings,

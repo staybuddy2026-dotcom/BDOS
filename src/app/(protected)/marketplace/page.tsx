@@ -653,7 +653,7 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalCount}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{totalCount}</div>
               <div style={{ fontSize: '0.8rem', color: '#3b82f6', marginTop: '8px', fontWeight: 600 }}>Active project listings</div>
             </div>
             <div style={{ border: '1px solid #dbeafe', borderRadius: '50%', padding: '6px', color: '#3b82f6', display: 'flex', background: '#eff6ff' }}>
@@ -675,7 +675,7 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{opportunities.filter(o => o.aiOpportunityScore >= 85).length}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{opportunities.filter(o => o.aiOpportunityScore >= 85).length}</div>
               <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '8px', fontWeight: 600 }}>High win probability</div>
             </div>
             <div style={{ border: '1px solid #d1fae5', borderRadius: '50%', padding: '6px', color: '#10b981', display: 'flex', background: '#ecfdf5' }}>
@@ -697,7 +697,7 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{opportunities.filter(o => o.aiOpportunityScore < 85).length}</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{opportunities.filter(o => o.aiOpportunityScore < 85).length}</div>
               <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '8px', fontWeight: 600 }}>Requires manual review</div>
             </div>
             <div style={{ border: '1px solid #fef3c7', borderRadius: '50%', padding: '6px', color: '#f59e0b', display: 'flex', background: '#fffbeb' }}>
@@ -719,7 +719,7 @@ export default function ProjectMarketplacePage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>${(opportunities.reduce((sum, o) => sum + (o.estimatedValueNumber || 0), 0) / 1000).toFixed(1)}k</div>
+              <div style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>${(opportunities.reduce((sum, o) => sum + (o.estimatedValueNumber || 0), 0) / 1000).toFixed(1)}k</div>
               <div style={{ fontSize: '0.8rem', color: '#8b5cf6', marginTop: '8px', fontWeight: 600 }}>Across {opportunities.length} opportunities</div>
             </div>
             <div style={{ border: '1px solid #e9d5ff', borderRadius: '50%', padding: '6px', color: '#8b5cf6', display: 'flex', background: '#f3e8ff' }}>
@@ -809,231 +809,230 @@ export default function ProjectMarketplacePage() {
           </div>
 
           {/* MAIN WORKSPACE GRID */}
-          <div className="apollo-workspace-layout" style={{ gap: '20px' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-[1600px] mx-auto">
+            
             {/* LEFT COLUMN: Dynamic Filter Sidebar */}
-            <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255, 255, 255, 0.8)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(15, 23, 42, 0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(15, 23, 42, 0.05)', paddingBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Filter size={18} style={{ color: '#6366f1' }} />
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Ingestion Filters</h3>
-                </div>
-                <button 
-                  onClick={handleResetFilters}
-                  style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', color: '#6366f1', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px' }}
-                >
-                  <RotateCcw size={12} /> Reset
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Keywords / RFP Title
-                  </label>
-                  <input
-                    type="text"
-                    value={keywords}
-                    onChange={(e) => setKeywords(e.target.value)}
-                    placeholder="e.g. React 19, Flutter..."
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '0.85rem', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', boxShadow: 'inset 0 2px 4px rgba(15, 23, 42, 0.02)', outline: 'none', transition: 'border-color 0.2s' }}
-                    onFocus={(e) => e.target.style.borderColor = '#818cf8'}
-                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                  />
+            <div className="lg:col-span-3 flex flex-col gap-5">
+              <div className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-2xl p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex flex-col gap-4 sticky top-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 text-indigo-600">
+                    <Filter size={18} />
+                    <h3 className="text-[0.95rem] font-extrabold text-slate-900 m-0">Ingestion Filters</h3>
+                  </div>
+                  <button 
+                    onClick={handleResetFilters}
+                    className="bg-indigo-50 border border-indigo-100 text-indigo-600 cursor-pointer text-[0.75rem] flex items-center gap-1.5 font-bold px-3 py-1.5 rounded-full hover:bg-indigo-100 transition-colors"
+                  >
+                    <RotateCcw size={12} /> Reset
+                  </button>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Technology Stack
-                  </label>
-                  <input
-                    type="text"
-                    value={technology}
-                    onChange={(e) => setTechnology(e.target.value)}
-                    placeholder="e.g. React, Node.js..."
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '0.85rem', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', boxShadow: 'inset 0 2px 4px rgba(15, 23, 42, 0.02)', outline: 'none', transition: 'border-color 0.2s' }}
-                    onFocus={(e) => e.target.style.borderColor = '#818cf8'}
-                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Save Current Preset
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="flex flex-col gap-4 mt-2">
+                  <div>
+                    <label className="text-[0.75rem] text-slate-500 font-bold block mb-1.5 uppercase tracking-wider">
+                      Keywords / RFP Title
+                    </label>
                     <input
                       type="text"
-                      value={newPresetName}
-                      onChange={(e) => setNewPresetName(e.target.value)}
-                      placeholder="Preset Name..."
-                      className="input-field"
-                      style={{ fontSize: '0.85rem', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', flex: 1, boxShadow: 'inset 0 2px 4px rgba(15, 23, 42, 0.02)', outline: 'none', transition: 'border-color 0.2s' }}
-                      onFocus={(e) => e.target.style.borderColor = '#818cf8'}
-                      onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                      value={keywords}
+                      onChange={(e) => setKeywords(e.target.value)}
+                      placeholder="e.g. React 19, Flutter..."
+                      className="w-full text-[0.85rem] px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white shadow-sm outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10 hover:border-slate-300"
                     />
-                    <button 
-                      onClick={handleSaveSearchPreset}
-                      style={{ padding: '10px 14px', fontSize: '0.78rem', fontWeight: 700, background: '#f1f5f9', color: '#6366f1', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                    >
-                      Save
-                    </button>
+                  </div>
+
+                  <div>
+                    <label className="text-[0.75rem] text-slate-500 font-bold block mb-1.5 uppercase tracking-wider">
+                      Technology Stack
+                    </label>
+                    <input
+                      type="text"
+                      value={technology}
+                      onChange={(e) => setTechnology(e.target.value)}
+                      placeholder="e.g. React, Node.js..."
+                      className="w-full text-[0.85rem] px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white shadow-sm outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10 hover:border-slate-300"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100">
+                    <label className="text-[0.75rem] text-slate-500 font-bold block mb-1.5 uppercase tracking-wider">
+                      Save Current Preset
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        placeholder="Preset Name..."
+                        className="flex-1 text-[0.85rem] px-3.5 py-2 rounded-xl border border-slate-200 bg-white shadow-sm outline-none transition-all focus:border-indigo-400 focus:ring-4 focus:ring-indigo-400/10 hover:border-slate-300"
+                      />
+                      <button 
+                        onClick={handleSaveSearchPreset}
+                        className="px-4 py-2 text-[0.78rem] font-bold bg-slate-100 text-indigo-600 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors shadow-sm"
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* CENTER MAIN GRID: Opportunity Cards Container */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ background: 'transparent', padding: '0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', padding: '0 4px' }}>
-                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b' }}>
-                    Collected Opportunities <span style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>{opportunities.length}</span> <span style={{ color: '#94a3b8', margin: '0 8px', fontWeight: 400 }}>|</span> Filtered Duplicates: <span style={{ color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>{duplicatesFiltered}</span>
+            <div className="lg:col-span-6 flex flex-col gap-5">
+              <div className="bg-transparent p-0">
+                <div className="flex items-center justify-between mb-4 px-1">
+                  <div className="text-[1.1rem] font-extrabold text-slate-900 flex items-center flex-wrap gap-2">
+                    Collected Opportunities 
+                    <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full text-[0.85rem] shadow-sm">{opportunities.length}</span> 
+                    <span className="text-slate-300 font-normal mx-1">|</span> 
+                    <span className="text-slate-500 text-[0.95rem]">Filtered Duplicates:</span> 
+                    <span className="text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full text-[0.85rem] shadow-sm">{duplicatesFiltered}</span>
                   </div>
                 </div>
 
                 {loading ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <RotateCcw size={24} className="animate-spin" style={{ margin: '0 auto 10px auto', display: 'block', color: 'var(--accent-violet)' }} />
-                    Executing Bid Decision Engine & Intelligence Analysis...
+                  <div className="p-10 text-center text-slate-500 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200 border-dashed">
+                    <RotateCcw size={28} className="animate-spin mx-auto mb-3 text-indigo-500" />
+                    <p className="font-medium">Executing Bid Decision Engine & Intelligence Analysis...</p>
                   </div>
                 ) : opportunities.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No active opportunities found. Try resetting filters or running RSS/CSV/Webhook import.
+                  <div className="p-10 text-center text-slate-500 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200 border-dashed">
+                    <p className="font-medium text-[0.95rem]">No active opportunities found. Try resetting filters or running RSS/CSV/Webhook import.</p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div className="flex flex-col gap-4">
                     {opportunities.map((opp) => (
                       <div 
                         key={opp.id}
-                        className="priority-account-row"
-                        style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)' }}
+                        className="p-5 flex flex-col gap-4 bg-white/80 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-slate-300 transition-all group"
                       >
                         {/* Header Row with AI Recommendation Verdict Badge */}
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                               {/* Bid Recommendation Badge */}
-                              <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px', fontWeight: 900, background: opp.aiOpportunityScore >= 88 ? 'linear-gradient(135deg, #10b981, #059669)' : opp.aiOpportunityScore >= 70 ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: opp.aiOpportunityScore >= 88 ? '#ffffff' : opp.aiOpportunityScore >= 70 ? 'var(--color-warning)' : '#fca5a5', border: '1px solid rgba(255,255,255,0.1)' }}>
+                              <span className={`text-[0.7rem] px-2.5 py-0.5 rounded-md font-black border shadow-sm ${
+                                opp.aiOpportunityScore >= 88 
+                                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-emerald-400' 
+                                  : opp.aiOpportunityScore >= 70 
+                                    ? 'bg-amber-50 text-amber-600 border-amber-200' 
+                                    : 'bg-red-50 text-red-500 border-red-200'
+                              }`}>
                                 {opp.aiOpportunityScore >= 88 ? '✅ BID RECOMMENDATION' : opp.aiOpportunityScore >= 70 ? '⚠️ CONSIDER' : '❌ DO NOT BID'}
                               </span>
 
-                              <span style={{ fontSize: '0.65rem', background: 'rgba(129, 140, 248, 0.2)', color: 'var(--accent-violet)', border: '1px solid rgba(129, 140, 248, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                              <span className="text-[0.65rem] bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-0.5 rounded-md font-bold shadow-sm">
                                 {opp.providerName}
                               </span>
-                              <span 
+                              
+                              <button 
                                 onClick={() => handleOpenIntelligence(opp)}
                                 title="Click to view AI Opportunity Intelligence Report"
-                                style={{ fontSize: '0.65rem', background: 'var(--color-success-bg)', color: 'var(--color-success)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}
+                                className="text-[0.65rem] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-md font-bold cursor-pointer hover:bg-emerald-100 transition-colors shadow-sm"
                               >
                                 AI Score: {opp.aiOpportunityScore}/100
-                              </span>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                <Clock size={11} style={{ display: 'inline', marginRight: '3px' }} /> {opp.postedDate}
+                              </button>
+                              
+                              <span className="text-[0.7rem] text-slate-500 font-medium flex items-center gap-1">
+                                <Clock size={12} /> {opp.postedDate}
                               </span>
                             </div>
 
                             <h4 
                               onClick={() => handleOpenIntelligence(opp)}
-                              style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, lineHeight: '1.3', cursor: 'pointer' }}
+                              className="text-[1rem] font-extrabold text-slate-900 m-0 leading-snug cursor-pointer group-hover:text-indigo-600 transition-colors"
                             >
                               {opp.projectTitle}
                             </h4>
                           </div>
 
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-success)' }}>
+                          <div className="text-right shrink-0">
+                            <div className="text-[1.1rem] font-black text-emerald-600 tracking-tight">
                               {opp.budget}
                             </div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                              AI Score: <strong style={{ color: 'var(--color-success)' }}>{opp.aiOpportunityScore}/100</strong>
+                            <div className="text-[0.7rem] text-slate-500 font-medium mt-0.5">
+                              AI Score: <strong className="text-emerald-600 font-bold">{opp.aiOpportunityScore}/100</strong>
                             </div>
                           </div>
                         </div>
 
                         {/* Description */}
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.45', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        <p className="text-[0.82rem] text-slate-600 m-0 leading-relaxed line-clamp-2">
                           {opp.projectDescription}
                         </p>
 
                         {/* Tech Stack & Telemetry */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                        <div className="flex items-center justify-between flex-wrap gap-2 border-t border-slate-100 pt-3">
+                          <div className="flex flex-wrap gap-1.5 items-center">
                             {opp.technologyStack.map((tech, idx) => (
-                              <span key={idx} style={{ fontSize: '0.66rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5', border: '1px solid rgba(99, 102, 241, 0.2)', fontWeight: 700 }}>
+                              <span key={idx} className="text-[0.68rem] px-2.5 py-0.5 rounded-md bg-indigo-50/50 text-indigo-600 border border-indigo-100 font-bold">
                                 {tech}
                               </span>
                             ))}
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            <span>📍 {opp.clientCountry}</span>
-                            <span>⏱️ Risk: <strong style={{ color: 'var(--color-success)' }}>{opp.deliveryRisk}</strong></span>
+                          <div className="flex items-center gap-3 text-[0.75rem] text-slate-500 font-medium">
+                            <span className="flex items-center gap-1">📍 {opp.clientCountry}</span>
+                            <span className="flex items-center gap-1">⏱️ Risk: <strong className="text-emerald-600 font-bold">{opp.deliveryRisk}</strong></span>
                           </div>
                         </div>
 
                         {/* Card Action Toolbar */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '4px' }}>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {/* 1. AI Bid Intelligence */}
+                        <div className="flex items-center justify-between flex-wrap gap-3 border-t border-slate-100 pt-4 mt-1">
+                          <div className="flex gap-2 flex-wrap">
                             <button 
                               onClick={() => handleOpenIntelligence(opp)}
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
+                              className="px-3.5 py-1.5 text-[0.78rem] rounded-xl bg-gradient-to-r from-indigo-600 to-blue-500 text-white border-none font-bold flex items-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.3)] hover:shadow-[0_6px_16px_rgba(99,102,241,0.4)] transition-all hover:-translate-y-0.5"
                             >
-                              <Zap size={14} /> AI Intelligence
+                              <Zap size={14} className="fill-white/20" /> AI Intelligence
                             </button>
 
-                            {/* 2. AI Qualify Breakdown */}
                             <button 
                               onClick={() => handleOpenAiAnalysis(opp)}
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                              className="px-3.5 py-1.5 text-[0.78rem] rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-emerald-100 transition-colors shadow-sm"
                             >
                               <Sparkles size={14} /> AI Qualify
                             </button>
 
-                            {/* 3. View Original */}
                             <a 
                               href={opp.projectUrl} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                              className="px-3.5 py-1.5 text-[0.78rem] rounded-xl bg-slate-50 text-slate-600 border border-slate-200 font-bold flex items-center gap-1.5 no-underline hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-sm"
                             >
                               <ExternalLink size={14} /> View Original
                             </a>
 
-                            {/* 4. Generate Proposal */}
                             <button 
                               onClick={() => handleOpenProposalModal(opp)}
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.2)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                              className="px-3.5 py-1.5 text-[0.78rem] rounded-xl bg-violet-50 text-violet-600 border border-violet-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-violet-100 transition-colors shadow-sm"
                             >
-                              <FileText size={14} /> Proposal Generator
+                              <FileText size={14} /> Proposal Gen
                             </button>
                           </div>
 
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <div className="flex gap-2 flex-wrap">
                             <button 
                               onClick={() => handleSendToReviewQueue(opp)}
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: '#f8fafc', color: '#1e293b', border: '1px solid #cbd5e1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                              className="px-3.5 py-1.5 text-[0.78rem] rounded-xl bg-white text-slate-700 border border-slate-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 transition-colors shadow-sm"
                             >
-                              <Send size={14} /> Review Queue
+                              <Send size={14} /> Queue
                             </button>
 
                             <button 
                               onClick={() => handleCreateCrmDeal(opp)}
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#ffffff', border: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
+                              className="px-3.5 py-1.5 text-[0.78rem] rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-none font-bold flex items-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] transition-all hover:-translate-y-0.5"
                             >
-                              <Building size={14} /> Create CRM Deal
+                              <Building size={14} /> CRM
                             </button>
 
                             <button 
                               onClick={() => handleDismissOpportunity(opp.id)}
-                              style={{ padding: '8px 14px', fontSize: '0.75rem', borderRadius: '8px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                              className="px-3 py-1.5 text-[0.78rem] rounded-xl bg-red-50 text-red-500 border border-red-200 font-bold flex items-center gap-1.5 cursor-pointer hover:bg-red-100 transition-colors shadow-sm"
                               title="Dismiss Opportunity"
                             >
-                              <XCircle size={14} /> Dismiss
+                              <XCircle size={16} />
                             </button>
                           </div>
                         </div>
@@ -1045,34 +1044,39 @@ export default function ProjectMarketplacePage() {
             </div>
 
             {/* RIGHT COLUMN: AI Ingestion Telemetry & Recommendation Panel */}
-            <div style={{ background: 'var(--bg-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-subtle)', borderRight: '4px solid var(--accent-indigo)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(15,23,42,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px' }}>
-                <Sparkles size={20} style={{ color: 'var(--accent-indigo)' }} />
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>AI Qualification Telemetry</h3>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ingestion Signal Intelligence</span>
+            <div className="lg:col-span-3 flex flex-col gap-5">
+              <div className="bg-slate-900/5 backdrop-blur-xl border border-indigo-100/50 rounded-2xl p-6 flex flex-col gap-5 shadow-[0_8px_30px_rgba(0,0,0,0.02)] relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                <div className="flex items-center gap-3 border-b border-indigo-100/40 pb-4 relative z-10">
+                  <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl shadow-sm">
+                    <Sparkles size={20} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-[1.05rem] font-extrabold text-slate-800 m-0 leading-tight">AI Telemetry</h3>
+                    <span className="text-[0.72rem] text-indigo-500 font-bold uppercase tracking-wide">Ingestion Engine</span>
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700 }}>Average Pipeline Deal Size</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--accent-violet)', marginTop: '2px' }}>
-                  ${opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + (o.estimatedValueNumber || 0), 0) / opportunities.length).toLocaleString() : '0'}
+                <div className="bg-white border border-indigo-100/60 p-4 rounded-xl text-center shadow-sm relative z-10">
+                  <div className="text-[0.65rem] uppercase tracking-wider text-slate-500 font-bold mb-1">Avg Pipeline Deal Size</div>
+                  <div className="text-[1.7rem] font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">
+                    ${opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + (o.estimatedValueNumber || 0), 0) / opportunities.length).toLocaleString() : '0'}
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Deduplication:</span>
-                  <strong style={{ color: 'var(--accent-indigo)' }}>MD5 Hash Match</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Duplicates Filtered:</span>
-                  <strong style={{ color: 'var(--color-success)' }}>{duplicatesFiltered}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Avg AI Score:</span>
-                  <strong style={{ color: 'var(--color-warning)' }}>{opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + o.aiOpportunityScore, 0) / opportunities.length) : 0}/100</strong>
+                <div className="bg-white/60 border border-slate-200/60 rounded-xl p-4 flex flex-col gap-3 relative z-10">
+                  <div className="flex justify-between items-center text-[0.75rem]">
+                    <span className="text-slate-500 font-medium">Deduplication:</span>
+                    <strong className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">MD5 Hash Match</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-[0.75rem]">
+                    <span className="text-slate-500 font-medium">Duplicates Filtered:</span>
+                    <strong className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">{duplicatesFiltered}</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-[0.75rem]">
+                    <span className="text-slate-500 font-medium">Avg AI Score:</span>
+                    <strong className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">{opportunities.length > 0 ? Math.round(opportunities.reduce((sum, o) => sum + o.aiOpportunityScore, 0) / opportunities.length) : 0}/100</strong>
+                  </div>
                 </div>
               </div>
             </div>

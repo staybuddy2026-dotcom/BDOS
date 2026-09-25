@@ -560,21 +560,20 @@ export default function Company360WorkspacePage() {
         </div>
       </div>
       
-      <WorkflowGuide activeStep={3} />
-
       {/* SCROLLABLE MAIN CONTENT */}
       <div
         className="dashboard-scrollable-content"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '16px 28px 40px 28px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
           position: 'relative'
         }}
       >
+        <WorkflowGuide activeStep={3} />
+        
+        <div style={{ padding: '16px 28px 40px 28px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
         {/* Top Navigation & Breadcrumb */}
         <BreadcrumbHeader
           currentTitle="Company 360 Workspace"
@@ -597,7 +596,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length}</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{displayedCompanies.length}</div>
                 <div style={{ fontSize: '0.8rem', color: '#2563eb', marginTop: '8px', fontWeight: 600 }}>Master AI Profiles</div>
               </div>
               <div style={{ border: '1px solid #dbeafe', borderRadius: '50%', padding: '6px', color: '#2563eb', display: 'flex', background: '#eff6ff' }}>
@@ -619,7 +618,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{highScoringOpps}</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{highScoringOpps}</div>
                 <div style={{ fontSize: '0.8rem', color: '#a855f7', marginTop: '8px', fontWeight: 600 }}>Priority Targets (Score 90+)</div>
               </div>
               <div style={{ background: '#faf5ff', padding: '8px', borderRadius: '50%', color: '#d8b4fe' }}><ArrowRight size={18} /></div>
@@ -639,7 +638,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{avgMaturity}/100</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{avgMaturity}/100</div>
                 <div style={{ fontSize: '0.8rem', color: '#0ea5e9', marginTop: '8px', fontWeight: 600 }}>Engineering Activity Signals</div>
               </div>
               <div style={{ background: '#f0f9ff', padding: '8px', borderRadius: '50%', color: '#7dd3fc' }}><ArrowRight size={18} /></div>
@@ -659,7 +658,7 @@ export default function Company360WorkspacePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{totalEmployees.toLocaleString()}</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{totalEmployees.toLocaleString()}</div>
                 <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '8px', fontWeight: 600 }}>Total Estimated Employees</div>
               </div>
               <div style={{ background: '#ecfdf5', padding: '8px', borderRadius: '50%', color: '#6ee7b7' }}><ArrowRight size={18} /></div>
@@ -1106,6 +1105,7 @@ export default function Company360WorkspacePage() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

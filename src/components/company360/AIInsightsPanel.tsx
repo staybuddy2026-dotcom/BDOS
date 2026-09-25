@@ -73,7 +73,7 @@ export function AIInsightsPanel({
           </div>
 
           <div style={{ textAlign: 'center', margin: '8px 0' }}>
-            <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#58a6ff', lineHeight: '1' }}>
+            <div style={{ fontSize: '2.4rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#58a6ff', lineHeight: '1' }}>
               {scoring.overallScore}<span style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>/100</span>
             </div>
             <div style={{ fontSize: '0.76rem', color: 'var(--color-success)', fontWeight: 700, marginTop: '4px' }}>

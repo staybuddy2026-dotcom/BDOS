@@ -37,8 +37,9 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
       const apolloSavedJson = await getApolloPeopleMapFromDb();
       if (apolloSavedJson) {
         const apolloSavedMap = JSON.parse(apolloSavedJson);
-        Object.values(apolloSavedMap).forEach((p: any) => {
-          const dom = (p.organizationDomain || p.organizationName || '').toLowerCase().trim();
+        Object.values(apolloSavedMap).forEach((p: unknown) => {
+          const rec = p as Record<string, unknown>;
+          const dom = (rec.organizationDomain as string || rec.organizationName as string || '').toLowerCase().trim();
           if (dom && dom !== 'organization' && dom !== 'target account' && !dom.includes('likesoft')) {
             targetDomains.add(dom.includes('.') ? dom : `${dom.replace(/[^a-z0-9]/g, '')}.com`);
           }

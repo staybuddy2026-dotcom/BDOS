@@ -25,65 +25,62 @@ export function TasksPanel({ tasks: initialTasks }: { tasks: RevenueTask[] }) {
   };
 
   return (
-    <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-[18px] flex flex-col gap-[14px]">
       {toastMsg && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-card)', color: 'var(--text-primary)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', border: '2px solid var(--accent-indigo)', boxShadow: '0 12px 32px rgba(99,102,241,0.2)' }}>
-          <CheckCircle2 size={18} style={{ color: 'var(--accent-indigo)' }} /> {toastMsg}
+        <div className="fixed bottom-6 right-6 z-[999999] bg-[var(--bg-card)] text-[var(--text-primary)] px-3.5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 border-2 border-[var(--accent-indigo)] shadow-[0_12px_32px_rgba(99,102,241,0.2)]">
+          <CheckCircle2 size={18} className="text-[var(--accent-indigo)]" /> {toastMsg}
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <CheckSquare size={18} style={{ color: 'var(--color-success)' }} />
-          <h3 style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CheckSquare size={18} className="text-[var(--color-success)]" />
+          <h3 className="text-[0.94rem] font-extrabold text-[var(--text-primary)] m-0">
             AI Auto-Generated Stage Tasks ({tasks.length})
           </h3>
         </div>
 
-        <span style={{ fontSize: '0.65rem', background: 'var(--color-success-bg)', color: 'var(--color-success)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+        <span className="text-[0.65rem] bg-[var(--color-success-bg)] text-[var(--color-success)] border border-[rgba(16,185,129,0.3)] px-2 py-0.5 rounded-md font-bold">
           AI Task Engine Active
         </span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="flex flex-col gap-2">
         {tasks.length === 0 ? (
-          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
+          <div className="text-[0.76rem] text-[var(--text-muted)] italic py-2">
             No active stage tasks. All tasks completed!
           </div>
         ) : (
           tasks.map((task) => {
             const isDone = task.status === 'COMPLETED';
             return (
-              <div key={task.id} style={{ background: isDone ? 'var(--bg-secondary)' : 'var(--bg-card)', border: isDone ? '1px dashed var(--border-subtle)' : '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', opacity: isDone ? 0.75 : 1 }}>
+              <div 
+                key={task.id} 
+                className={`rounded-[10px] p-[12px_14px] flex items-center justify-between flex-wrap gap-[10px] ${
+                  isDone 
+                    ? 'bg-[var(--bg-secondary)] border-dashed border border-[var(--border-subtle)] opacity-75' 
+                    : 'bg-[var(--bg-card)] border border-[var(--border-subtle)] opacity-100'
+                }`}
+              >
                 <div>
-                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none' }}>
+                  <div className={`text-[0.86rem] font-extrabold text-[var(--text-primary)] ${isDone ? 'line-through' : ''}`}>
                     {task.title}
                   </div>
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{task.description}</div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', gap: '12px' }}>
-                    <span>Assignee: <strong style={{ color: 'var(--accent-indigo)' }}>{task.assignedTo}</strong></span>
-                    <span>Due: <strong style={{ color: 'var(--color-warning)' }}>{task.dueDate}</strong></span>
+                  <div className="text-[0.76rem] text-[var(--text-secondary)] mt-[2px]">{task.description}</div>
+                  <div className="text-[0.68rem] text-[var(--text-muted)] mt-[4px] flex gap-3">
+                    <span>Assignee: <strong className="text-[var(--accent-indigo)]">{task.assignedTo}</strong></span>
+                    <span>Due: <strong className="text-[var(--color-warning)]">{task.dueDate}</strong></span>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleToggleTaskComplete(task.id)}
-                  style={{
-                    padding: '7px 16px',
-                    borderRadius: '8px',
-                    fontSize: '0.76rem',
-                    background: isDone ? '#064e3b' : 'linear-gradient(135deg, #10b981, #059669)',
-                    border: isDone ? '1px solid #10b981' : 'none',
-                    color: '#ffffff',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    boxShadow: isDone ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.3)',
-                    transition: 'all 0.15s ease',
-                  }}
+                  className={`px-4 py-[7px] rounded-lg text-[0.76rem] text-white font-extrabold cursor-pointer inline-flex items-center gap-[5px] transition-all duration-150 ease-in-out ${
+                    isDone 
+                      ? 'bg-[#064e3b] border border-[#10b981] shadow-none' 
+                      : 'bg-gradient-to-br from-[#10b981] to-[#059669] border-none shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
+                  }`}
                 >
                   <Check size={14} /> {isDone ? 'Completed' : 'Mark Completed'}
                 </button>

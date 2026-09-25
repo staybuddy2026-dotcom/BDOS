@@ -161,9 +161,10 @@ function getCleanOrganizationName(
 function getCleanJobTitle(
   jobTitleRaw?: string,
   fallbackJobTitle?: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _activeFilterTerms: (string | undefined)[] = []
 ): string {
-  let title = jobTitleRaw?.trim();
+  const title = jobTitleRaw?.trim();
 
   return title || fallbackJobTitle || 'Executive';
 }
@@ -172,6 +173,7 @@ function getCleanJobTitle(
 function extractApolloTechnologies(
   org?: Record<string, unknown>,
   person?: Record<string, unknown>,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _params?: ApolloSearchParams
 ): string[] {
   const safeOrg = org || {};

@@ -746,7 +746,7 @@ export default function PipelinePage() {
               <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Leads</span>
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{items.length}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{items.length}</div>
         </div>
 
         <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(16, 185, 129, 0.15)' } as React.CSSProperties}>
@@ -759,7 +759,7 @@ export default function PipelinePage() {
               <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Conversations</span>
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{items.filter(i => ([DraftStatus.REPLIED, DraftStatus.MEETING, DraftStatus.PROPOSAL] as DraftStatus[]).includes(i.status)).length}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{items.filter(i => ([DraftStatus.REPLIED, DraftStatus.MEETING, DraftStatus.PROPOSAL] as DraftStatus[]).includes(i.status)).length}</div>
         </div>
 
         <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(245, 158, 11, 0.15)' } as React.CSSProperties}>
@@ -772,7 +772,7 @@ export default function PipelinePage() {
               <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Scheduled Tasks</span>
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{items.filter(i => i.followUps.some(f => f.status === 'PENDING')).length}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{items.filter(i => i.followUps.some(f => f.status === 'PENDING')).length}</div>
         </div>
 
         <div className="premium-kpi-card" style={{ '--glow-color': 'rgba(139, 92, 246, 0.15)' } as React.CSSProperties}>
@@ -785,7 +785,7 @@ export default function PipelinePage() {
               <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Deals Closed</span>
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{items.filter(i => i.status === DraftStatus.WON).length}</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{items.filter(i => i.status === DraftStatus.WON).length}</div>
         </div>
       </div>
 
@@ -810,7 +810,7 @@ export default function PipelinePage() {
                   {/* Premium Header */}
                   <div className="modal-header-accent" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <h3 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0', letterSpacing: '-0.02em' }}>
+                      <h3 style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--font-kpi)', color: '#0f172a', margin: '0 0 4px 0', letterSpacing: '-0.02em' }}>
                         {activeItem.post.authorName}
                       </h3>
                       <p style={{ fontSize: '1rem', color: '#64748b', margin: 0, fontWeight: 500 }}>
