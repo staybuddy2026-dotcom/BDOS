@@ -111,7 +111,7 @@ export function OutreachEditor({
     } catch (err) {
       if (err instanceof z.ZodError) {
         const fieldErrs: Record<string, string> = {};
-        err.errors.forEach(e => fieldErrs[e.path[0] as string] = e.message);
+        (err as any).errors.forEach((e: any) => fieldErrs[e.path[0] as string] = e.message);
         setContentErrors(fieldErrs);
         triggerToast("Please fix the validation errors before approving.");
       }

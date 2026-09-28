@@ -11,10 +11,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
+    // Simulate fetching user from DB
+    const formattedName = email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1);
+
     // Creating the session payload
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const sessionPayload = {
       email,
+      name: formattedName,
       role: 'bde',
       expires: expires.getTime(),
     };

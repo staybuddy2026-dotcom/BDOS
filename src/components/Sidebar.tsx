@@ -36,7 +36,7 @@ const navSections: NavSection[] = [
   {
     label: 'Overview',
     items: [
-      { name: 'Dashboard', href: '/', icon: Home },
+      { name: 'Dashboard', href: '/dashboard', icon: Home },
       {
         name: 'BDE Workflow',
         href: '/priorities',

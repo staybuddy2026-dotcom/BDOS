@@ -54,8 +54,8 @@ export default function LoginPage() {
           style={{ animation: 'fade-in-scale 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
         >
           <div className="flex flex-col items-center" style={{ animation: 'pulse-slow 2s infinite ease-in-out' }}>
-            <Image src={logo} alt="BDOS Logo" width={240} height={80} className="mb-8" />
-            <h2 className="text-3xl text-white! font-bold text-white mb-3 tracking-tight">Welcome to BDOS Dashboard</h2>
+            <Image src={logo} alt="BDOS Logo" width={300} height={100} className="mb-8" />
+            <h2 className="text-5xl! text-white! font-bold text-white mb-3 tracking-tight">Welcome to BDOS Dashboard</h2>
             <p className="text-white text-sm flex items-center gap-2">
               <span className="w-4 h-4 rounded-full border-2 border-[#5c6aff] border-t-transparent animate-spin"></span>
               Loading your workspace...
@@ -110,7 +110,7 @@ export default function LoginPage() {
 
         {/* Right Side Login Card */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-6 z-20">
-          <div className="w-full max-w-[500px] p-8 relative overflow-hidden"
+          <div className="w-full max-w-[500px] px-8 py-16 relative overflow-hidden"
             style={{
               background: 'linear-gradient(145deg, rgba(21, 35, 86, 0.45) 0%, rgba(12, 23, 65, 0.7) 100%)',
               backdropFilter: 'blur(32px)',
@@ -137,18 +137,18 @@ export default function LoginPage() {
             </div>
 
             <div className="text-center mb-8">
-              <h2 className="text-[1.4rem]! font-bold tracking-tight mb-2" style={{ color: '#ffffff' }}>
+              <h2 className="text-[1.4rem]! font-bold tracking-tight mb-2 text-white!" >
                 Sign in to your account
               </h2>
-              <p className="font-medium text-[0.9rem]!" style={{ color: '#94a3b8' }}>
+              <p className="font-medium text-[0.9rem]! text-[#94a3b8]!">
                 Access your Business Development workspace
               </p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[0.85rem] font-medium ml-1" style={{ color: '#ffffff' }}>Email Address</label>
-                <div className="relative group">
+                <label className="text-[0.9rem]! font-medium ml-1" style={{ color: '#ffffff' }}>Email Address</label>
+                <div className="relative group mt-2">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-[#5c6aff] transition-colors duration-300">
                     <Mail size={18} strokeWidth={2} />
                   </div>
@@ -158,15 +158,15 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your work email"
-                    className="custom-login-input w-full pl-11 pr-4 py-3.5 rounded-[12px] border border-white/10 border-b-white/20 text-sm! placeholder:text-slate-500 focus:ring-2 focus:ring-[#5c6aff]/30 transition-all duration-300 ease-out"
+                    className="custom-login-input w-full pl-11 pr-4 py-3.5 rounded-[12px] border border-white/10 border-b-white/20 text-[1rem]! placeholder:text-slate-500 placeholder:text-[0.95rem]! focus:ring-2 focus:ring-[#5c6aff]/30 transition-all duration-300 ease-out"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between ml-1">
-                  <label className="text-[0.85rem] font-medium" style={{ color: '#ffffff' }}>Password</label>
-                  <a href="#" className="text-[0.75rem] font-medium text-indigo-400 hover:text-indigo-300 transition-colors">Forgot password?</a>
+                  <label className="text-[0.9rem] font-medium text-white">Password</label>
+                  <a href="/forgot-password" className="text-[0.85rem] font-medium text-white! hover:text-indigo-200! transition-colors">Forgot password?</a>
                 </div>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-[#5c6aff] transition-colors duration-300">
@@ -178,7 +178,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="custom-login-input w-full pl-11 pr-11 py-3.5 rounded-[12px] border border-white/10 border-b-white/20 text-[0.95rem] placeholder:text-slate-500 focus:ring-2 focus:ring-[#5c6aff]/30 transition-all duration-300 ease-out"
+                    className="custom-login-input w-full pl-11 pr-11 py-3.5 rounded-[12px] border border-white/10 border-b-white/20 text-[1rem]! placeholder:text-slate-500 placeholder:text-[0.95rem]! focus:ring-2 focus:ring-[#5c6aff]/30 transition-all duration-300 ease-out"
                   />
                   <button
                     type="button"
@@ -192,7 +192,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-6 relative overflow-hidden bg-gradient-to-r from-[#a855f7] via-[#6366f1] to-[#3b82f6] hover:from-[#9333ea] hover:to-[#2563eb] text-white font-bold py-3.5 px-4 rounded-[14px] flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_8px_20px_rgba(99,102,241,0.5)] active:scale-[0.98]"
+                className="w-full mt-6 relative overflow-hidden bg-gradient-to-r from-[#a855f7] via-[#6366f1] to-[#3b82f6] hover:from-[#9333ea] hover:to-[#2563eb] text-white font-bold py-3.5 px-4 rounded-lg! cursor-pointer flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_8px_20px_rgba(99,102,241,0.5)] active:scale-[0.98]"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { decrypt, updateSession } from './lib/jwt';
 
 // Ensure paths that shouldn't be protected are excluded
-const publicRoutes = ['/', '/api/auth/login'];
+const publicRoutes = ['/', '/api/auth/login', '/forgot-password', '/reset-password'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
