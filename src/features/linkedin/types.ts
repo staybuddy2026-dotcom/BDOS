@@ -77,3 +77,92 @@ export type LinkedInAnalyticsTelemetry = {
   averageResponseTimeMs: number;
   topHiringRoleCategories: { category: string; openingsCount: number; urgencyScore: number }[];
 };
+
+// ---------------------------------------------------------------------------
+// Live LinkedIn data (via the configured scraper provider)
+// ---------------------------------------------------------------------------
+
+export type LinkedInErrorCode = 'NOT_CONFIGURED' | 'INVALID_KEY' | 'NO_CREDITS' | 'RATE_LIMIT' | 'ACTOR_UNAVAILABLE' | 'BAD_REQUEST' | 'TIMEOUT' | 'NETWORK' | 'HTTP_ERROR';
+
+export type LinkedInErrorInfo = {
+  code: LinkedInErrorCode;
+  message: string;
+  operation: string;
+  at: string;
+};
+
+export type LinkedInPostResult = {
+  id: string;
+  url: string;
+  content: string;
+  authorName: string;
+  authorHeadline?: string;
+  authorProfileUrl?: string;
+  authorType: 'profile' | 'company';
+  /** Parsed from the author's own headline ("CTO at Acme"); undefined when the headline names no company. */
+  authorCompany?: string;
+  postedAt?: string;
+  likes: number;
+  comments: number;
+  shares: number;
+};
+
+export type LinkedInProfileResult = {
+  id: string;
+  profileUrl: string;
+  publicIdentifier?: string;
+  fullName: string;
+  firstName?: string;
+  lastName?: string;
+  headline?: string;
+  about?: string;
+  jobTitle?: string;
+  companyName?: string;
+  companyLinkedinUrl?: string;
+  location?: string;
+  country?: string;
+  email?: string;
+  hiring?: boolean;
+  openToWork?: boolean;
+  followerCount?: number;
+  connectionsCount?: number;
+  topSkills?: string;
+  experience: { title: string; company: string; duration?: string }[];
+};
+
+export type LinkedInCompanyResult = {
+  id: string;
+  name: string;
+  linkedinUrl: string;
+  universalName?: string;
+  website?: string;
+  domain?: string;
+  tagline?: string;
+  description?: string;
+  industry?: string;
+  specialities: string[];
+  employeeCount?: number;
+  employeeRange?: string;
+  followerCount?: number;
+  headquarters?: string;
+  foundedYear?: number;
+  companyType?: string;
+};
+
+export type LinkedInListResponse<T> = {
+  items: T[];
+  error?: LinkedInErrorInfo;
+  /** True when the result came from cache and cost nothing. */
+  cached?: boolean;
+};
+
+export type LinkedInStatus = {
+  configured: boolean;
+  enabled: boolean;
+  healthy: boolean;
+  message: string;
+  account?: string;
+  monthlyUsageUsd?: number;
+  monthlyLimitUsd?: number;
+  lastError?: LinkedInErrorInfo;
+};

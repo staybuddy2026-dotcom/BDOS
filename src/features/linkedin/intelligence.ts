@@ -6,7 +6,8 @@ import { LinkedInIntelligenceData } from './types';
 import { getLinkedInCompanyData } from './client';
 
 /**
- * AI Hiring Signal Engine & Organic Post Analysis Engine for LinkedIn.
+ * Summarises live LinkedIn company data. Every sentence is derived from the fetched data;
+ * when nothing was found the summary says so instead of inventing activity.
  */
 export async function analyzeLinkedInOrganicIntelligence(companyNameOrDomain: string): Promise<{
   data: LinkedInIntelligenceData;
@@ -15,57 +16,23 @@ export async function analyzeLinkedInOrganicIntelligence(companyNameOrDomain: st
   recommendedPitch: string;
   suggestedSquadPackages: { name: string; budget: string; reasoning: string }[];
 }> {
-  try {
-    await AuthService.verifySession();
-    logger.info(`Analyzing LinkedIn Organic Intelligence for '${companyNameOrDomain}'...`);
+  await AuthService.verifySession();
+  logger.info(`Analyzing LinkedIn Organic Intelligence for '${companyNameOrDomain}'...`);
 
-    const data = await getLinkedInCompanyData(companyNameOrDomain);
+  const data = await getLinkedInCompanyData(companyNameOrDomain);
+  const hasData = data.totalEmployeesOnLinkedin > 0 || data.recentPosts.length > 0;
+  const hiringPosts = data.recentPosts.filter((p) => p.postType === 'Hiring Announcement').length;
 
-    const summary = `${data.companyName} has ${data.totalEmployeesOnLinkedin} employees on LinkedIn, ${data.activeJobOpeningsCount} active engineering job openings, and ${data.executivePostsCount} executive posts. Engineering Expansion Index is ${data.engineeringExpansionIndex}/100.`;
-    const buyingIntentPill = data.engineeringExpansionIndex >= 90 ? 'High Hiring Expansion Intent 🚀' : 'Active Social Engagement';
+  const summary = hasData
+    ? `${data.companyName} has ${data.totalEmployeesOnLinkedin.toLocaleString()} employees on LinkedIn and ${data.recentPosts.length} recent company post${data.recentPosts.length === 1 ? '' : 's'}${hiringPosts ? `, ${hiringPosts} of them about hiring` : ''}.`
+    : 'No LinkedIn data is available for this company yet.';
 
-    const recommendedPitch = `Position Tiny Script's senior React 19 & Python FastAPI squad as the immediate delivery accelerator for CTO ${data.primaryPost.authorName}.`;
-
-    const suggestedSquadPackages = [
-      {
-        name: 'Dedicated Senior React 19 & Next.js Squad',
-        budget: '₹22,00,000 – ₹42,00,000',
-        reasoning: 'Fulfill CTO hiring announcement seeking senior React 19 microservices squad.',
-      },
-      {
-        name: 'Python FastAPI & Clinical LLM fine-tuning',
-        budget: '₹18,00,000 – ₹30,00,000',
-        reasoning: 'Support VP Engineering AI Patient Intake Llama 3 workflow initiative.',
-      },
-      {
-        name: 'PostgreSQL & AWS EKS Microservices Team',
-        budget: '₹14,00,000 – ₹25,00,000',
-        reasoning: 'Assist Head of Product cloud migration & PostgreSQL EKS architecture.',
-      },
-    ];
-
-    return {
-      data,
-      summary,
-      buyingIntentPill,
-      recommendedPitch,
-      suggestedSquadPackages,
-    };
-  } catch (err: unknown) {
-    logger.error(`LinkedIn Organic Intelligence analysis failed for '${companyNameOrDomain}'`, { error: String(err) });
-    const data = await getLinkedInCompanyData(companyNameOrDomain);
-    return {
-      data,
-      summary: 'LinkedIn organic social intelligence active.',
-      buyingIntentPill: 'High Hiring Expansion Intent 🚀',
-      recommendedPitch: 'Reach out to CTO with squad augmentation proposal.',
-      suggestedSquadPackages: [
-        {
-          name: 'Dedicated Senior React 19 & Next.js Squad',
-          budget: '₹22,00,000 – ₹42,00,000',
-          reasoning: 'Fulfill hiring expansion request.',
-        },
-      ],
-    };
-  }
+  return {
+    data,
+    summary,
+    buyingIntentPill: hiringPosts ? 'Hiring activity on LinkedIn' : hasData ? 'Active on LinkedIn' : 'No LinkedIn data',
+    // A pitch needs a real reason; the outreach generator builds one from the prospect research instead.
+    recommendedPitch: data.buyingSignals[0]?.description ? `Recent post to reference: "${data.buyingSignals[0].description}"` : '',
+    suggestedSquadPackages: [],
+  };
 }

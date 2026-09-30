@@ -17,7 +17,7 @@ import {
   Check
 } from 'lucide-react';
 import { LeadItem } from '@/features/providers/types';
-import { ApolloPersonMatch, ApolloOrganizationMatch } from '@/features/apollo/provider';
+import type { ApolloPersonMatch, ApolloOrganizationMatch } from '@/features/apollo/provider';
 
 interface UniversalResultRendererProps {
   item?: LeadItem;

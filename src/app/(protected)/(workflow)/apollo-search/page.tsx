@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import blob from '@/assets/blob.png';
 import {
@@ -27,7 +27,7 @@ import {
 } from '@/features/apollo/actions';
 import '@/styles/dashboard.css';
 import { getReviewPosts, ReviewPostData } from '@/features/review/actions';
-import { ApolloPersonMatch, ApolloOrganizationMatch } from '@/features/apollo/provider';
+import type { ApolloPersonMatch, ApolloOrganizationMatch } from '@/features/apollo/provider';
 import {
   getAllProvidersList,
   searchLeadHub,
@@ -101,7 +101,8 @@ export default function ApolloSearchPage() {
   const [companyResults, setCompanyResults] = useState<ApolloOrganizationMatch[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [creditWarning, setCreditWarning] = useState<{ isWarning: boolean; remainingCredits: number; threshold: number } | null>(null);
+  const [creditWarning, setCreditWarning] = useState<{ isWarning: boolean; remainingCredits: number; threshold: number; message?: string } | null>(null);
+  const [apolloError, setApolloError] = useState<string | null>(null);
 
   // Linking & Enrichment Modals
   const [reviewPosts, setReviewPosts] = useState<ReviewPostData[]>([]);
@@ -161,6 +162,8 @@ export default function ApolloSearchPage() {
         if (paramDomain) setCompanyDomain(paramDomain);
         setActiveDataTab('fresh');
       }
+      // Run one search once the URL filters above have been applied to state.
+      if (hasSearchParams) setAutoSearchTrigger((n) => n + 1);
     }
 
     getApolloPeopleMapFromDb().then(dbJson => {
@@ -342,8 +345,18 @@ export default function ApolloSearchPage() {
     }
   };
 
+  const hasPeopleFilters = !!(jobTitle.trim() || seniority || personLocation.trim() || orgLocation.trim() || keywords.trim() || domain.trim() || personCompanyName.trim() || techUsage.trim() || hiringActivity.trim());
+  const hasCompanyFilters = !!(companyName.trim() || companyDomain.trim() || companyKeywords.trim() || companyLocation.trim() || employeeCountRange || companyTechUsage.trim() || companyHiringKeywords.trim() || fundingPresetDays || fundingStage);
+
   // Run People Search
   const executePeopleSearch = useCallback(async (targetPage = 1) => {
+    if (!hasPeopleFilters) {
+      // An unfiltered Apollo search returns random people from 200M+ profiles and wastes daily quota.
+      setPeopleResults([]);
+      setTotalCount(0);
+      setApolloError(null);
+      return;
+    }
     setLoading(true);
     try {
       const targetCompany = personCompanyName.trim() || undefined;
@@ -366,19 +379,26 @@ export default function ApolloSearchPage() {
       setPeopleResults(res.people);
       setTotalCount(res.totalCount);
       setPage(res.page);
+      setApolloError(res.error?.message || null);
+      if (res.error) triggerNotification('error', res.error.message);
 
-      const warning = await checkApolloCreditWarning();
-      setCreditWarning(warning);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Apollo people search failed.';
-      triggerNotification('error', msg);
+      checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
+    } catch {
+      setApolloError('Apollo people search failed. Please try again.');
+      triggerNotification('error', 'Apollo people search failed. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity]);
+  }, [hasPeopleFilters, jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity]);
 
   // Run Company Search
   const executeCompanySearch = useCallback(async (targetPage = 1, overrideHiringKeywords?: string) => {
+    if (!hasCompanyFilters && !overrideHiringKeywords) {
+      setCompanyResults([]);
+      setTotalCount(0);
+      setApolloError(null);
+      return;
+    }
     setLoading(true);
     try {
       const res = await searchApolloOrganizations({
@@ -395,32 +415,21 @@ export default function ApolloSearchPage() {
         perPage,
       });
 
-      let filteredOrgs = res.organizations;
-
-      if (companyTechUsage.trim()) {
-        const targetTechTokens = companyTechUsage.toLowerCase().split(/[,;\s]+/).filter(Boolean).map(t => t.replace(/\.js$/i, '').replace(/[^a-z0-9]/g, ''));
-        filteredOrgs = filteredOrgs.filter(org => {
-          if (!org.technologies || org.technologies.length === 0) return false;
-          return org.technologies.some(t => {
-            const cleanT = t.toLowerCase().replace(/\.js$/i, '').replace(/[^a-z0-9]/g, '');
-            return targetTechTokens.some(tok => cleanT.includes(tok) || tok.includes(cleanT));
-          });
-        });
-      }
-
-      setCompanyResults(filteredOrgs);
-      setTotalCount(filteredOrgs.length === 0 && companyTechUsage.trim() ? 0 : res.totalCount);
+      // Technology filtering happens in Apollo (technology UIDs), so results are used as returned.
+      setCompanyResults(res.organizations);
+      setTotalCount(res.totalCount);
       setPage(res.page);
+      setApolloError(res.error?.message || null);
+      if (res.error) triggerNotification('error', res.error.message);
 
-      const warning = await checkApolloCreditWarning();
-      setCreditWarning(warning);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Apollo company search failed.';
-      triggerNotification('error', msg);
+      checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
+    } catch {
+      setApolloError('Apollo company search failed. Please try again.');
+      triggerNotification('error', 'Apollo company search failed. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays, fundingStage]);
+  }, [hasCompanyFilters, companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays, fundingStage]);
 
   // Load Providers List, Framework Statistics & Saved Search Presets on mount
   useEffect(() => {
@@ -479,36 +488,33 @@ export default function ApolloSearchPage() {
     }
   }, [searchMode, executePeopleSearch, executeCompanySearch, keywords, companyKeywords, companyName, personLocation, companyLocation, employeeCountRange, techUsage, companyTechUsage, hiringActivity, companyHiringKeywords, jobTitle, seniority]);
 
+  // Latest search runner in a ref, so the effect below re-runs only when the mode or provider
+  // changes. (Depending on the search callbacks made every keystroke in a filter fire a live Apollo call.)
+  const runSearchRef = useRef<(p: number) => void>(() => { });
+  // Declared before the search effect, so the ref is current when that effect runs in the same commit.
+  useEffect(() => {
+    runSearchRef.current = (p: number) => {
+      if (selectedProviderId !== 'apollo') executeHubSearch(selectedProviderId, p);
+      else if (searchMode === 'people') executePeopleSearch(p);
+      else executeCompanySearch(p);
+    };
+  });
+
+  useEffect(() => {
+    runSearchRef.current(1);
+  }, [searchMode, selectedProviderId]);
+
   useEffect(() => {
     let active = true;
-
-    async function loadData() {
-      if (selectedProviderId === 'apollo') {
-        if (searchMode === 'people') {
-          await executePeopleSearch(1);
-        } else {
-          await executeCompanySearch(1);
-        }
-      } else {
-        await executeHubSearch(selectedProviderId, 1);
-      }
-      if (active) {
-        try {
-          const posts = await getReviewPosts();
-          setReviewPosts(posts);
-          if (posts.length > 0) setSelectedPostIdForLink(posts[0].id);
-        } catch {
-          // ignore
-        }
-      }
-    }
-
-    loadData();
-
-    return () => {
-      active = false;
-    };
-  }, [searchMode, selectedProviderId, executePeopleSearch, executeCompanySearch, executeHubSearch]);
+    getReviewPosts()
+      .then((posts) => {
+        if (!active) return;
+        setReviewPosts(posts);
+        if (posts.length > 0) setSelectedPostIdForLink(posts[0].id);
+      })
+      .catch(() => { });
+    return () => { active = false; };
+  }, []);
 
   const handleResetFilters = () => {
     setJobTitle('');
@@ -608,28 +614,33 @@ export default function ApolloSearchPage() {
     if (!personToEnrich) return;
     setEnrichLoading(true);
     try {
-      let enriched: ApolloPersonMatch | null = null;
-      try {
-        enriched = await enrichApolloPersonDirect(personToEnrich.apolloPersonId);
-      } catch {
-        // Fallback for sandbox/mock mode
+      const { person: enriched, error } = await enrichApolloPersonDirect({
+        apolloPersonId: personToEnrich.apolloPersonId,
+        personName: personToEnrich.personName,
+        organizationDomain: personToEnrich.organizationDomain,
+        organizationName: personToEnrich.organizationName,
+      });
+
+      // Only real Apollo data is saved; nothing is guessed when Apollo cannot reveal contact details.
+      if (!enriched || (!enriched.workEmail && !enriched.personalEmail && !enriched.phone)) {
+        setShowEnrichModal(false);
+        triggerNotification('error', error || 'Apollo has no contact details for this person.');
+        checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
+        return;
       }
 
-      const cleanDomain = personToEnrich.organizationDomain || 'company.com';
-      const nameParts = personToEnrich.personName.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
-      const fallbackEmail = nameParts.length > 1
-        ? `${nameParts[0]}.${nameParts[nameParts.length - 1]}@${cleanDomain}`
-        : `${nameParts[0] || 'contact'}@${cleanDomain}`;
-
-      const finalWorkEmail = enriched?.workEmail || personToEnrich.workEmail || fallbackEmail;
-      const finalPhone = enriched?.phone || personToEnrich.phone || '+1 (555) 234-5678';
+      const finalWorkEmail = enriched.workEmail || personToEnrich.workEmail;
       const key = getPersonKey(personToEnrich);
 
       const enrichedPersonObj: ApolloPersonMatch = {
         ...personToEnrich,
+        // The reveal returns the full (unobfuscated) name and profile links.
+        personName: enriched.personName || personToEnrich.personName,
+        linkedinUrl: enriched.linkedinUrl || personToEnrich.linkedinUrl,
+        organizationDomain: enriched.organizationDomain || personToEnrich.organizationDomain,
         workEmail: finalWorkEmail,
-        personalEmail: enriched?.personalEmail || personToEnrich.personalEmail,
-        phone: finalPhone,
+        personalEmail: enriched.personalEmail || personToEnrich.personalEmail,
+        phone: enriched.phone || personToEnrich.phone,
         creditsUsed: 1,
       };
 
@@ -651,14 +662,13 @@ export default function ApolloSearchPage() {
         return prev;
       });
 
-      const warning = await checkApolloCreditWarning();
-      setCreditWarning(warning);
+      checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
 
       setShowEnrichModal(false);
-      triggerNotification('success', `⚡ Enriched ${formatPersonName(personToEnrich.personName)}! Work Email: ${finalWorkEmail}`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Enrichment failed.';
-      triggerNotification('error', msg);
+      const revealed = [finalWorkEmail && `email ${finalWorkEmail}`, enrichedPersonObj.phone && `phone ${enrichedPersonObj.phone}`].filter(Boolean).join(', ');
+      triggerNotification('success', `Enriched ${formatPersonName(enrichedPersonObj.personName)}: ${revealed || 'personal email found'}.`);
+    } catch {
+      triggerNotification('error', 'Apollo enrichment failed. Please try again.');
     } finally {
       setEnrichLoading(false);
     }
@@ -816,15 +826,16 @@ export default function ApolloSearchPage() {
           }}
         />
 
-        <div className="flex flex-col gap-5 max-w-full w-full box-border text-[var(--text-primary)]" style={{ padding: '16px 28px 80px 28px', flex: 1, position: 'relative' }}>
+        <div className="flex flex-col gap-5 max-w-full w-full box-border text-(--text-primary)" style={{ padding: '16px 28px 80px 28px', flex: 1, position: 'relative' }}>
 
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
             {/* Credit Warning Banner */}
-            {creditWarning && creditWarning.isWarning && (
-              <div style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '12px 18px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--color-warning)', fontSize: '0.82rem' }}>
-                <AlertTriangle size={18} style={{ color: '#eab308' }} />
+            {(apolloError || (creditWarning && creditWarning.isWarning)) && (
+              <div role="alert" style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '12px 18px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px', color: '#92400e', fontSize: '0.84rem', lineHeight: 1.5 }}>
+                <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
                 <div>
-                  <strong>Apollo Credit Notice:</strong> {creditWarning.remainingCredits} credits remaining in your balance. Preview searches cost <strong>0 credits</strong>.
+                  <strong>Apollo notice:</strong> {apolloError || creditWarning?.message
+                    || `${creditWarning?.remainingCredits} Apollo people searches left today.`}
                 </div>
               </div>
             )}
@@ -998,7 +1009,11 @@ export default function ApolloSearchPage() {
                       <span className="badge" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.74rem', padding: '6px 14px', borderRadius: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(15,23,42,0.02)' }}>
                         <Zap size={13} style={{ color: '#6366f1' }} />
                         <span>SEARCH: 0 CREDITS</span>
-                        <span style={{ color: '#94a3b8', fontWeight: 500 }}>({creditWarning?.remainingCredits ?? 85}/100)</span>
+                        {creditWarning && creditWarning.remainingCredits >= 0 && (
+                          <span style={{ color: '#94a3b8', fontWeight: 500 }} title="Apollo people searches left today (from Apollo usage API)">
+                            ({creditWarning.remainingCredits} left today)
+                          </span>
+                        )}
                       </span>
                       <span className="badge" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706', fontSize: '0.74rem', padding: '6px 14px', borderRadius: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(15,23,42,0.02)' }}>
                         <ShieldCheck size={13} />
@@ -1074,10 +1089,12 @@ export default function ApolloSearchPage() {
                         <Sparkles size={32} />
                       </div>
                       <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
-                        {providersList.find(p => p.id === selectedProviderId)?.name || selectedProviderId} Integration Coming Soon
+                        {selectedProviderId === 'linkedin' ? 'LinkedIn has its own workspace' : `${providersList.find(p => p.id === selectedProviderId)?.name || selectedProviderId} Integration Coming Soon`}
                       </h4>
                       <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '6px', maxWidth: '460px', lineHeight: '1.5' }}>
-                        Direct live API integration for <strong>{providersList.find(p => p.id === selectedProviderId)?.name}</strong> is currently under active development. Switch to <strong>Apollo.io</strong> for live verified executive lead discovery and enrichment.
+                        {selectedProviderId === 'linkedin'
+                          ? <>Search LinkedIn posts and people, scan your keywords and send leads to the Review Queue from the <a href="/linkedin" style={{ color: '#2563eb', fontWeight: 700 }}>LinkedIn page</a>.</>
+                          : <>Direct live API integration for <strong>{providersList.find(p => p.id === selectedProviderId)?.name}</strong> is currently under active development. Switch to <strong>Apollo.io</strong> for live verified executive lead discovery and enrichment.</>}
                       </p>
                       <button
                         type="button"
@@ -1096,17 +1113,21 @@ export default function ApolloSearchPage() {
                   ) : searchMode === 'people' ? (
                     /* PEOPLE RESULTS TABLE */
                     (activeDataTab === 'saved' ? savedPeopleList.length === 0 : freshPeopleList.length === 0) ? (
-                      <div className="flex flex-col items-center justify-center py-[50px] px-5 text-[var(--text-muted)] text-center">
-                        <User size={44} className="stroke-[1.5] text-[var(--text-muted)]" />
-                        <h4 className="mt-3.5 text-[0.98rem] font-bold text-[var(--text-primary)]">
-                          {activeDataTab === 'saved' ? 'No saved contacts yet' : 'No fresh contacts available'}
+                      <div className="flex flex-col items-center justify-center py-12.5 px-5 text-(--text-muted) text-center">
+                        <User size={44} className="stroke-[1.5] text-(--text-muted)" />
+                        <h4 className="mt-3.5 text-[0.98rem] font-bold text-(--text-primary)">
+                          {activeDataTab === 'saved' ? 'No saved contacts yet' : apolloError ? 'Apollo could not run this search' : !hasPeopleFilters ? 'Set your filters to search Apollo' : 'No contacts matched these filters'}
                         </h4>
-                        <p className="text-[0.8rem] mt-1 max-w-[400px]">
+                        <p className="text-[0.8rem] mt-1 max-w-100">
                           {activeDataTab === 'saved'
                             ? 'Save contacts from Fresh Data to see them here.'
-                            : (savedPeopleList.length > 0
-                              ? `All ${savedPeopleList.length} available contacts have been saved and are ready in your Saved Data tab.`
-                              : 'All available contacts have been saved.')}
+                            : apolloError
+                              ? apolloError
+                              : !hasPeopleFilters
+                                ? 'Add a job title, company domain, location or keyword, then press Search. Empty searches are skipped to save your Apollo quota.'
+                                : (peopleResults.length > 0
+                                  ? `All ${peopleResults.length} contacts on this page are already in your Saved Data tab.`
+                                  : 'Try a broader job title, location or keyword.')}
                         </p>
                         {activeDataTab === 'fresh' && savedPeopleList.length > 0 && (
                           <button
@@ -1226,13 +1247,15 @@ export default function ApolloSearchPage() {
                   ) : (
                     /* COMPANY RESULTS TABLE */
                     companyResults.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-[50px] px-5 text-[var(--text-muted)] text-center">
+                      <div className="flex flex-col items-center justify-center py-12.5 px-5 text-(--text-muted) text-center">
                         <Building2 size={44} style={{ strokeWidth: 1.5, color: 'var(--text-muted)' }} />
-                        <h4 className="mt-3.5 text-[0.98rem] font-bold text-[var(--text-primary)]">
-                          No target accounts matched your search criteria.
+                        <h4 className="mt-3.5 text-[0.98rem] font-bold text-(--text-primary)">
+                          {apolloError ? 'Apollo could not run this search' : !hasCompanyFilters ? 'Set your filters to search Apollo' : 'No target accounts matched your search criteria.'}
                         </h4>
-                        <p className="text-[0.8rem] mt-1 max-w-[400px]">
-                          Try broadening employee count or technology filters.
+                        <p className="text-[0.8rem] mt-1 max-w-100">
+                          {apolloError || (!hasCompanyFilters
+                            ? 'Add an industry keyword, location, size or technology, then press Search. Empty searches are skipped to save your Apollo quota.'
+                            : 'Try broadening employee count or technology filters.')}
                         </p>
                       </div>
                     ) : (

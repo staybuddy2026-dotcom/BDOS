@@ -518,15 +518,15 @@ export default function LeadDiscoveryPage() {
                   contactEmail: res.email || l.contactEmail,
                   contactPhone: res.phone || l.contactPhone,
                   contactLinkedinUrl: res.linkedinUrl || l.contactLinkedinUrl,
-                  whyContactReason: `Verified Apollo B2B Contact: ${l.recommendedContactName} (${l.recommendedContactTitle}). Email: ${res.email ? 'Live Verified' : 'Unverified'}`,
+                  whyContactReason: `Apollo contact: ${l.recommendedContactName} (${l.recommendedContactTitle}). ${res.email ? 'Email revealed by Apollo.' : 'Phone revealed by Apollo.'}`,
                 }
                 : l
             ),
           };
         });
-        triggerNotification('success', `Live Apollo contact details revealed for ${company.recommendedContactName}!`);
+        triggerNotification('success', `Apollo contact details revealed for ${company.recommendedContactName}.`);
       } else {
-        triggerNotification('error', `Apollo API returned no unrevealed email/phone for ${company.recommendedContactName}. Try configuring live APOLLO_API_KEY in App Settings.`);
+        triggerNotification('error', res.error || `Apollo has no email or phone on file for ${company.recommendedContactName}.`);
       }
     } catch {
       triggerNotification('error', 'Apollo contact enrichment failed.');
@@ -1074,7 +1074,7 @@ export default function LeadDiscoveryPage() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', fontWeight: 800, color: '#6366f1' }}>
                           <ShieldCheck size={16} style={{ color: '#6366f1' }} />
-                          <span>Verified Apollo B2B Direct Contact Details ({lead.recommendedContactName})</span>
+                          <span>Apollo Contact Details ({lead.recommendedContactName})</span>
                         </div>
                         <button
                           type="button"

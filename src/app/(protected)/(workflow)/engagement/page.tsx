@@ -1,7 +1,6 @@
 import { AuthService } from '@/lib/auth';
 import { generateOutreachDraftAction, getEngagementTelemetryAction } from '@/features/outreach/actions';
 import { EngagementWorkspace } from '@/components/outreach/EngagementWorkspace';
-import { OutreachCampaignDashboard } from '@/components/outreach/OutreachCampaignDashboard';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { Send } from 'lucide-react';
 import blob from '@/assets/blob.png';
@@ -15,7 +14,7 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
   const targetDomain = resolvedParams?.domain || '';
 
   const telemetry = await getEngagementTelemetryAction();
-  const initialDraft = await generateOutreachDraftAction(targetDomain, 'EMAIL', 'COLD_OUTREACH', 'EXECUTIVE', false);
+  const initialDraft = await generateOutreachDraftAction(targetDomain, 'EMAIL', 'COLD_OUTREACH', 'EXECUTIVE', false, false);
 
   return (
     <div className="dashboard-page" style={{ 
@@ -55,7 +54,10 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ fontSize: '0.76rem', background: 'var(--color-success-bg, #ecfdf5)', color: 'var(--color-success, #047857)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '4px 10px', borderRadius: '20px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-success, #10b981)' }} /> Response Rate {telemetry.responseRatePercent}% • {telemetry.meetingsBookedCount} Meetings Booked This Month 🚀
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-success, #10b981)' }} />
+            {telemetry.sentCount
+              ? `Reply rate ${telemetry.responseRatePercent}% of ${telemetry.sentCount} sent • ${telemetry.meetingsBookedCount} meeting${telemetry.meetingsBookedCount === 1 ? '' : 's'} booked`
+              : `${telemetry.activeSequences ?? 0} active sequence${telemetry.activeSequences === 1 ? '' : 's'} • no sends tracked yet`}
           </div>
         </div>
       </div>
@@ -81,11 +83,8 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
           badge="Omnichannel Engagement"
         />
 
-        {/* Client Workspace Component */}
+        {/* Client Workspace Component (includes the active sequences table) */}
         <EngagementWorkspace initialDraft={initialDraft} telemetry={telemetry} />
-
-        {/* Campaigns Dashboard */}
-        <OutreachCampaignDashboard />
         </div>
       </div>
     </div>

@@ -21,14 +21,14 @@ export class ProviderRegistry {
   }
 
   /**
-   * V1: Apollo.io is the only live provider. LinkedIn, Crunchbase and GitHub
-   * are registered as visible "Coming Soon" placeholders (see their getStatus()),
-   * so the UI can list the full roadmap without fabricating data for them.
+   * Apollo.io and LinkedIn are live (LinkedIn connects as soon as its scraper key is set).
+   * Crunchbase and GitHub are registered as visible "Coming Soon" placeholders
+   * (see their getStatus()), so the UI can list the roadmap without fabricating data.
    */
   private registerDefaultProviders() {
     // 1. Apollo.io — live
     this.register(new ApolloLeadProvider());
-    // 2. LinkedIn — coming soon
+    // 2. LinkedIn — live once LINKEDIN_SCRAPER_API_KEY is configured
     this.register(new LinkedInLeadProvider());
     // 3. Crunchbase — coming soon
     this.register(new CrunchbaseLeadProvider());

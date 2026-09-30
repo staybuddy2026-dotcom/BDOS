@@ -1,65 +1,101 @@
 'use client';
 
-import { FollowupStage } from '@/features/outreach/types';
-import { Clock, Sparkles, CheckCircle2 } from 'lucide-react';
+import { FollowupStage, SequenceStepDraft } from '@/features/outreach/types';
+import { Check, AlertTriangle, ListChecks } from 'lucide-react';
+import s from './outreach.module.css';
+
+export const STAGES: { id: FollowupStage; day: number; label: string; desc: string }[] = [
+  { id: 'STAGE_1_INITIAL', day: 1, label: 'Relevance', desc: 'Specific reason and one open question' },
+  { id: 'STAGE_2_FOLLOWUP', day: 3, label: 'New angle', desc: 'A fresh observation that gives value' },
+  { id: 'STAGE_3_VALUE_ADD', day: 7, label: 'Bottleneck & proof', desc: 'Hypothesis plus a real portfolio match' },
+  { id: 'STAGE_4_BREAKUP', day: 14, label: 'Close the loop', desc: 'Short, no pressure sign off' },
+];
+
+const formatDue = (startAt: string, day: number) =>
+  new Date(new Date(startAt).getTime() + (day - 1) * 86400000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+// First real line of the message (skips the greeting) as a one-line preview.
+const preview = (body: string) => body.split('\n').map((l) => l.trim()).filter(Boolean)[1] || '';
 
 export function FollowupTimeline({
   currentStage,
-  onSelectStage
+  onSelectStage,
+  sequence,
+  sentStages = [],
+  scheduledStartAt,
+  disabled = false,
 }: {
   currentStage: FollowupStage;
   onSelectStage?: (stage: FollowupStage) => void;
+  sequence?: SequenceStepDraft[];
+  sentStages?: FollowupStage[];
+  scheduledStartAt?: string;
+  disabled?: boolean;
 }) {
-  const stages = [
-    { id: 'STAGE_1_INITIAL' as const, label: 'Day 1: Initial Touch', desc: 'Technical & Value-Add Intro' },
-    { id: 'STAGE_2_FOLLOWUP' as const, label: 'Day 3: Quick Follow-up', desc: 'Case study & squad availability' },
-    { id: 'STAGE_3_VALUE_ADD' as const, label: 'Day 7: Architecture Blueprint', desc: 'Free microservices audit' },
-    { id: 'STAGE_4_BREAKUP' as const, label: 'Day 14: Final Check-in', desc: 'Closing the loop' },
-  ];
+  const hasSequence = !!sequence?.length;
+  const sentCount = sentStages.length;
 
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Clock size={19} style={{ color: '#6366f1' }} /> Automated Multi-Stage Outreach Sequence
+    <section className={s.card} aria-label="Outreach sequence">
+      <div className={s.cardHeader}>
+        <div>
+          <h3 className={s.cardTitle}>
+            <span className={s.iconTile}><ListChecks size={16} /></span>
+            4-Stage Sequence
+          </h3>
+          <p className={s.cardSubtitle}>
+            {hasSequence ? 'Select a stage to review and edit its message.' : 'Available for the Email and LinkedIn DM channels.'}
+          </p>
         </div>
-        <span style={{ fontSize: '0.76rem', background: '#eef2ff', color: '#6366f1', padding: '4px 10px', borderRadius: '4px', fontWeight: 700 }}>
-          4-Stage Sequence Active
-        </span>
+        {hasSequence && (
+          <span className={`${s.badge} ${sentCount === 4 ? s.badgeGreen : s.badgeIndigo}`}>
+            {sentCount}/4 sent
+          </span>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
-        {stages.map((st, idx) => {
-          const isCurrent = currentStage === st.id;
+      <div className={s.stageList}>
+        {STAGES.map((st, idx) => {
+          const step = sequence?.find((x) => x.stage === st.id);
+          const active = hasSequence && currentStage === st.id;
+          const sent = sentStages.includes(st.id);
+          const needsReview = !!step && !sent && (step.confidence === 'low' || step.qualityWarnings.length > 0);
           return (
-            <div
+            <button
               key={st.id}
-              onClick={() => onSelectStage && onSelectStage(st.id)}
-              style={{
-                background: isCurrent ? '#eef2ff' : '#ffffff',
-                border: isCurrent ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
-                borderRadius: '8px',
-                padding: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                cursor: onSelectStage ? 'pointer' : 'default',
-                transition: 'all 0.15s ease',
-                boxShadow: isCurrent ? '0 2px 8px rgba(99, 102, 241, 0.1)' : 'none',
-              }}
+              type="button"
+              disabled={!hasSequence || disabled}
+              aria-current={active ? 'step' : undefined}
+              onClick={() => onSelectStage?.(st.id)}
+              className={`${s.stage} ${active ? s.stageActive : ''}`}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: isCurrent ? '#6366f1' : '#64748b' }}>
-                  Stage {idx + 1}
+              <span className={`${s.stageNum} ${sent ? s.stageNumSent : ''}`}>
+                {sent ? <Check size={16} /> : idx + 1}
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span className={s.stageTitle}>
+                  {st.label}
+                  <span className={s.stageDay}>
+                    Day {st.day}{scheduledStartAt ? ` · ${formatDue(scheduledStartAt, st.day)}` : ''}
+                  </span>
                 </span>
-                {isCurrent ? <Sparkles size={15} style={{ color: '#6366f1' }} /> : <CheckCircle2 size={15} style={{ color: '#10b981' }} />}
-              </div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>{st.label}</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>{st.desc}</div>
-            </div>
+                <span className={s.stageDesc} style={{ display: 'block' }}>
+                  {step ? preview(step.bodyContent) || st.desc : st.desc}
+                </span>
+              </span>
+              {sent ? (
+                <span className={`${s.badge} ${s.badgeGreen}`}>Sent</span>
+              ) : needsReview ? (
+                <span className={`${s.badge} ${s.badgeAmber}`} title="Low confidence or rule warning: review before sending">
+                  <AlertTriangle size={12} /> Review
+                </span>
+              ) : step ? (
+                <span className={`${s.badge} ${s.badgeGray}`}>Ready</span>
+              ) : null}
+            </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

@@ -39,6 +39,7 @@ import { evaluateNegativeQualification } from '@/features/icp/negativeQualificat
 import { estimateProjectValue } from '@/features/icp/valueEngine';
 import { analyzeCompetitiveFit } from '@/features/icp/competitiveFit';
 import { DecisionMakerPanel } from '@/components/company360/DecisionMakerPanel';
+import { LinkedInInsightsPanel } from '@/components/company360/LinkedInInsightsPanel';
 
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { WorkflowGuide } from '@/components/WorkflowGuide';
@@ -67,7 +68,7 @@ export default function Company360WorkspacePage() {
   // Selected Profile for 360 Drawer
   const [selectedProfile, setSelectedProfile] = useState<Company360Profile | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'overview' | 'decision-makers' | 'playbook' | 'timeline'>('overview');
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'decision-makers' | 'playbook' | 'linkedin' | 'timeline'>('overview');
   const [profileLoading, setProfileLoading] = useState(false);
 
   // Notification Toast
@@ -957,6 +958,7 @@ export default function Company360WorkspacePage() {
                       { id: 'overview', label: '🏢 Company Overview' },
                       { id: 'decision-makers', label: `👥 Decision Makers (${selectedProfile.decisionMakers.length})` },
                       { id: 'playbook', label: '📘 Opportunity Playbook' },
+                      { id: 'linkedin', label: '🔗 LinkedIn' },
                       { id: 'timeline', label: '📜 Apollo Timeline' }
                     ].map(tab => (
                       <button
@@ -1027,6 +1029,15 @@ export default function Company360WorkspacePage() {
                   )}
 
 
+
+                  {drawerTab === 'linkedin' && (
+                    <LinkedInInsightsPanel
+                      key={selectedProfile.domain}
+                      domain={selectedProfile.domain}
+                      companyName={selectedProfile.overview.companyName}
+                      linkedinUrl={selectedProfile.overview.linkedinPageUrl}
+                    />
+                  )}
 
                   {drawerTab === 'timeline' && (
                     <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

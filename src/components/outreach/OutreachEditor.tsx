@@ -1,499 +1,470 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { OutreachMessageDraft } from '@/features/outreach/types';
-import { Send, Check, ShieldCheck, Copy, Pause, Play, Calendar, Mail, CheckCircle2, Clock } from 'lucide-react';
+import {
+  Check, Copy, Loader2, AlertTriangle, Info, ShieldCheck, RefreshCw, Mail, ExternalLink, CircleCheck,
+  CalendarClock, PauseCircle, PlayCircle, Send, X, Wand2,
+} from 'lucide-react';
 import { z } from 'zod';
+import { STAGES } from './FollowupTimeline';
+import s from './outreach.module.css';
 
-const TestEmailSchema = z.string().email("Please enter a valid test email address");
-const ScheduleDateSchema = z.string().min(1, "Please select a schedule date and time");
-const ContentSchema = z.object({
-  subject: z.string().min(3, "Subject line is required"),
-  body: z.string().min(10, "Email body is required")
-});
+const TestEmailSchema = z.string().trim().email('Enter a valid email address');
+const TEST_EMAIL_KEY = 'bdos_outreach_test_email';
 
-const copyToClipboard = (text: string): boolean => {
+export const copyToClipboard = async (text: string): Promise<boolean> => {
   if (!text) return false;
   try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch { }
-
+  } catch { /* fall back below */ }
   try {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '0';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    document.body.appendChild(el);
+    el.select();
     const ok = document.execCommand('copy');
-    document.body.removeChild(textArea);
+    document.body.removeChild(el);
     return ok;
   } catch {
     return false;
   }
 };
 
+// The message itself, excluding the auto-appended email sign off ("Name\nRole, Tiny Script Soft Tech").
+const messageOnly = (body: string) => body.replace(/\n\n[^\n]+\n[^\n]*Tiny Script Soft Tech\s*$/, '');
+const messageWordCount = (body: string) => messageOnly(body).split(/\s+/).filter(Boolean).length;
+
+// LinkedIn caps connection request notes at 300 characters.
+const LINKEDIN_NOTE_LIMIT = 300;
+
+const toLocalInput = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const defaultStart = () => {
+  const d = new Date(Date.now() + 86400000);
+  d.setHours(10, 0, 0, 0);
+  return toLocalInput(d);
+};
+
+const openMailto = (to: string, subject: string, body: string) => {
+  const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = url;
+};
+
+export type EditorBusy = 'schedule' | 'send' | 'pause' | null;
+
 export function OutreachEditor({
-  initialDraft,
-  onApprove
+  draft,
+  isGenerating,
+  busy,
+  onChange,
+  onRegenerate,
+  onSchedule,
+  onMarkSent,
+  onTogglePause,
+  notify,
+  onAddResearch,
+  hasResearch = false,
 }: {
-  initialDraft: OutreachMessageDraft;
-  onSave?: (draft: OutreachMessageDraft) => void;
-  onApprove: (id: string) => void;
+  onAddResearch?: () => void;
+  hasResearch?: boolean;
+  draft: OutreachMessageDraft;
+  isGenerating: boolean;
+  busy: EditorBusy;
+  onChange: (patch: { subjectLine?: string; bodyContent?: string }) => void;
+  onRegenerate: () => void;
+  onSchedule: (startAt?: string) => Promise<boolean>;
+  onMarkSent: () => void;
+  onTogglePause: () => void;
+  notify: (msg: string, isError?: boolean) => void;
 }) {
-  const [draft, setDraft] = useState<OutreachMessageDraft>(initialDraft);
-  const [sequenceStatus, setSequenceStatus] = useState<'DRAFT' | 'SCHEDULED' | 'RUNNING' | 'PAUSED' | 'SENT' | 'CANCELLED'>(
-    initialDraft.status === 'APPROVED' ? 'SCHEDULED' : 'DRAFT'
-  );
-
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [testEmailAddress, setTestEmailAddress] = useState('bde.lead@tinyscript.io');
-  const [scheduleDateTime, setScheduleDateTime] = useState('2026-08-21T10:00');
-  const [notification, setNotification] = useState<string | null>(null);
-  
+  const [modal, setModal] = useState<'test' | 'schedule' | null>(null);
+  // Lazy init is hydration-safe here: the input only renders inside the (client-opened) modal.
+  const [testEmail, setTestEmail] = useState(() => {
+    try { return typeof window === 'undefined' ? '' : localStorage.getItem(TEST_EMAIL_KEY) || ''; } catch { return ''; }
+  });
   const [testEmailError, setTestEmailError] = useState<string | null>(null);
-  const [scheduleDateError, setScheduleDateError] = useState<string | null>(null);
-  const [contentErrors, setContentErrors] = useState<Record<string, string>>({});
+  const [startAt, setStartAt] = useState(defaultStart);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ subject?: string; body?: string }>({});
 
+  // Close modals with Escape.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDraft(initialDraft);
-      setSequenceStatus(initialDraft.status === 'APPROVED' ? 'SCHEDULED' : 'DRAFT');
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [initialDraft]);
+    if (!modal) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setModal(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modal]);
 
-  const triggerToast = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+  const isEmail = draft.channel !== 'LINKEDIN';
+  const stepIndex = Math.max(0, STAGES.findIndex((st) => st.id === draft.followupStage));
+  const stageMeta = STAGES[stepIndex];
+  const activeStep = draft.sequence?.find((st) => st.stage === draft.followupStage);
+  const isSent = !!draft.sentStages?.includes(draft.followupStage);
+  const isScheduled = !!draft.scheduledStartAt;
+  const words = messageWordCount(draft.bodyContent);
+  const maxWords = activeStep?.stageNumber === 4 ? 50 : isEmail ? 90 : 60;
+  // LinkedIn stage 1 goes out as a connection note, so characters matter, not words.
+  const isConnectionNote = !isEmail && activeStep?.stageNumber === 1;
+  const chars = messageOnly(draft.bodyContent).trim().length;
+  const lengthOver = isConnectionNote ? chars > LINKEDIN_NOTE_LIMIT : words > maxWords;
+  const needsInfo = activeStep?.confidence === 'low';
+  const locked = isGenerating || busy !== null;
+
+  const validate = () => {
+    const next: typeof errors = {};
+    if (isEmail && draft.subjectLine.trim().length < 3) next.subject = 'Add a subject line (at least 3 characters).';
+    if (draft.bodyContent.trim().length < 10) next.body = 'The message body is too short.';
+    setErrors(next);
+    if (Object.keys(next).length) notify('Please fix the highlighted fields first.', true);
+    return Object.keys(next).length === 0;
   };
 
-  const handleCopy = (text: string, key: string) => {
-    const ok = copyToClipboard(text);
+  const handleCopy = async (text: string, key: string, label: string) => {
+    const ok = await copyToClipboard(text);
     if (ok) {
       setCopiedKey(key);
-      triggerToast(`Copied ${key.replace('-', ' ')} to clipboard!`);
-      setTimeout(() => setCopiedKey(null), 2000);
+      notify(`${label} copied to clipboard`);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1800);
     } else {
-      triggerToast('Failed to copy. Please select text manually.');
+      notify('Copy failed. Please select the text manually.', true);
     }
   };
 
-  const handleSendNow = () => {
-    try {
-      ContentSchema.parse({ subject: draft.subjectLine, body: draft.bodyContent });
-      setContentErrors({});
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        const fieldErrs: Record<string, string> = {};
-        err.issues.forEach(e => fieldErrs[e.path[0] as string] = e.message);
-        setContentErrors(fieldErrs);
-        triggerToast("Please fix the validation errors before sending.");
-      }
-      return;
-    }
-    setSequenceStatus('SENT');
-    onApprove(draft.id);
-    triggerToast(`🚀 Email sent immediately to ${draft.targetContactName} (${draft.targetContactEmail || 'Lead'})!`);
-  };
-
-  const handleApproveSchedule = () => {
-    try {
-      ContentSchema.parse({ subject: draft.subjectLine, body: draft.bodyContent });
-      setContentErrors({});
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        const fieldErrs: Record<string, string> = {};
-        (err as any).errors.forEach((e: any) => fieldErrs[e.path[0] as string] = e.message);
-        setContentErrors(fieldErrs);
-        triggerToast("Please fix the validation errors before approving.");
-      }
-      return;
-    }
-    setSequenceStatus('SCHEDULED');
-    onApprove(draft.id);
-    triggerToast(`📅 Outreach sequence approved and scheduled for ${draft.companyName}!`);
-  };
-
-  const handleTogglePause = () => {
-    if (sequenceStatus === 'PAUSED') {
-      setSequenceStatus('RUNNING');
-      triggerToast('▶ Sequence resumed. Automated follow-ups active.');
+  const handleOpenChannel = async () => {
+    if (!validate()) return;
+    if (isEmail) {
+      openMailto(draft.targetContactEmail || '', draft.subjectLine, draft.bodyContent);
+      notify(draft.targetContactEmail
+        ? 'Opened in your email app. Click "Mark as sent" after sending.'
+        : 'No email on file, add the recipient in your email app.');
     } else {
-      setSequenceStatus('PAUSED');
-      triggerToast('⏸ Sequence paused. Automated follow-ups suspended.');
+      await handleCopy(draft.bodyContent, 'li', 'Message');
+      if (draft.targetContactLinkedin) window.open(draft.targetContactLinkedin, '_blank', 'noopener,noreferrer');
+      else notify('Message copied. No LinkedIn profile on file for this contact.', true);
     }
   };
 
   const handleSendTest = () => {
-    try {
-      TestEmailSchema.parse(testEmailAddress);
-      setTestEmailError(null);
-    } catch (err) {
-      if (err instanceof z.ZodError) setTestEmailError(err.errors[0].message);
+    const parsed = TestEmailSchema.safeParse(testEmail);
+    if (!parsed.success) {
+      setTestEmailError(parsed.error.issues[0].message);
       return;
     }
-    setShowTestModal(false);
-    triggerToast(`⚡ Sample preview email dispatched to ${testEmailAddress}!`);
+    try { localStorage.setItem(TEST_EMAIL_KEY, parsed.data); } catch { /* ignore */ }
+    setTestEmailError(null);
+    setModal(null);
+    openMailto(parsed.data, `[TEST] ${draft.subjectLine}`, draft.bodyContent);
+    notify(`Test draft opened in your email app for ${parsed.data}`);
   };
 
-  const handleConfirmSchedule = () => {
-    try {
-      ScheduleDateSchema.parse(scheduleDateTime);
-      setScheduleDateError(null);
-    } catch (err) {
-      if (err instanceof z.ZodError) setScheduleDateError(err.errors[0].message);
-      return;
-    }
-    setShowScheduleModal(false);
-    setSequenceStatus('SCHEDULED');
-    onApprove(draft.id);
-    triggerToast(`📅 Custom dispatch scheduled for ${scheduleDateTime.replace('T', ' ')}!`);
+  const handleConfirmSchedule = async () => {
+    const d = new Date(startAt);
+    if (!startAt || Number.isNaN(d.getTime())) return setStartError('Pick a valid date and time.');
+    if (d.getTime() < Date.now() - 60000) return setStartError('The start date must be in the future.');
+    if (!validate()) return;
+    setStartError(null);
+    if (await onSchedule(d.toISOString())) setModal(null);
   };
+
+  const handleApproveNow = () => {
+    if (validate()) onSchedule();
+  };
+
+  const schedulePreview = (() => {
+    const d = new Date(startAt);
+    if (Number.isNaN(d.getTime())) return [];
+    return STAGES.map((st) => ({
+      label: `Stage ${STAGES.indexOf(st) + 1} · ${st.label}`,
+      date: new Date(d.getTime() + (st.day - 1) * 86400000).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+    }));
+  })();
 
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
-      {/* Toast Notification */}
-      {notification && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '2px solid var(--accent-indigo)', padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
-          <CheckCircle2 size={20} style={{ color: 'var(--accent-indigo)' }} /> {notification}
+    <section className={`${s.card} ${s.editorCard}`} aria-label="Message editor" aria-busy={isGenerating}>
+      {isGenerating && (
+        <div className={s.overlay} role="status">
+          <Loader2 size={28} className={s.spin} style={{ color: 'var(--o-accent)' }} />
+          <div className={s.overlayTitle}>Writing the 4-stage sequence</div>
+          <div className={s.overlayText}>Reading prospect signals, drafting each stage and checking it against the outreach rules. This can take up to a minute.</div>
+          <div className={s.skeletonGroup}>
+            <div className={s.skeleton} />
+            <div className={s.skeleton} style={{ width: '85%' }} />
+            <div className={s.skeleton} style={{ width: '65%' }} />
+          </div>
         </div>
       )}
 
-      {/* Header Row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.7rem', background: '#eef2ff', color: '#6366f1', padding: '4px 10px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>
-              {draft.channel} • {draft.category}
-            </span>
-            {sequenceStatus === 'RUNNING' && <span style={{ fontSize: '0.7rem', background: '#eef2ff', color: '#6366f1', border: '1px solid #6366f1', padding: '3px 10px', borderRadius: '12px', fontWeight: 800 }}>● Sequence Running</span>}
-            {sequenceStatus === 'PAUSED' && <span style={{ fontSize: '0.7rem', background: 'rgba(234, 179, 8, 0.15)', color: '#d97706', border: '1px solid #f59e0b', padding: '3px 10px', borderRadius: '12px', fontWeight: 800 }}>⏸ Sequence Paused</span>}
-            {sequenceStatus === 'SENT' && <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid #10b981', padding: '3px 10px', borderRadius: '12px', fontWeight: 800 }}>✓ Email Sent</span>}
-            {sequenceStatus === 'SCHEDULED' && <span style={{ fontSize: '0.7rem', background: '#eef2ff', color: '#6366f1', border: '1px solid #6366f1', padding: '3px 10px', borderRadius: '12px', fontWeight: 800 }}>📅 Scheduled</span>}
+      {/* Header */}
+      <div className={s.editorHead}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className={s.badgeRow}>
+            <span className={`${s.badge} ${s.badgeIndigo}`}>{isEmail ? (draft.channel === 'EMAIL' ? 'Email' : draft.channel === 'PROPOSAL_COVER' ? 'Proposal cover' : 'Call invite') : 'LinkedIn DM'}</span>
+            {activeStep && <span className={`${s.badge} ${s.badgeGray}`}>Stage {stepIndex + 1} of 4 · {stageMeta.label}</span>}
+            {draft.sequenceLanguage && <span className={`${s.badge} ${s.badgeGray}`}>{draft.sequenceLanguage}</span>}
+            {draft.sequenceSource === 'FALLBACK' && <span className={`${s.badge} ${s.badgeAmber}`}>Template fallback</span>}
+            {isSent && <span className={`${s.badge} ${s.badgeGreen}`}><CircleCheck size={12} /> Sent</span>}
+            {isScheduled && !draft.sequencePaused && <span className={`${s.badge} ${s.badgeGreen}`}><CalendarClock size={12} /> Scheduled</span>}
+            {draft.sequencePaused && <span className={`${s.badge} ${s.badgeAmber}`}><PauseCircle size={12} /> Paused</span>}
+          </div>
+          <h3 className={s.editorTitle}>{draft.targetContactName} · {draft.companyName}</h3>
+          <div className={s.editorMeta}>
+            {draft.targetContactTitle}
+            <span aria-hidden>·</span>
+            {isEmail
+              ? (draft.targetContactEmail || <span className={s.contactEmpty}>no email on file</span>)
+              : (draft.targetContactLinkedin ? 'LinkedIn profile on file' : <span className={s.contactEmpty}>no LinkedIn profile on file</span>)}
+          </div>
+        </div>
+        <div className={s.headActions}>
+          <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={onRegenerate} disabled={locked} title="Write a fresh sequence for this prospect">
+            <RefreshCw size={14} /> Regenerate
+          </button>
+          <button
+            type="button"
+            className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+            onClick={() => handleCopy(isEmail ? `Subject: ${draft.subjectLine}\n\n${draft.bodyContent}` : draft.bodyContent, 'all', isEmail ? 'Subject and message' : 'Message')}
+            disabled={isGenerating}
+          >
+            {copiedKey === 'all' ? <Check size={14} /> : <Copy size={14} />} {copiedKey === 'all' ? 'Copied' : 'Copy all'}
+          </button>
+        </div>
+      </div>
+
+      {/* Quality metrics (real generator output) */}
+      {activeStep ? (
+        <>
+          <div className={s.metricGrid}>
+            <div className={s.metric}>
+              <div className={s.metricLabel}>Confidence</div>
+              <div className={`${s.metricValue} ${activeStep.confidence === 'high' ? s.good : s.warn}`}>{activeStep.confidence === 'high' ? 'High' : 'Low'}</div>
+            </div>
+            <div className={s.metric} title={activeStep.proofUsed}>
+              <div className={s.metricLabel}>Proof used</div>
+              <div className={`${s.metricValue} ${s.accent}`}>{activeStep.proofUsed === 'none' ? 'None' : activeStep.proofUsed}</div>
+            </div>
+            <div className={s.metric} title={isConnectionNote ? 'LinkedIn connection notes are limited to 300 characters' : undefined}>
+              <div className={s.metricLabel}>{isConnectionNote ? 'Note length' : 'Words'}</div>
+              <div className={`${s.metricValue} ${lengthOver ? s.bad : s.good}`}>
+                {isConnectionNote ? chars : words} <span className={s.metricSmall}>/ {isConnectionNote ? `${LINKEDIN_NOTE_LIMIT} chars` : maxWords}</span>
+              </div>
+            </div>
+            <div className={s.metric}>
+              <div className={s.metricLabel}>Ready to send</div>
+              {activeStep.qualityWarnings.length > 0 || lengthOver
+                ? <div className={`${s.metricValue} ${s.warn}`}><AlertTriangle size={15} /> Review</div>
+                : needsInfo
+                  ? <div className={`${s.metricValue} ${s.warn}`}><Info size={15} /> Needs info</div>
+                  : <div className={`${s.metricValue} ${s.good}`}><ShieldCheck size={15} /> Yes</div>}
+            </div>
           </div>
 
-          <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', margin: '8px 0 4px 0', letterSpacing: '-0.01em' }}>
-            Outreach to {draft.targetContactName} ({draft.targetContactTitle}) at {draft.companyName}
-          </h3>
-          <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>Target Contact: {draft.targetContactEmail || draft.targetContactLinkedin || 'Executive Lead'}</span>
-        </div>
+          {needsInfo && draft.sequenceSource !== 'FALLBACK' && (
+            <div className={`${s.notice} ${s.noticeWarn}`}>
+              <AlertTriangle size={16} className={s.noticeIcon} />
+              <span style={{ flex: 1 }}>
+                <strong>Not specific enough to send yet.</strong>{' '}
+                {hasResearch
+                  ? 'Even with your research, the AI flagged gaps (see below). Add more detail, or edit the message yourself.'
+                  : 'The AI only had a name, title and company, so this reads generic. Paste their LinkedIn About or a recent post and regenerate.'}
+              </span>
+              {onAddResearch && (
+                <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={onAddResearch}>
+                  {hasResearch ? 'Edit research' : 'Add research'}
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* 1-Click Copy Full Package Button */}
-        <button
-          type="button"
-          onClick={() => handleCopy(`Subject: ${draft.subjectLine}\n\n${draft.bodyContent}`, 'full-package')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            background: copiedKey === 'full-package' ? '#dcfce7' : '#ffffff',
-            color: copiedKey === 'full-package' ? '#15803d' : '#0f172a',
-            border: copiedKey === 'full-package' ? '1.5px solid #16a34a' : '1px solid #e2e8f0',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.15s ease',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-          }}
-          title="Copy Subject Line + Body Content to clipboard"
-        >
-          {copiedKey === 'full-package' ? <Check size={16} style={{ color: '#16a34a' }} /> : <Copy size={16} style={{ color: '#64748b' }} />}
-          {copiedKey === 'full-package' ? 'Copied Full Draft!' : 'Copy Full Email Draft'}
-        </button>
+          {activeStep.qualityWarnings.length > 0 && (
+            <div className={`${s.notice} ${s.noticeWarn}`}>
+              <AlertTriangle size={16} className={s.noticeIcon} />
+              <span><strong>Rule warnings:</strong> {activeStep.qualityWarnings.join('; ')}. Edit the message before sending.</span>
+            </div>
+          )}
+          {activeStep.missingInfo && (
+            <div className={`${s.notice} ${s.noticeInfo}`}>
+              <Info size={16} className={s.noticeIcon} />
+              <span><strong>{draft.sequenceSource === 'FALLBACK' ? 'AI unavailable: ' : 'Missing info: '}</strong>{activeStep.missingInfo}</span>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className={`${s.notice} ${s.noticeInfo}`}>
+          <Wand2 size={16} className={s.noticeIcon} />
+          <span>This channel uses a single message template. Switch to <strong>Email</strong> or <strong>LinkedIn DM</strong> for the AI-written 4-stage sequence.</span>
+        </div>
+      )}
+
+      {/* Fields */}
+      <div>
+        <div className={s.fieldHead}>
+          <label className={s.label} htmlFor="outreach-subject">{isEmail ? 'Subject line' : 'InMail title (optional)'}</label>
+          <button type="button" className={`${s.iconBtn} ${copiedKey === 'subject' ? s.iconBtnDone : ''}`} onClick={() => handleCopy(draft.subjectLine, 'subject', 'Subject')} aria-label="Copy subject">
+            {copiedKey === 'subject' ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        </div>
+        <input
+          id="outreach-subject"
+          className={`${s.input} ${errors.subject ? s.inputError : ''}`}
+          value={draft.subjectLine}
+          disabled={isGenerating}
+          onChange={(e) => { onChange({ subjectLine: e.target.value }); if (errors.subject) setErrors({ ...errors, subject: undefined }); }}
+        />
+        {errors.subject && <div className={s.fieldError} style={{ marginTop: 6 }}>{errors.subject}</div>}
       </div>
 
-      {/* Outreach Sequence Control Operations Bar */}
-      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Clock size={18} style={{ color: '#6366f1' }} /> Sequence Operation Controls:
+      <div>
+        <div className={s.fieldHead}>
+          <label className={s.label} htmlFor="outreach-body">Message</label>
+          <button type="button" className={`${s.iconBtn} ${copiedKey === 'body' ? s.iconBtnDone : ''}`} onClick={() => handleCopy(draft.bodyContent, 'body', 'Message')} aria-label="Copy message">
+            {copiedKey === 'body' ? <Check size={14} /> : <Copy size={14} />}
+          </button>
         </div>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Send Now Button */}
-          <button
-            type="button"
-            onClick={handleSendNow}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '6px',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
-              color: '#ffffff',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <Send size={15} /> Send Now
-          </button>
-
-          {/* Pause / Resume Button */}
-          {(sequenceStatus === 'SCHEDULED' || sequenceStatus === 'RUNNING' || sequenceStatus === 'PAUSED') && (
-            <button
-              type="button"
-              onClick={handleTogglePause}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: '0.9rem',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                background: sequenceStatus === 'PAUSED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.12)',
-                color: sequenceStatus === 'PAUSED' ? '#10b981' : '#ef4444',
-                border: sequenceStatus === 'PAUSED' ? '1px solid #10b981' : '1px solid rgba(239, 68, 68, 0.4)',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              {sequenceStatus === 'PAUSED' ? <Play size={13} /> : <Pause size={13} />}
-              {sequenceStatus === 'PAUSED' ? 'Resume Sequence' : 'Pause Sequence'}
-            </button>
-          )}
-
-          {/* Send Test Email Button */}
-          <button
-            type="button"
-            onClick={() => setShowTestModal(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-              background: '#ffffff',
-              color: '#0f172a',
-              border: '1px solid #e2e8f0',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-            }}
-          >
-            <Mail size={15} style={{ color: '#10b981' }} /> Test Send
-          </button>
-
-          {/* Custom Date Schedule Button */}
-          <button
-            type="button"
-            onClick={() => setShowScheduleModal(true)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-              background: '#ffffff',
-              color: '#0f172a',
-              border: '1px solid #e2e8f0',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-            }}
-          >
-            <Calendar size={15} style={{ color: '#6366f1' }} /> Schedule Date
-          </button>
-
-          {/* Approve Button */}
-          {sequenceStatus === 'DRAFT' && (
-            <button
-              type="button"
-              onClick={handleApproveSchedule}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: '0.9rem',
-                fontWeight: 700,
-                letterSpacing: '0.06em',
-                background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
-                color: '#ffffff',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
-              }}
-            >
-              <Check size={16} /> Approve Sequence
-            </button>
-          )}
+        <textarea
+          id="outreach-body"
+          rows={11}
+          className={`${s.textarea} ${errors.body ? s.inputError : ''}`}
+          value={draft.bodyContent}
+          disabled={isGenerating}
+          onChange={(e) => { onChange({ bodyContent: e.target.value }); if (errors.body) setErrors({ ...errors, body: undefined }); }}
+        />
+        <div className={s.fieldFoot}>
+          {errors.body ? <span className={s.fieldError}>{errors.body}</span> : <span>Edits are kept per stage.</span>}
+          <span className={lengthOver ? s.bad : undefined}>
+            {isConnectionNote ? `${chars}/${LINKEDIN_NOTE_LIMIT} characters (connection note)` : `${words} words`}
+          </span>
         </div>
       </div>
 
-      {/* Test Send Modal */}
-      {showTestModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '440px', background: 'var(--bg-card)', padding: '24px', borderRadius: '14px', border: '1px solid var(--border-focus)', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 12px 32px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>⚡ Dispatch Preview Test Email</h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Send a real sample preview of this email draft to your inbox before launching to {draft.companyName}.
-            </p>
+      {/* Actions */}
+      <div className={s.actionBar}>
+        <div className={s.actionGroup}>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleOpenChannel} disabled={locked}>
+            {isEmail ? <><Mail size={15} /> Open in email app</> : <><ExternalLink size={15} /> Copy & open LinkedIn</>}
+          </button>
+          <button type="button" className={`${s.btn} ${isSent ? s.btnSuccess : s.btnSecondary}`} onClick={() => validate() && onMarkSent()} disabled={locked || isSent}>
+            {busy === 'send' ? <Loader2 size={15} className={s.spin} /> : <CircleCheck size={15} />}
+            {isSent ? `Stage ${stepIndex + 1} sent` : 'Mark as sent'}
+          </button>
+          {isEmail && (
+            <button type="button" className={`${s.btn} ${s.btnGhost}`} onClick={() => setModal('test')} disabled={locked}>
+              <Send size={15} /> Send test
+            </button>
+          )}
+        </div>
+
+        <div className={s.actionGroup}>
+          {isScheduled ? (
+            <>
+              <button type="button" className={`${s.btn} ${draft.sequencePaused ? s.btnSuccess : s.btnWarn}`} onClick={onTogglePause} disabled={locked}>
+                {busy === 'pause' ? <Loader2 size={15} className={s.spin} /> : draft.sequencePaused ? <PlayCircle size={15} /> : <PauseCircle size={15} />}
+                {draft.sequencePaused ? 'Resume' : 'Pause'}
+              </button>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setModal('schedule')} disabled={locked}>
+                <CalendarClock size={15} /> Save & reschedule
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setModal('schedule')} disabled={locked}>
+                <CalendarClock size={15} /> Pick start date
+              </button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleApproveNow} disabled={locked}>
+                {busy === 'schedule' ? <Loader2 size={15} className={s.spin} /> : <Check size={15} />} Approve & schedule
+              </button>
+            </>
+          )}
+        </div>
+        <div className={s.actionHint}>
+          {isEmail
+            ? 'Emails are sent from your own email app; use "Mark as sent" so the sequence tracks it.'
+            : 'LinkedIn messages are sent manually from LinkedIn; use "Mark as sent" so the sequence tracks it.'}
+          {isScheduled && ` Sequence started ${new Date(draft.scheduledStartAt!).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}.`}
+        </div>
+      </div>
+
+      {/* Test send modal */}
+      {modal === 'test' && (
+        <div className={s.backdrop} onClick={() => setModal(null)}>
+          <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="test-title" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <h3 className={s.modalTitle} id="test-title"><Send size={17} /> Send a test to yourself</h3>
+              <button type="button" className={s.iconBtn} onClick={() => setModal(null)} aria-label="Close"><X size={16} /></button>
+            </div>
+            <p className={s.modalText}>Opens this stage in your email app addressed to you, so you can check how it reads before it goes to {draft.targetContactName}.</p>
             <div>
-              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>Recipient Test Email</label>
+              <label className={s.label} htmlFor="test-email">Your email</label>
               <input
+                id="test-email"
                 type="email"
-                value={testEmailAddress}
-                onChange={(e) => setTestEmailAddress(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: testEmailError ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
+                autoFocus
+                placeholder="you@tinyscript.com"
+                className={`${s.input} ${testEmailError ? s.inputError : ''}`}
+                style={{ marginTop: 6 }}
+                value={testEmail}
+                onChange={(e) => { setTestEmail(e.target.value); setTestEmailError(null); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendTest()}
               />
-              {testEmailError && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{testEmailError}</span>}
+              {testEmailError && <div className={s.fieldError} style={{ marginTop: 6 }}>{testEmailError}</div>}
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
-              <button type="button" onClick={() => setShowTestModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>Cancel</button>
-              <button type="button" onClick={handleSendTest} className="btn-primary" style={{ padding: '8px 18px', fontSize: '0.8rem' }}>Send Sample</button>
+            <div className={s.modalActions}>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setModal(null)}>Cancel</button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleSendTest}><Mail size={15} /> Open test email</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Schedule Custom Date Modal */}
-      {showScheduleModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '440px', background: 'var(--bg-card)', padding: '24px', borderRadius: '14px', border: '1px solid var(--border-focus)', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 12px 32px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>📅 Schedule Custom Outreach Dispatch</h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Select exact date & time to launch this outreach sequence for {draft.companyName}.
-            </p>
+      {/* Schedule modal */}
+      {modal === 'schedule' && (
+        <div className={s.backdrop} onClick={() => busy === null && setModal(null)}>
+          <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="schedule-title" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <h3 className={s.modalTitle} id="schedule-title"><CalendarClock size={17} /> Schedule the sequence</h3>
+              <button type="button" className={s.iconBtn} onClick={() => setModal(null)} aria-label="Close"><X size={16} /></button>
+            </div>
+            <p className={s.modalText}>Saves your edited messages and schedules every unsent stage for {draft.companyName}, counted from the start date.</p>
             <div>
-              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>Dispatch Date & Time</label>
+              <label className={s.label} htmlFor="start-at">Start date (Stage 1)</label>
               <input
+                id="start-at"
                 type="datetime-local"
-                value={scheduleDateTime}
-                onChange={(e) => setScheduleDateTime(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: scheduleDateError ? '1px solid #ef4444' : '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.88rem', outline: 'none' }}
+                className={`${s.input} ${startError ? s.inputError : ''}`}
+                style={{ marginTop: 6 }}
+                min={toLocalInput(new Date())}
+                value={startAt}
+                onChange={(e) => { setStartAt(e.target.value); setStartError(null); }}
               />
-              {scheduleDateError && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{scheduleDateError}</span>}
+              {startError && <div className={s.fieldError} style={{ marginTop: 6 }}>{startError}</div>}
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
-              <button type="button" onClick={() => setShowScheduleModal(false)} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>Cancel</button>
-              <button type="button" onClick={handleConfirmSchedule} className="btn-primary" style={{ padding: '8px 18px', fontSize: '0.8rem' }}>Confirm Schedule</button>
+            {schedulePreview.length > 0 && (
+              <ul className={s.scheduleList}>
+                {schedulePreview.map((p, i) => (
+                  <li key={p.label} style={draft.sentStages?.includes(STAGES[i].id) ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>
+                    <span>{p.label}</span><strong>{p.date}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className={s.modalActions}>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setModal(null)} disabled={busy !== null}>Cancel</button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleConfirmSchedule} disabled={busy !== null}>
+                {busy === 'schedule' ? <Loader2 size={15} className={s.spin} /> : <Check size={15} />} Confirm schedule
+              </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* AI Content Quality Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '8px 12px' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Personalization</div>
-          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-success)', marginTop: '2px' }}>{draft.personalizationScore}%</div>
-        </div>
-
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '8px 12px' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tech Relevance</div>
-          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-indigo)', marginTop: '2px' }}>{draft.technicalRelevanceScore}%</div>
-        </div>
-
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '8px 12px' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Readability</div>
-          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-warning)', marginTop: '2px' }}>{draft.readabilityScore}%</div>
-        </div>
-
-        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '8px 12px' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Spam Risk</div>
-          <div style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--color-success)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <ShieldCheck size={14} /> LOW RISK
-          </div>
-        </div>
-      </div>
-
-      {/* Editor Fields with 1-Click Copy Buttons next to labels */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Subject Line Field */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-              Subject Line / InMail Title
-            </label>
-            <button
-              type="button"
-              onClick={() => handleCopy(draft.subjectLine, 'subject')}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                background: copiedKey === 'subject' ? '#dcfce7' : 'var(--bg-secondary)',
-                color: copiedKey === 'subject' ? '#15803d' : 'var(--text-secondary)',
-                border: copiedKey === 'subject' ? '1px solid #86efac' : '1px solid var(--border-subtle)',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-              title="Copy subject line to clipboard"
-            >
-              {copiedKey === 'subject' ? <Check size={12} style={{ color: '#16a34a' }} /> : <Copy size={12} />}
-              {copiedKey === 'subject' ? 'Copied Subject!' : 'Copy Subject'}
-            </button>
-          </div>
-          <input
-            type="text"
-            value={draft.subjectLine}
-            onChange={(e) => setDraft({ ...draft, subjectLine: e.target.value })}
-            style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-card)', border: contentErrors.subject ? '1px solid #ef4444' : '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '0.90rem', fontWeight: 600, outline: 'none' }}
-          />
-          {contentErrors.subject && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{contentErrors.subject}</span>}
-        </div>
-
-        {/* Message Body Field */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-              Personalized Message Body (AI Copywriting)
-            </label>
-            <button
-              type="button"
-              onClick={() => handleCopy(draft.bodyContent, 'body-text')}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                background: copiedKey === 'body-text' ? '#dcfce7' : 'var(--bg-secondary)',
-                color: copiedKey === 'body-text' ? '#15803d' : 'var(--text-secondary)',
-                border: copiedKey === 'body-text' ? '1px solid #86efac' : '1px solid var(--border-subtle)',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-              title="Copy email message body to clipboard"
-            >
-              {copiedKey === 'body-text' ? <Check size={12} style={{ color: '#16a34a' }} /> : <Copy size={12} />}
-              {copiedKey === 'body-text' ? 'Copied Message Body!' : 'Copy Body Text'}
-            </button>
-          </div>
-          <textarea
-            rows={10}
-            value={draft.bodyContent}
-            onChange={(e) => setDraft({ ...draft, bodyContent: e.target.value })}
-            style={{ width: '100%', padding: '14px', borderRadius: '10px', background: 'var(--bg-card)', border: contentErrors.body ? '1px solid #ef4444' : '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: '0.88rem', lineHeight: '1.6', fontFamily: 'inherit', outline: 'none' }}
-          />
-          {contentErrors.body && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>{contentErrors.body}</span>}
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }

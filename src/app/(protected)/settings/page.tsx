@@ -82,7 +82,7 @@ export default function SettingsPage() {
   const [apolloApiKey, setApolloApiKey] = useState('ap_live_98a7f432194b2');
 
   // Other Providers State
-  const [linkedinEnabled, setLinkedinEnabled] = useState('false');
+  const [linkedinEnabled, setLinkedinEnabled] = useState('true');
   const [linkedinApiKey, setLinkedinApiKey] = useState('');
   const [crunchbaseEnabled, setCrunchbaseEnabled] = useState('false');
   const [crunchbaseApiKey, setCrunchbaseApiKey] = useState('');
@@ -143,9 +143,18 @@ export default function SettingsPage() {
       setApolloAllowPersonalEmail(String(data.apolloAllowPersonalEmail ?? false));
       setApolloAllowPhone(String(data.apolloAllowPhone ?? false));
       setApolloCreditWarningThreshold(String(data.apolloCreditWarningThreshold ?? 20));
-      setApolloApiKey(data.apolloApiKey || 'ap_live_98a7f432194b2');
+      setApolloApiKey(data.apolloApiKey === 'ap_live_98a7f432194b2' ? '' : (data.apolloApiKey || ''));
+      
+      setLinkedinEnabled(String(data.linkedinEnabled ?? 'true'));
+      setLinkedinApiKey(data.linkedinApiKey || '');
+      setCrunchbaseEnabled(String(data.crunchbaseEnabled ?? 'false'));
+      setCrunchbaseApiKey(data.crunchbaseApiKey || '');
+      setGithubEnabled(String(data.githubEnabled ?? 'false'));
+      setGithubApiKey(data.githubApiKey || '');
+      setImmediateActionThreshold(String(data.immediateActionThreshold ?? '90'));
+      setDefaultSignature(data.defaultSignature || 'Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)');
 
-      setLinkedinEnabled(String(data.linkedinEnabled ?? false));
+      setLinkedinEnabled(String(data.linkedinEnabled ?? true));
       setLinkedinApiKey(data.linkedinApiKey || '');
       setCrunchbaseEnabled(String(data.crunchbaseEnabled ?? false));
       setCrunchbaseApiKey(data.crunchbaseApiKey || '');
@@ -666,7 +675,7 @@ export default function SettingsPage() {
                     placeholder="ap_live_xxxxxxxxxxxxxxxx"
                     style={{ width: '100%', padding: '8px 12px', fontSize: '0.82rem', fontFamily: 'monospace', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                   />
-                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>Update your live Apollo B2B REST API Key here. Saved securely to database.</span>
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>Used only when APOLLO_API_KEY is not set in .env (the .env key always takes priority).</span>
                 </div>
 
                 <div>
@@ -735,14 +744,17 @@ export default function SettingsPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
                 <div>
-                  <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>LinkedIn API Key</label>
+                  <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>LinkedIn Scraper Key (Apify API token)</label>
                   <input
                     type="password"
                     value={linkedinApiKey}
                     onChange={(e) => setLinkedinApiKey(e.target.value)}
-                    placeholder="Enter LinkedIn API Key"
+                    placeholder="apify_api_..."
                     style={{ width: '100%', padding: '8px 12px', fontSize: '0.82rem', fontFamily: 'monospace', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '6px' }}
                   />
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                    LinkedIn data comes through Apify scrapers. Used only when LINKEDIN_SCRAPER_API_KEY is not set in .env (the .env key takes priority). Check the live connection on the <a href="/linkedin" style={{ color: '#2563eb' }}>LinkedIn page</a> or with Test Connection under Connectors.
+                  </span>
                 </div>
                 <div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Integration Status</label>
@@ -869,7 +881,7 @@ export default function SettingsPage() {
                 <div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Intelligence Weighting Model</label>
                   <div style={{ fontSize: '0.76rem', color: '#64748b', background: '#ffffff', border: '1px solid #e2e8f0', padding: '10px', borderRadius: '6px' }}>
-                    Apollo (100%) — Crunchbase, GitHub & LinkedIn signals coming soon
+                    Apollo (100%) — Crunchbase & GitHub signals coming soon
                   </div>
                 </div>
 

@@ -14,9 +14,11 @@ export function generateOutreachMessage(
 ): OutreachMessageDraft {
   logger.info(`AI Outreach Engine: Generating personalized ${channel} outreach for '${profile.overview.companyName}' with tone '${tone}'...`);
 
-  const contact = profile.decisionMakers.length > 0 
-    ? profile.decisionMakers[0] 
-    : { id: 'dm_cto', name: 'Engineering Lead', jobTitle: 'Chief Technology Officer', email: `cto@${profile.domain}`, linkedinUrl: `https://linkedin.com/in/cto-${profile.domain.split('.')[0]}` };
+  // No invented contact details: when nobody was found, email/LinkedIn stay empty.
+  const contact: { name: string; jobTitle: string; email?: string; emailStatus?: 'Verified' | 'Unverified' | 'Extrapolated'; linkedinUrl?: string } =
+    profile.decisionMakers.length > 0
+      ? profile.decisionMakers[0]
+      : { name: 'Engineering Lead', jobTitle: 'Chief Technology Officer' };
 
   const isGeneric = !contact.name || contact.name === 'Engineering Lead' || contact.name === 'Executive' || contact.name.includes('Decision Maker');
   const firstName = isGeneric ? 'there' : contact.name.split(' ')[0];
@@ -61,6 +63,7 @@ export function generateOutreachMessage(
     targetContactName: contact.name,
     targetContactTitle: contact.jobTitle,
     targetContactEmail: contact.email,
+    targetContactEmailStatus: contact.emailStatus,
     targetContactLinkedin: contact.linkedinUrl,
     channel,
     category,

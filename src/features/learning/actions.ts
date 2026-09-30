@@ -1,6 +1,7 @@
 'use server';
 
 import { SettingsService } from '@/lib/settings';
+import { isLinkedInEnabledSetting, saveLinkedInEnabledSetting } from '@/features/linkedin/settings';
 import { AILearningService, StylePatternsReport } from './service';
 import { safeRevalidatePath } from '@/lib/revalidate';
 import { logger } from '@/lib/logger';
@@ -103,7 +104,8 @@ export async function getAppSettings(): Promise<AppConfigData> {
     const apolloCreditWarningThreshold = await SettingsService.get('apolloCreditWarningThreshold', '20');
     const apolloApiKey = await SettingsService.get('apolloApiKey', 'ap_live_98a7f432194b2');
 
-    const linkedinEnabled = await SettingsService.get('linkedinEnabled', 'false');
+    // Effective value: on by default; only an explicit user choice turns LinkedIn off.
+    const linkedinEnabled = String(await isLinkedInEnabledSetting());
     const linkedinApiKey = await SettingsService.get('linkedinApiKey', '');
     const crunchbaseEnabled = await SettingsService.get('crunchbaseEnabled', 'false');
     const crunchbaseApiKey = await SettingsService.get('crunchbaseApiKey', '');
@@ -181,7 +183,7 @@ export async function updateAppSettings(config: AppConfigData) {
     await SettingsService.set('apolloCreditWarningThreshold', config.apolloCreditWarningThreshold);
     
     if (config.apolloApiKey !== undefined) await SettingsService.set('apolloApiKey', config.apolloApiKey);
-    if (config.linkedinEnabled !== undefined) await SettingsService.set('linkedinEnabled', config.linkedinEnabled);
+    if (config.linkedinEnabled !== undefined) await saveLinkedInEnabledSetting(config.linkedinEnabled);
     if (config.linkedinApiKey !== undefined) await SettingsService.set('linkedinApiKey', config.linkedinApiKey);
     if (config.crunchbaseEnabled !== undefined) await SettingsService.set('crunchbaseEnabled', config.crunchbaseEnabled);
     if (config.crunchbaseApiKey !== undefined) await SettingsService.set('crunchbaseApiKey', config.crunchbaseApiKey);

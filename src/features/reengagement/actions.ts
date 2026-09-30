@@ -133,9 +133,12 @@ export async function scanForReEngagements(): Promise<{ count: number }> {
         }
       }
 
-      // Fallback realistic signal if Apollo doesn't find one or rate limits
+      // No real signal (or Apollo unavailable): skip. An invented "expansion" would produce outreach built on a false claim.
       if (!newSignal) {
-        newSignal = `${companyName} recently announced a major expansion in their engineering capabilities.`;
+        if ('error' in orgSearchRes && orgSearchRes.error) {
+          logger.warn(`Re-engagement: Apollo lookup unavailable for '${companyName}': ${orgSearchRes.error.message}`);
+        }
+        continue;
       }
 
       for (const matchedDraft of drafts) {

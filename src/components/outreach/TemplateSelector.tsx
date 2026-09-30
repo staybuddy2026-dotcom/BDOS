@@ -1,105 +1,95 @@
 'use client';
 
 import { OutreachChannel, ToneSetting } from '@/features/outreach/types';
-import { Mail, Share2, FileText, Calendar, Sparkles } from 'lucide-react';
+import { Mail, MessageSquare, FileText, CalendarDays, Sparkles, Briefcase, Code2, Smile, Lightbulb, Layers, TrendingUp, Zap, SlidersHorizontal } from 'lucide-react';
+import s from './outreach.module.css';
+
+const CHANNELS = [
+  { id: 'EMAIL' as const, label: 'Email', icon: Mail, sequence: true },
+  { id: 'LINKEDIN' as const, label: 'LinkedIn DM', icon: MessageSquare, sequence: true },
+  { id: 'PROPOSAL_COVER' as const, label: 'Proposal Cover', icon: FileText, sequence: false },
+  { id: 'MEETING_INVITE' as const, label: 'Call Invite', icon: CalendarDays, sequence: false },
+];
+
+const TONES = [
+  { id: 'EXECUTIVE' as const, label: 'Executive', icon: Briefcase },
+  { id: 'TECHNICAL' as const, label: 'Technical', icon: Code2 },
+  { id: 'FRIENDLY' as const, label: 'Friendly', icon: Smile },
+  { id: 'CONSULTATIVE' as const, label: 'Consultative', icon: Lightbulb },
+  { id: 'PAS_FRAMEWORK' as const, label: 'PAS', icon: Layers },
+  { id: 'ROI_FOCUSED' as const, label: 'ROI Focused', icon: TrendingUp },
+  { id: 'CHALLENGER' as const, label: 'Challenger', icon: Zap },
+];
 
 export function TemplateSelector({
   selectedChannel,
   selectedTone,
   onSelectChannel,
   onSelectTone,
+  disabled = false,
 }: {
   selectedChannel: OutreachChannel;
   selectedTone: ToneSetting;
   onSelectChannel: (ch: OutreachChannel) => void;
   onSelectTone: (tn: ToneSetting) => void;
+  disabled?: boolean;
 }) {
-  const channels = [
-    { id: 'EMAIL' as const, label: 'Email Outreach', icon: Mail },
-    { id: 'LINKEDIN' as const, label: 'LinkedIn InMail', icon: Share2 },
-    { id: 'PROPOSAL_COVER' as const, label: 'Proposal Cover Letter', icon: FileText },
-    { id: 'MEETING_INVITE' as const, label: 'Discovery Call Invite', icon: Calendar },
-  ];
-
-  const tones = [
-    { id: 'EXECUTIVE' as const, label: '👔 Executive' },
-    { id: 'TECHNICAL' as const, label: '💻 Technical' },
-    { id: 'FRIENDLY' as const, label: '🤝 Friendly' },
-    { id: 'CONSULTATIVE' as const, label: '💡 Consultative' },
-    { id: 'PAS_FRAMEWORK' as const, label: '🔥 PAS Framework' },
-    { id: 'ROI_FOCUSED' as const, label: '📈 ROI Focused' },
-    { id: 'CHALLENGER' as const, label: '⚡ Challenger Sale' },
-  ];
-
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
-      {/* Channel Select */}
-      <div>
-        <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.04em' }}>
-          Select Outreach Channel
+    <section className={s.card} aria-label="Channel and tone">
+      <div className={s.cardHeader}>
+        <div>
+          <h3 className={s.cardTitle}>
+            <span className={s.iconTile}><SlidersHorizontal size={16} /></span>
+            Channel & Tone
+          </h3>
+          <p className={s.cardSubtitle}>Changing either regenerates the sequence.</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
-          {channels.map((ch) => {
+      </div>
+
+      <div>
+        <div className={s.sectionLabel}>Outreach channel</div>
+        <div className={s.channelGrid}>
+          {CHANNELS.map((ch) => {
             const Icon = ch.icon;
-            const isSelected = selectedChannel === ch.id;
+            const active = selectedChannel === ch.id;
             return (
               <button
                 key={ch.id}
-                onClick={() => onSelectChannel(ch.id)}
-                style={{
-                  padding: '12px',
-                  borderRadius: '8px',
-                  fontSize: '0.84rem',
-                  fontWeight: 700,
-                  border: isSelected ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
-                  background: isSelected ? '#eef2ff' : '#ffffff',
-                  color: isSelected ? '#6366f1' : '#64748b',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.15s ease',
-                  boxShadow: isSelected ? '0 2px 8px rgba(99, 102, 241, 0.1)' : 'none',
-                }}
+                type="button"
+                disabled={disabled}
+                aria-pressed={active}
+                onClick={() => !active && onSelectChannel(ch.id)}
+                className={`${s.chip} ${s.channelBtn} ${active ? s.chipActive : ''}`}
               >
-                <Icon size={16} style={{ color: isSelected ? '#6366f1' : '#94a3b8' }} /> {ch.label}
+                <Icon size={15} /> {ch.label}
+                {ch.sequence && <span className={s.channelNote}>4 stages</span>}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Tone Select */}
       <div>
-        <div style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.04em' }}>
-          <Sparkles size={16} style={{ color: '#6366f1' }} /> AI Tone & Persona
-        </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {tones.map((tn) => {
-            const isSelected = selectedTone === tn.id;
+        <div className={s.sectionLabel}><Sparkles size={13} /> Tone nudge</div>
+        <div className={s.chipRow}>
+          {TONES.map((tn) => {
+            const Icon = tn.icon;
+            const active = selectedTone === tn.id;
             return (
               <button
                 key={tn.id}
-                onClick={() => onSelectTone(tn.id)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  border: isSelected ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
-                  background: isSelected ? '#eef2ff' : '#ffffff',
-                  color: isSelected ? '#6366f1' : '#64748b',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: isSelected ? '0 2px 8px rgba(99, 102, 241, 0.1)' : 'none',
-                }}
+                type="button"
+                disabled={disabled}
+                aria-pressed={active}
+                onClick={() => !active && onSelectTone(tn.id)}
+                className={`${s.chip} ${active ? s.chipActive : ''}`}
               >
-                {tn.label}
+                <Icon size={14} /> {tn.label}
               </button>
             );
           })}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

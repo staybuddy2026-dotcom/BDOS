@@ -16,6 +16,7 @@ import {
   User,
   LogOut,
   Target,
+  Share2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ const navSections: NavSection[] = [
     label: 'Prospecting',
     items: [
       { name: 'Universal Search', href: '/discovery', icon: Search },
+      { name: 'LinkedIn', href: '/linkedin', icon: Share2 },
       { name: 'Company 360', href: '/company', icon: Building2 },
     ],
   },

@@ -7,6 +7,7 @@ import { safeRevalidatePath } from '@/lib/revalidate';
 import { db } from '@/lib/db';
 import { PostStatus } from '@prisma/client';
 import { getUniversalLeadDiscoveryDataAction } from '@/features/discovery/actions';
+import { getPostMetaMap } from '@/features/linkedin/store';
 
 export type CrmStage = 
   | 'Lead' 
@@ -24,6 +25,8 @@ export type DecisionMakerContact = {
   email?: string;
   phone?: string;
   linkedinUrl?: string;
+  /** LinkedIn post this lead was discovered from (kept separate from the profile link). */
+  sourcePostUrl?: string;
 };
 
 export type CrmMeeting = {
@@ -57,7 +60,7 @@ export type CrmTask = {
 
 export type CrmActivity = {
   id: string;
-  type: 'Apollo Research' | 'LinkedIn Discovery' | 'Marketplace RFP' | 'Proposal' | 'Meeting' | 'Call' | 'Email' | 'Task' | 'Status Change' | 'Note';
+  type: 'Apollo Research' | 'LinkedIn Discovery' | 'LinkedIn' | 'Marketplace RFP' | 'Proposal' | 'Meeting' | 'Call' | 'Email' | 'Task' | 'Status Change' | 'Note';
   title: string;
   timeAgo: string;
   details: string;
@@ -182,6 +185,10 @@ export async function getCrmAccounts(params?: {
       orderBy: { discoveredAt: 'desc' }
     }).catch(() => []);
 
+    // Author profile links for discovered LinkedIn posts (the post table only stores the post URL).
+    const postMeta = await getPostMetaMap();
+    const isPostUrl = (url?: string) => !!url && /linkedin\.com\/(posts|feed)\//i.test(url);
+
     // 2. Deduplicate existing store accounts
     const uniqueMap = new Map<string, CrmAccount>();
     for (const acc of crmAccountsStore) {
@@ -230,7 +237,9 @@ export async function getCrmAccounts(params?: {
           decisionMakers: [{
             name: post.authorName || 'Key Contact',
             title: post.authorHeadline || 'Decision Maker',
-            linkedinUrl: post.postUrl || undefined
+            // The profile link is the author's profile, never the post itself.
+            linkedinUrl: postMeta[post.postUrl]?.authorProfileUrl,
+            sourcePostUrl: isPostUrl(post.postUrl) ? post.postUrl : undefined,
           }],
           meetings: [],
           proposals: [],
@@ -259,6 +268,17 @@ export async function getCrmAccounts(params?: {
 
     crmAccountsStore.length = 0;
     crmAccountsStore.push(...uniqueMap.values());
+
+    // Repair older records where the "LinkedIn Profile" link was actually the post URL.
+    for (const acc of crmAccountsStore) {
+      for (const dm of acc.decisionMakers) {
+        if (isPostUrl(dm.linkedinUrl)) {
+          dm.sourcePostUrl = dm.sourcePostUrl || dm.linkedinUrl;
+          dm.linkedinUrl = postMeta[dm.linkedinUrl!]?.authorProfileUrl;
+          updatedStore = true;
+        }
+      }
+    }
 
     if (updatedStore) {
       await saveCrmStoreToDb();
@@ -772,18 +792,18 @@ export async function importLeadsFromDiscovery() {
         industry: lead.industry || 'Technology & B2B SaaS',
         location: lead.country || 'United States',
         revenue: estArr,
-        employeeCount: lead.employeeCount || 120,
+        employeeCount: lead.employeeCount || 0,
         stage: 'Lead',
         dealValue: lead.estimatedBudgetUsd || `$${numericBudget.toLocaleString()}`,
         dealValueNumber: numericBudget,
         winProbability: lead.conversionProbabilityPercent || Math.min(95, Math.floor(lead.buyingScore * 0.85)),
         owner: 'Akash (BD Owner)',
-        technologies: lead.primaryTechStack && lead.primaryTechStack.length > 0 ? lead.primaryTechStack : ['React 19', 'TypeScript', 'Node.js', 'AWS'],
+        technologies: lead.primaryTechStack && lead.primaryTechStack.length > 0 ? lead.primaryTechStack : [],
         decisionMakers: lead.recommendedContactName ? [
           {
             name: lead.recommendedContactName,
             title: lead.recommendedContactTitle || 'Head of Engineering',
-            email: lead.contactEmail || `contact@${lead.domain}`,
+            email: lead.contactEmail || '',
             phone: lead.contactPhone || undefined,
             linkedinUrl: lead.contactLinkedinUrl || undefined,
           }
@@ -793,7 +813,7 @@ export async function importLeadsFromDiscovery() {
         tasks: [
           {
             id: `task_${Date.now()}_${idx}`,
-            title: `Review Apollo verified buying signals for ${lead.companyName} & schedule intro`,
+            title: `Review Apollo buying signals for ${lead.companyName} & schedule intro`,
             priority: 'HIGH',
             dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
             completed: false,
@@ -806,7 +826,7 @@ export async function importLeadsFromDiscovery() {
             type: 'Apollo Research',
             title: 'Imported from Apollo Discovery Engine',
             timeAgo: 'Just now',
-            details: lead.whyContactReason || `Verified Apollo B2B Lead with Buying Intent Score: ${lead.buyingScore}/100.`,
+            details: lead.whyContactReason || `Apollo lead with buying intent score ${lead.buyingScore}/100.`,
           }
         ],
         tags: ['Apollo-Sync', lead.tier || 'HIGH', ...(lead.matchedProviders || ['apollo'])],
@@ -934,5 +954,181 @@ export async function linkOutreachToCrmActivity(data: {
   } catch (err: unknown) {
     logger.error('Failed to link outreach to CRM activity', err);
     throw new AppError('Outreach CRM linking failed.', 500);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// LinkedIn activity in the CRM
+// ---------------------------------------------------------------------------
+
+export type LinkedInTouch = 'CONNECTION_SENT' | 'CONNECTION_ACCEPTED' | 'MESSAGE_SENT' | 'REPLY_RECEIVED' | 'POST_ENGAGED';
+
+const LINKEDIN_TOUCH_TITLES: Record<LinkedInTouch, string> = {
+  CONNECTION_SENT: 'LinkedIn connection request sent',
+  CONNECTION_ACCEPTED: 'LinkedIn connection accepted',
+  MESSAGE_SENT: 'LinkedIn message sent',
+  REPLY_RECEIVED: 'LinkedIn reply received',
+  POST_ENGAGED: 'Engaged with their LinkedIn post',
+};
+
+/**
+ * Logs a LinkedIn touch on an account's timeline. LinkedIn messages are sent by hand, so this
+ * is how the CRM keeps track of what was done and when.
+ */
+export async function logLinkedInTouch(accountId: string, touch: LinkedInTouch, contactName?: string, note?: string): Promise<CrmAccount> {
+  try {
+    await AuthService.verifySession();
+    await loadCrmStoreFromDb();
+    const acc = crmAccountsStore.find(a => a.id === accountId);
+    if (!acc) throw new AppError('Account not found', 404);
+
+    acc.timeline.unshift({
+      id: `act_${Date.now()}`,
+      type: 'LinkedIn',
+      title: `${LINKEDIN_TOUCH_TITLES[touch]}${contactName ? `: ${contactName}` : ''}`,
+      timeAgo: 'Just now',
+      details: note?.trim() || new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    });
+
+    // A reply is the signal to move a fresh lead forward.
+    if (touch === 'REPLY_RECEIVED' && acc.stage === 'Lead') acc.stage = 'Contacted';
+    if (!acc.tags.includes('LinkedIn')) acc.tags.push('LinkedIn');
+
+    await saveCrmStoreToDb();
+    safeRevalidatePath('/crm');
+    return acc;
+  } catch (err: unknown) {
+    logger.error(`Failed to log LinkedIn touch for ${accountId}`, err);
+    if (err instanceof AppError) throw err;
+    throw new AppError('Failed to log LinkedIn activity.', 500);
+  }
+}
+
+/** Saves (or clears) a contact's LinkedIn profile URL on an account. */
+export async function setDecisionMakerLinkedIn(accountId: string, contactIndex: number, profileUrl: string): Promise<{ account?: CrmAccount; error?: string }> {
+  await AuthService.verifySession();
+  const url = profileUrl.trim().split('?')[0];
+  if (url && !/^https:\/\/([a-z]+\.)?linkedin\.com\/in\/[^/]+\/?$/i.test(url)) {
+    return { error: 'Enter a LinkedIn profile URL like https://www.linkedin.com/in/username' };
+  }
+  await loadCrmStoreFromDb();
+  const acc = crmAccountsStore.find(a => a.id === accountId);
+  const dm = acc?.decisionMakers[contactIndex];
+  if (!acc || !dm) return { error: 'Contact not found.' };
+  dm.linkedinUrl = url || undefined;
+  await saveCrmStoreToDb();
+  safeRevalidatePath('/crm');
+  return { account: acc };
+}
+
+/**
+ * Looks up a contact's LinkedIn profile at their company (needs the LinkedIn connection).
+ * Returns candidates instead of guessing when several people match.
+ */
+export async function findDecisionMakerOnLinkedIn(accountId: string, contactIndex: number): Promise<{
+  account?: CrmAccount;
+  candidates?: { fullName: string; headline?: string; profileUrl: string }[];
+  error?: string;
+}> {
+  await AuthService.verifySession();
+  await loadCrmStoreFromDb();
+  const acc = crmAccountsStore.find(a => a.id === accountId);
+  const dm = acc?.decisionMakers[contactIndex];
+  if (!acc || !dm) return { error: 'Contact not found.' };
+
+  const { findLinkedInCompany } = await import('@/features/linkedin/client');
+  const { linkedinProvider } = await import('@/features/linkedin/provider');
+  const firstName = dm.name.split(/\s+/)[0]?.replace(/[^\p{L}]/gu, '');
+  if (!firstName) return { error: 'This contact has no name to search for.' };
+
+  const company = await findLinkedInCompany({ domain: acc.domain, name: acc.name });
+  if (company.error) return { error: company.error.message };
+  if (!company.company) return { error: company.note || `Could not find ${acc.name} on LinkedIn.` };
+
+  const people = await linkedinProvider.getCompanyPeople({ companyUrl: company.company.linkedinUrl, query: firstName, maxItems: 8 });
+  if (people.error) return { error: people.error.message };
+  const matches = people.items.filter(p => (p.firstName || p.fullName).toLowerCase().startsWith(firstName.toLowerCase()));
+  if (!matches.length) return { error: `No one named ${firstName} was found at ${company.company.name} on LinkedIn.` };
+
+  if (matches.length === 1) {
+    dm.linkedinUrl = matches[0].profileUrl;
+    await saveCrmStoreToDb();
+    safeRevalidatePath('/crm');
+    return { account: acc };
+  }
+  return { candidates: matches.slice(0, 5).map(p => ({ fullName: p.fullName, headline: p.headline, profileUrl: p.profileUrl })) };
+}
+
+/** Adds a person found on LinkedIn to the CRM as a new lead (or attaches them to their company's existing account). */
+export async function addLinkedInProfileToCrm(profile: {
+  fullName: string;
+  profileUrl: string;
+  headline?: string;
+  jobTitle?: string;
+  companyName?: string;
+  location?: string;
+  email?: string;
+}): Promise<{ account?: CrmAccount; created: boolean; error?: string }> {
+  await AuthService.verifySession();
+  if (!profile?.fullName || !/^https:\/\/([a-z]+\.)?linkedin\.com\/in\//i.test(profile.profileUrl || '')) {
+    return { created: false, error: 'A name and a LinkedIn profile URL are required.' };
+  }
+  try {
+    await loadCrmStoreFromDb();
+    const company = profile.companyName?.trim() || `${profile.fullName} (independent)`;
+    const contact: DecisionMakerContact = {
+      name: profile.fullName,
+      title: profile.jobTitle || profile.headline || '',
+      email: profile.email,
+      linkedinUrl: profile.profileUrl,
+    };
+
+    const existing = crmAccountsStore.find(a => a.name.toLowerCase().trim() === company.toLowerCase());
+    if (existing) {
+      if (!existing.decisionMakers.some(d => d.linkedinUrl === contact.linkedinUrl || d.name.toLowerCase() === contact.name.toLowerCase())) {
+        existing.decisionMakers.push(contact);
+        existing.timeline.unshift({ id: `act_${Date.now()}`, type: 'LinkedIn Discovery', title: `Contact added from LinkedIn: ${contact.name}`, timeAgo: 'Just now', details: contact.title });
+        await saveCrmStoreToDb();
+      }
+      safeRevalidatePath('/crm');
+      return { account: existing, created: false };
+    }
+
+    const account: CrmAccount = {
+      id: `crm_li_${Date.now()}`,
+      name: company,
+      domain: '',
+      industry: '',
+      location: profile.location || '',
+      revenue: '',
+      employeeCount: 0,
+      stage: 'Lead',
+      dealValue: 'Not estimated',
+      dealValueNumber: 0,
+      winProbability: 0,
+      owner: 'Akash (BD Owner)',
+      technologies: [],
+      decisionMakers: [contact],
+      meetings: [],
+      proposals: [],
+      tasks: [{
+        id: `task_${Date.now()}`,
+        title: `Send LinkedIn connection request to ${contact.name}`,
+        priority: 'HIGH',
+        dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        completed: false,
+        assignedUser: 'Akash (BD Owner)',
+      }],
+      timeline: [{ id: `act_${Date.now()}`, type: 'LinkedIn Discovery', title: 'Added from LinkedIn people search', timeAgo: 'Just now', details: profile.headline || contact.title }],
+      tags: ['LinkedIn'],
+      createdDate: new Date().toISOString().split('T')[0],
+    };
+    crmAccountsStore.unshift(account);
+    await saveCrmStoreToDb();
+    safeRevalidatePath('/crm');
+    return { account, created: true };
+  } catch (err) {
+    logger.error('Failed to add LinkedIn profile to CRM', err);
+    return { created: false, error: 'Could not add this person to the CRM. Please try again.' };
   }
 }

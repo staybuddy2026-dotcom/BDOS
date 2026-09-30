@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const pagePath = path.resolve('d:/workspace/Projects/LeadGenerationToolForBBDE/LeadGenerationToolForBBDE/src/app/settings/page.tsx');
+const pagePath = path.resolve('d:/workspace/Projects/LeadGenerationToolForBBDE/LeadGenerationToolForBBDE/src/app/(protected)/settings/page.tsx');
 let content = fs.readFileSync(pagePath, 'utf8');
 
 // 1. Add State Variables
@@ -115,7 +115,7 @@ content = content.replace(
 
 // 6. Tabs replacements (General, Prioritization, Outreach, Linkedin, Github, Crunchbase)
 content = content.replace(
-  \`{/* TAB: LINKEDIN SETTINGS */}
+  `{/* TAB: LINKEDIN SETTINGS */}
           {activeTab === 'linkedin' && (
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -133,8 +133,8 @@ content = content.replace(
                 <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#d97706' }}>Coming Soon</strong></span>
               </div>
             </div>
-          )}\`,
-  \`{/* TAB: LINKEDIN SETTINGS */}
+          )}`,
+  `{/* TAB: LINKEDIN SETTINGS */}
           {activeTab === 'linkedin' && (
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -176,11 +176,11 @@ content = content.replace(
                 </button>
               </div>
             </div>
-          )}\`
+          )}`
 );
 
 content = content.replace(
-  \`{/* TAB: CRUNCHBASE SETTINGS */}
+  `{/* TAB: CRUNCHBASE SETTINGS */}
           {activeTab === 'crunchbase' && (
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -198,8 +198,8 @@ content = content.replace(
                 <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#d97706' }}>Coming Soon</strong></span>
               </div>
             </div>
-          )}\`,
-  \`{/* TAB: CRUNCHBASE SETTINGS */}
+          )}`,
+  `{/* TAB: CRUNCHBASE SETTINGS */}
           {activeTab === 'crunchbase' && (
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -241,11 +241,11 @@ content = content.replace(
                 </button>
               </div>
             </div>
-          )}\`
+          )}`
 );
 
 content = content.replace(
-  \`{/* TAB: GITHUB SETTINGS */}
+  `{/* TAB: GITHUB SETTINGS */}
           {activeTab === 'github' && (
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -263,8 +263,8 @@ content = content.replace(
                 <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Status: <strong style={{ color: '#d97706' }}>Coming Soon</strong></span>
               </div>
             </div>
-          )}\`,
-  \`{/* TAB: GITHUB SETTINGS */}
+          )}`,
+  `{/* TAB: GITHUB SETTINGS */}
           {activeTab === 'github' && (
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -306,17 +306,17 @@ content = content.replace(
                 </button>
               </div>
             </div>
-          )}\`
+          )}`
 );
 
 content = content.replace(
-  \`<div>
+  `<div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Immediate Action Threshold</label>
                   <div style={{ padding: '8px 12px', borderRadius: '6px', background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: '0.82rem', fontWeight: 700 }}>
                     Score &ge; 90 (🔥 Immediate Contact Today Tier)
                   </div>
-                </div>\`,
-  \`<div>
+                </div>`,
+  `<div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Immediate Action Threshold (Score &ge;)</label>
                   <input
                     type="number"
@@ -334,19 +334,19 @@ content = content.replace(
                   style={{ padding: '8px 18px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 800, boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)' }}
                 >
                   <Save size={14} /> Save Configuration
-                </button>\`
+                </button>`
 );
 
 content = content.replace(
-  \`<div>
+  `<div>
                 <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Default BDE Email Signature</label>
                 <input
                   type="text"
                   defaultValue="Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)"
                   style={{ width: '100%', padding: '8px', borderRadius: '6px', fontSize: '0.8rem', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0' }}
                 />
-              </div>\`,
-  \`<div>
+              </div>`,
+  `<div>
                 <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Default BDE Email Signature</label>
                 <input
                   type="text"
@@ -364,11 +364,11 @@ content = content.replace(
                 >
                   <Save size={14} /> Save Configuration
                 </button>
-              </div>\`
+              </div>`
 );
 
 content = content.replace(
-  \`                <div>
+  `                <div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Primary Outreach Tone</label>
                   <input
                     type="text"
@@ -376,8 +376,8 @@ content = content.replace(
                     onChange={(e) => setPrimaryTone(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', fontSize: '0.8rem', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0' }}
                   />
-                </div>\`,
-  \`                <div>
+                </div>`,
+  `                <div>
                   <label style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Primary Outreach Tone</label>
                   <input
                     type="text"
@@ -412,7 +412,7 @@ content = content.replace(
                     onChange={(e) => setWeeklyLimit(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', fontSize: '0.8rem', background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0' }}
                   />
-                </div>\`
+                </div>`
 );
 
 fs.writeFileSync(pagePath, content);

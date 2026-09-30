@@ -1,6 +1,6 @@
 import { BaseLeadProvider } from './base-provider';
 import { ProviderCapabilities, ProviderFilterKey, LeadSearchParams, LeadSearchResponse, ProviderStatus, HealthStatus, LeadItem } from './types';
-import { apolloProvider } from '../apollo/provider';
+import { apolloProvider, getLastApolloErrors, isApolloConfigured } from '../apollo/provider';
 import { SettingsService } from '@/lib/settings';
 
 export class ApolloLeadProvider extends BaseLeadProvider {
@@ -46,30 +46,35 @@ export class ApolloLeadProvider extends BaseLeadProvider {
       if (apolloEnabled !== 'true') {
         return 'Not Connected';
       }
-      const apiKey = process.env.APOLLO_API_KEY;
-      if (!apiKey || apiKey === 'your-apollo-api-key-here') {
-        return 'Not Connected';
-      }
-      return 'Connected';
+      return (await isApolloConfigured()) ? 'Connected' : 'Not Connected';
     } catch {
       return 'Connected';
     }
   }
 
+  /** Real health: recent Apollo errors (limits, credits, bad key) win over "a key is configured". */
   async getHealthStatus(): Promise<HealthStatus> {
     const status = await this.getStatus();
-    if (status === 'Connected') return 'Healthy';
-    return 'Offline';
+    if (status !== 'Connected') return 'Offline';
+    const errors = getLastApolloErrors();
+    if (errors.some((e) => e.code === 'INVALID_KEY')) return 'Unauthorized';
+    if (errors.some((e) => e.code === 'RATE_LIMIT')) return 'Rate Limited';
+    if (errors.some((e) => e.code === 'CREDITS_EXHAUSTED' || e.code === 'NETWORK')) return 'Warning';
+    return 'Healthy';
   }
 
   async health(): Promise<{ ok: boolean; status: HealthStatus; message: string }> {
     const status = await this.getStatus();
-    const healthStatus = await this.getHealthStatus();
-
-    if (status === 'Connected') {
-      return { ok: true, status: 'Healthy', message: 'Apollo.io live API connected and healthy.' };
+    if (status !== 'Connected') {
+      return { ok: false, status: 'Offline', message: 'Apollo API key is not configured or Apollo is disabled in settings.' };
     }
-    return { ok: false, status: healthStatus, message: 'Apollo API Key unconfigured or provider disabled in settings.' };
+    const check = await apolloProvider.checkHealth();
+    if (!check.ok) return { ok: false, status: 'Unauthorized', message: check.message };
+    const healthStatus = await this.getHealthStatus();
+    const latest = getLastApolloErrors()[0];
+    return healthStatus === 'Healthy'
+      ? { ok: true, status: 'Healthy', message: 'Apollo.io API key is valid and responding.' }
+      : { ok: true, status: healthStatus, message: latest?.message || 'Apollo is responding with limits.' };
   }
 
   async search(params: LeadSearchParams): Promise<LeadSearchResponse> {
@@ -80,11 +85,11 @@ export class ApolloLeadProvider extends BaseLeadProvider {
 
     if (isPeople) {
       const res = await apolloProvider.searchPeopleAdvanced({
-        jobTitle: params.jobTitle || params.keywords,
+        jobTitle: params.jobTitle,
         seniority: params.seniority,
         personLocation: params.country,
-        orgLocation: params.country,
-        keywords: params.company || params.keywords,
+        keywords: params.keywords,
+        companyName: params.company,
         techUsage: params.technology,
         hiringActivity: params.hiringKeywords,
         page: params.page || 1,
@@ -123,6 +128,7 @@ export class ApolloLeadProvider extends BaseLeadProvider {
         status,
         healthStatus,
         responseTimeMs: duration,
+        message: res.error?.message,
       };
     } else {
       const res = await apolloProvider.searchOrganizationsAdvanced({
@@ -172,6 +178,7 @@ export class ApolloLeadProvider extends BaseLeadProvider {
         status,
         healthStatus,
         responseTimeMs: duration,
+        message: res.error?.message,
       };
     }
   }

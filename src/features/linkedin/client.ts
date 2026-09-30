@@ -1,128 +1,149 @@
-'use server';
-
 import { logger } from '@/lib/logger';
-import { LinkedInIntelligenceData, LinkedInRateLimit } from './types';
-
-const LINKEDIN_API_BASE = 'https://api.linkedin.com/v2';
-
-function getLinkedInHeaders(): HeadersInit {
-  const headers: HeadersInit = {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    'User-Agent': 'BDOS-LinkedIn-SocialIntelligence-Engine/1.0',
-  };
-
-  const token = process.env.LINKEDIN_ACCESS_TOKEN || process.env.LINKEDIN_CLIENT_SECRET;
-  if (token && token !== 'your-linkedin-token-here') {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  return headers;
-}
+import { linkedinProvider } from './provider';
+import type {
+  LinkedInBuyingSignalItem,
+  LinkedInCompanyResult,
+  LinkedInErrorInfo,
+  LinkedInIntelligenceData,
+  LinkedInPostItem,
+  LinkedInPostResult,
+  LinkedInRateLimit,
+} from './types';
 
 /**
- * Query official LinkedIn API Rate Limit Telemetry.
+ * Real usage of the LinkedIn scraper account (monthly spend vs. limit, in USD cents so the
+ * existing integer fields stay meaningful). Zeroes when not connected: never invented numbers.
  */
 export async function getLinkedInRateLimit(): Promise<LinkedInRateLimit> {
-  try {
-    const res = await fetch(`${LINKEDIN_API_BASE}/me`, {
-      headers: getLinkedInHeaders(),
-      next: { revalidate: 60 },
-    });
-
-    if (res.ok) {
-      return {
-        limit: 2000,
-        remaining: 1890,
-        reset: Math.floor(Date.now() / 1000) + 3600,
-        used: 110,
-        formattedReset: '4:00 PM',
-      };
-    }
-  } catch (err: unknown) {
-    logger.warn('Failed to query LinkedIn API rate limit, using fallback telemetry', { error: String(err) });
-  }
-
+  const account = await linkedinProvider.checkAccount();
+  const limit = Math.round((account.monthlyLimitUsd || 0) * 100);
+  const used = Math.round((account.monthlyUsageUsd || 0) * 100);
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+  nextMonth.setHours(0, 0, 0, 0);
   return {
-    limit: 2000,
-    remaining: 1850,
-    reset: Math.floor(Date.now() / 1000) + 3600,
-    used: 150,
-    formattedReset: '4:00 PM',
+    limit,
+    used,
+    remaining: Math.max(0, limit - used),
+    reset: Math.floor(nextMonth.getTime() / 1000),
+    formattedReset: nextMonth.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
   };
 }
 
-/**
- * Fetch official / compliant LinkedIn Social & Hiring Intelligence Data for a Company / Domain.
- */
-export async function getLinkedInCompanyData(companyNameOrDomain: string): Promise<LinkedInIntelligenceData> {
-  const domain = companyNameOrDomain.toLowerCase().replace(/https?:\/\//, '').replace(/www\./, '').split('/')[0];
-  const companySlug = domain.split('.')[0] || 'acmehealth';
+const normalize = (v?: string) => (v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  try {
-    logger.info(`Fetching LinkedIn Organic Intelligence for '${domain}'...`);
-    const res = await fetch(`${LINKEDIN_API_BASE}/organizations?q=vanityName&vanityName=${companySlug}`, {
-      headers: getLinkedInHeaders(),
-      next: { revalidate: 300 },
-    });
+/** Classifies a real post by its own words (used only for labelling). */
+function classifyPost(content: string): LinkedInPostItem['postType'] {
+  const c = content.toLowerCase();
+  if (/\b(hiring|we'?re hiring|join our team|open role|looking for an?)\b/.test(c)) return 'Hiring Announcement';
+  if (/\b(raised|funding|series [a-e]\b|seed round|investors?)\b/.test(c)) return 'Funding Celebration';
+  if (/\b(ai|llm|gpt|machine learning|genai|agentic)\b/.test(c)) return 'AI Transformation';
+  if (/\b(cloud|aws|azure|gcp|migration|kubernetes)\b/.test(c)) return 'Cloud Migration';
+  if (/\b(partner|partnership|collaborat)/.test(c)) return 'Partnership';
+  return 'Product Expansion';
+}
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.elements && data.elements.length > 0) {
-        const org = data.elements[0];
-        return {
-          companyDomain: domain,
-          companyName: org.localizedName || `${companySlug.toUpperCase()} Healthcare Solutions`,
-          totalEmployeesOnLinkedin: 142,
-          activeJobOpeningsCount: 8,
-          executivePostsCount: 14,
-          socialEngagementScore: 92,
-          engineeringExpansionIndex: 94,
-          outsourcingProbabilityPercent: 90,
-          primaryPost: {
-            id: 'li_post_1',
-            authorName: 'Sarah Jenkins',
-            authorTitle: 'CTO & VP Engineering @ Acme Health',
-            postType: 'Hiring Announcement',
-            contentSnippet: 'We are expanding our software engineering team to accelerate React 19 microservices & AI clinical workflow pipelines! Looking for development partners and senior engineers.',
-            likesCount: 380,
-            commentsCount: 94,
-            sharesCount: 32,
-            postUrl: `https://linkedin.com/posts/sarah-jenkins-acme-hiring-react19`,
-            publishedDate: '2026-02-18',
-            buyingIntentScore: 96,
-            technologiesMentioned: ['React 19', 'Next.js', 'TypeScript', 'Python FastAPI', 'AWS'],
-            source: 'LinkedIn',
-          },
-          recentPosts: [],
-          jobOpenings: [],
-          buyingSignals: [],
-          recommendedPitch: 'Reach out to CTO Sarah Jenkins with Tiny Script 2-Week React 19 squad augmentation blueprint.',
-          source: 'LinkedIn',
-        };
-      }
-    }
-  } catch (err: unknown) {
-    logger.warn(`LinkedIn API fetch error for '${domain}', using curated social dataset`, { error: String(err) });
-  }
-
-  // Return empty structure if API fails
+function toPostItem(p: LinkedInPostResult): LinkedInPostItem {
   return {
+    id: p.id,
+    authorName: p.authorName,
+    authorTitle: p.authorHeadline || '',
+    postType: classifyPost(p.content),
+    contentSnippet: p.content.length > 400 ? `${p.content.slice(0, 400)}…` : p.content,
+    likesCount: p.likes,
+    commentsCount: p.comments,
+    sharesCount: p.shares,
+    postUrl: p.url,
+    publishedDate: p.postedAt ? p.postedAt.slice(0, 10) : '',
+    buyingIntentScore: 0,
+    technologiesMentioned: [],
+    source: 'LinkedIn',
+  };
+}
+
+const EMPTY_POST: LinkedInPostItem = {
+  id: '', authorName: '', authorTitle: '', postType: 'Product Expansion', contentSnippet: '', likesCount: 0, commentsCount: 0,
+  sharesCount: 0, postUrl: '', publishedDate: '', buyingIntentScore: 0, technologiesMentioned: [], source: 'LinkedIn',
+};
+
+/**
+ * Finds the company's LinkedIn page. A name search can return a different company, so the
+ * result is only accepted when its website or name actually matches what we asked for.
+ */
+export async function findLinkedInCompany(params: { domain?: string; name?: string; linkedinUrl?: string }): Promise<{ company: LinkedInCompanyResult | null; error?: LinkedInErrorInfo; note?: string }> {
+  if (params.linkedinUrl && /linkedin\.com\/company\//i.test(params.linkedinUrl)) {
+    return linkedinProvider.getCompany({ url: params.linkedinUrl });
+  }
+  const domain = (params.domain || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  const host = domain.split('.')[0];
+  const searchName = params.name?.trim() || host;
+  if (!searchName) return { company: null };
+
+  const res = await linkedinProvider.getCompany({ name: searchName });
+  if (!res.company) return res;
+
+  const c = res.company;
+  const domainMatches = !!domain && !!c.domain && (c.domain === domain || c.domain.endsWith(`.${domain}`) || domain.endsWith(`.${c.domain}`));
+  const nameMatches = [params.name, host].some((n) => !!n && (normalize(c.name) === normalize(n) || normalize(c.universalName) === normalize(n)));
+  if (domainMatches || nameMatches) return res;
+  return { company: null, note: `LinkedIn returned "${c.name}", which does not match ${domain || searchName}, so it was not used.` };
+}
+
+/**
+ * LinkedIn company intelligence built only from live data (company page + its recent posts).
+ * Returns an empty structure when LinkedIn is not connected or the company is not found.
+ */
+export async function getLinkedInCompanyData(companyNameOrDomain: string, companyName?: string): Promise<LinkedInIntelligenceData> {
+  const domain = companyNameOrDomain.toLowerCase().replace(/https?:\/\//, '').replace(/www\./, '').split('/')[0];
+  const empty: LinkedInIntelligenceData = {
     companyDomain: domain,
-    companyName: `${companySlug.toUpperCase()}`,
+    companyName: companyName || domain,
     totalEmployeesOnLinkedin: 0,
     activeJobOpeningsCount: 0,
     executivePostsCount: 0,
     socialEngagementScore: 0,
     engineeringExpansionIndex: 0,
     outsourcingProbabilityPercent: 0,
-    primaryPost: {
-      id: '', authorName: '', authorTitle: '', postType: 'Hiring Announcement', contentSnippet: '', likesCount: 0, commentsCount: 0, sharesCount: 0, postUrl: '', publishedDate: '', buyingIntentScore: 0, technologiesMentioned: [], source: 'LinkedIn'
-    },
+    primaryPost: EMPTY_POST,
     recentPosts: [],
     jobOpenings: [],
     buyingSignals: [],
     recommendedPitch: '',
     source: 'LinkedIn',
+  };
+
+  const { company, error } = await findLinkedInCompany({ domain, name: companyName });
+  if (!company) {
+    if (error) logger.warn(`LinkedIn company data unavailable for '${domain}': ${error.message}`);
+    return empty;
+  }
+
+  const posts = (await linkedinProvider.getRecentPosts(company.linkedinUrl, 5)).items;
+  const items = posts.map(toPostItem);
+  const avgEngagement = posts.length ? posts.reduce((sum, p) => sum + p.likes + p.comments * 2 + p.shares * 3, 0) / posts.length : 0;
+
+  // Signals are quotes of real posts, not inferred claims.
+  const buyingSignals: LinkedInBuyingSignalItem[] = items
+    .filter((p) => p.postType === 'Hiring Announcement' || p.postType === 'AI Transformation' || p.postType === 'Cloud Migration')
+    .slice(0, 3)
+    .map((p, i) => ({
+      id: `li_signal_${i}`,
+      signalType: p.postType === 'Hiring Announcement' ? 'SCALING_ENGINEERING_TEAM' : p.postType === 'AI Transformation' ? 'AI_TRANSFORMATION' : 'CLOUD_MIGRATION',
+      title: p.postType,
+      description: p.contentSnippet.slice(0, 220),
+      confidenceScore: 0,
+      detectedFrom: p.postUrl,
+    }));
+
+  return {
+    ...empty,
+    companyName: company.name,
+    totalEmployeesOnLinkedin: company.employeeCount || 0,
+    executivePostsCount: items.length,
+    // Transparent formula: average weighted engagement on a log scale, capped at 100.
+    socialEngagementScore: Math.min(100, Math.round(Math.log10(avgEngagement + 1) * 33)),
+    primaryPost: items[0] || EMPTY_POST,
+    recentPosts: items,
+    buyingSignals,
   };
 }

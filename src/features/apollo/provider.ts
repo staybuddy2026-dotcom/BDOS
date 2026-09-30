@@ -32,8 +32,10 @@ export interface ApolloOrganizationMatch {
   domain?: string;
   organizationDomain?: string;
   websiteUrl?: string;
+  linkedinUrl?: string;
   industry?: string;
   organizationIndustry?: string;
+  description?: string;
   location?: string;
   city?: string;
   state?: string;
@@ -52,6 +54,7 @@ export interface ApolloOrganizationMatch {
   totalFundingPrinted?: string;
   totalFunding?: number;
   openJobsCount?: number;
+  foundedYear?: number;
   whyThisCompanySummary?: string;
   hasPhone?: boolean;
   searchMatches?: { type: 'keyword' | 'tech' | 'hiring' | 'title' | 'domain'; label: string }[];
@@ -76,11 +79,22 @@ export interface ApolloOrgSearchParams {
   perPage?: number;
 }
 
+export type ApolloErrorCode = 'NOT_CONFIGURED' | 'INVALID_KEY' | 'RATE_LIMIT' | 'CREDITS_EXHAUSTED' | 'BAD_REQUEST' | 'HTTP_ERROR' | 'NETWORK';
+
+export interface ApolloErrorInfo {
+  code: ApolloErrorCode;
+  message: string;
+  endpoint: string;
+  at: string;
+}
+
 export interface ApolloOrgSearchResponse {
   organizations: ApolloOrganizationMatch[];
   totalCount: number;
   page: number;
   perPage: number;
+  /** Set when Apollo could not answer (limit reached, no credits, bad key...). Results are then empty. */
+  error?: ApolloErrorInfo;
 }
 
 export interface ApolloSearchParams {
@@ -102,6 +116,15 @@ export interface ApolloSearchResponse {
   totalCount: number;
   page: number;
   perPage: number;
+  error?: ApolloErrorInfo;
+}
+
+export interface ApolloUsageEndpoint {
+  endpoint: string;
+  label: string;
+  dayLimit: number;
+  dayUsed: number;
+  dayLeft: number;
 }
 
 export interface ApolloProvider {
@@ -119,616 +142,444 @@ export interface ApolloProvider {
     revealPhone?: boolean;
     webhookUrl?: string;
   }): Promise<ApolloPersonMatch | null>;
-  enrichOrganization(params: { apolloOrgId: string }): Promise<ApolloOrganizationMatch | null>;
+  enrichOrganization(params: { apolloOrgId?: string; domain?: string }): Promise<ApolloOrganizationMatch | null>;
   searchContacts(params: { email?: string; name?: string }): Promise<ApolloPersonMatch[]>;
   getContact(params: { contactId: string }): Promise<ApolloPersonMatch | null>;
+  getUsage(): Promise<ApolloUsageEndpoint[] | null>;
+  checkHealth(): Promise<{ ok: boolean; message: string }>;
 }
 
-// Helper to sanitize organization names and prevent search filter terms (e.g. "SaaS", "React", "Fintech") from replacing real company names
-function getCleanOrganizationName(
-  orgNameRaw?: string,
-  orgDomainRaw?: string,
-  activeFilterTerms: (string | undefined)[] = [],
-  fallbackIndustry?: string
-): string {
-  const filterTermsSet = new Set(
-    activeFilterTerms
-      .filter(Boolean)
-      .flatMap(term => (term ? term.toLowerCase().split(/[,;\s]+/).filter(Boolean) : []))
-  );
+// ---------------------------------------------------------------------------
+// Request layer: auth header, error classification, caching, in-flight dedupe
+// ---------------------------------------------------------------------------
 
-  let candidateName = orgNameRaw?.trim();
+const API_BASE = 'https://api.apollo.io/api/v1';
 
-  if (!candidateName && orgDomainRaw) {
-    const cleanHost = orgDomainRaw.replace(/^https?:\/\//, '').replace(/^www\./, '').split('.')[0];
-    if (cleanHost && cleanHost.length > 1 && !filterTermsSet.has(cleanHost.toLowerCase())) {
-      candidateName = cleanHost.charAt(0).toUpperCase() + cleanHost.slice(1);
+const ENDPOINT_LABELS: Record<string, string> = {
+  'mixed_people/api_search': 'People search',
+  'organizations/search': 'Company search',
+  'people/match': 'Person enrichment',
+  'organizations/enrich': 'Company enrichment',
+  'organizations/show': 'Company lookup',
+};
+
+export class ApolloApiError extends Error {
+  constructor(public readonly info: ApolloErrorInfo) {
+    super(info.message);
+    this.name = 'ApolloApiError';
+  }
+}
+
+// Last error per endpoint; cleared when that endpoint succeeds again. Read by the UI via getApolloStatus().
+const lastErrors = new Map<string, ApolloErrorInfo>();
+
+export function getLastApolloErrors(): ApolloErrorInfo[] {
+  return Array.from(lastErrors.values()).sort((a, b) => b.at.localeCompare(a.at));
+}
+
+type CacheEntry = { expires: number; value: unknown };
+const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<unknown>>();
+const MAX_CACHE_ENTRIES = 400;
+
+const TTL = {
+  search: 20 * 60 * 1000, // repeated searches (pagination back/forth, re-renders) cost no quota
+  enrich: 24 * 60 * 60 * 1000,
+  usage: 60 * 1000,
+  health: 5 * 60 * 1000,
+};
+
+function cacheGet<T>(key: string): T | undefined {
+  const hit = cache.get(key);
+  if (!hit) return undefined;
+  if (hit.expires < Date.now()) {
+    cache.delete(key);
+    return undefined;
+  }
+  return hit.value as T;
+}
+
+function cacheSet(key: string, value: unknown, ttl: number) {
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest) cache.delete(oldest);
+  }
+  cache.set(key, { expires: Date.now() + ttl, value });
+}
+
+// Placeholder values that must never be sent to Apollo as a key.
+const PLACEHOLDER_KEYS = new Set(['', 'your-apollo-api-key-here', 'ap_live_98a7f432194b2']);
+let settingsKeyCache: { value: string | undefined; expires: number } | null = null;
+
+/** APOLLO_API_KEY from .env wins; otherwise a real key saved on the Settings page is used. */
+async function getApiKey(): Promise<string | undefined> {
+  if (process.env.APOLLO_MOCK_MODE === 'true') return undefined;
+  const envKey = process.env.APOLLO_API_KEY?.trim();
+  if (envKey && !PLACEHOLDER_KEYS.has(envKey)) return envKey;
+
+  if (!settingsKeyCache || settingsKeyCache.expires < Date.now()) {
+    let value: string | undefined;
+    try {
+      // Loaded lazily so this module stays importable for types without pulling in the database.
+      const { SettingsService } = await import('@/lib/settings');
+      const saved = (await SettingsService.get('apolloApiKey', '')).trim();
+      value = PLACEHOLDER_KEYS.has(saved) || /^ap_live_x+$/i.test(saved) ? undefined : saved;
+    } catch {
+      value = undefined;
     }
+    settingsKeyCache = { value, expires: Date.now() + 60000 };
+  }
+  return settingsKeyCache.value;
+}
+
+export async function isApolloConfigured(): Promise<boolean> {
+  return !!(await getApiKey());
+}
+
+function classifyError(endpoint: string, status: number, body: Record<string, unknown> | null): ApolloErrorInfo {
+  const details = (body?.error_details as Record<string, unknown>) || {};
+  const code = String(details.code || body?.error_code || '');
+  const raw = String(body?.message || body?.error || details.message || '').replace(/<[^>]+>/g, '').trim();
+  const label = ENDPOINT_LABELS[endpoint] || endpoint;
+  const at = new Date().toISOString();
+
+  if (status === 429 || /RATE_LIMIT/i.test(code) || /maximum number of api calls|rate limit/i.test(raw)) {
+    const limit = raw.match(/is (\d+) times per (\w+)/);
+    return {
+      code: 'RATE_LIMIT', endpoint, at,
+      message: limit
+        ? `Apollo ${label.toLowerCase()} limit reached (${limit[1]} calls per ${limit[2]} on your plan). It resets automatically; try again later.`
+        : `Apollo ${label.toLowerCase()} rate limit reached. Please wait and try again.`,
+    };
+  }
+  if (/CREDITS|credit/i.test(code) || /insufficient credits/i.test(raw)) {
+    return { code: 'CREDITS_EXHAUSTED', endpoint, at, message: `Your Apollo account has no credits left this billing cycle, so ${label.toLowerCase()} is unavailable. Upgrade the Apollo plan or wait for the next cycle.` };
+  }
+  if (status === 401 || status === 403 || /INVALID_API_KEY|api key/i.test(code + raw)) {
+    return { code: 'INVALID_KEY', endpoint, at, message: 'Apollo rejected the API key. Check APOLLO_API_KEY in your environment settings.' };
+  }
+  if (status === 422 || status === 400) {
+    return { code: 'BAD_REQUEST', endpoint, at, message: `Apollo could not process this ${label.toLowerCase()} request${raw ? `: ${raw.slice(0, 160)}` : '.'}` };
+  }
+  return { code: 'HTTP_ERROR', endpoint, at, message: `Apollo ${label.toLowerCase()} failed (HTTP ${status}). Please try again.` };
+}
+
+async function apolloRequest<T>(
+  endpoint: string,
+  options: { method?: 'GET' | 'POST'; body?: Record<string, unknown>; query?: Record<string, string>; ttl?: number } = {}
+): Promise<T> {
+  const apiKey = await getApiKey();
+  const at = new Date().toISOString();
+  if (!apiKey) {
+    throw new ApolloApiError({ code: 'NOT_CONFIGURED', endpoint, at, message: 'Apollo is not configured. Add APOLLO_API_KEY to .env or save a real key on the Settings page.' });
   }
 
-  if (!candidateName) {
-    if (fallbackIndustry) {
-      candidateName = `${fallbackIndustry} Organization`;
-    } else {
-      candidateName = 'Organization';
-    }
+  const method = options.method || 'POST';
+  const qs = options.query ? `?${new URLSearchParams(options.query).toString()}` : '';
+  // Undefined fields are dropped so identical searches share one cache key.
+  const body = options.body ? JSON.stringify(options.body) : undefined;
+  const cacheKey = `${method} ${endpoint}${qs} ${body || ''}`;
+
+  if (options.ttl) {
+    const cached = cacheGet<T>(cacheKey);
+    if (cached !== undefined) return cached;
+    const pending = inFlight.get(cacheKey);
+    if (pending) return pending as Promise<T>;
   }
 
-  return candidateName;
+  const run = (async () => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/${endpoint}${qs}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': apiKey },
+        body,
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (err) {
+      const info: ApolloErrorInfo = { code: 'NETWORK', endpoint, at: new Date().toISOString(), message: 'Could not reach Apollo. Check your internet connection and try again.' };
+      lastErrors.set(endpoint, info);
+      logger.warn(`Apollo ${endpoint} network error`, { error: String(err) });
+      throw new ApolloApiError(info);
+    }
+
+    const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    // Apollo sometimes returns 200 with a limit message in the body.
+    const softError = res.ok && data && typeof data.message === 'string' && /maximum number of api calls|insufficient credits/i.test(data.message);
+    if (!res.ok || softError || !data) {
+      const info = classifyError(endpoint, res.status, data);
+      lastErrors.set(endpoint, info);
+      logger.warn(`Apollo ${endpoint} failed: ${info.code} ${info.message}`);
+      throw new ApolloApiError(info);
+    }
+
+    lastErrors.delete(endpoint);
+    if (options.ttl) cacheSet(cacheKey, data, options.ttl);
+    return data as T;
+  })();
+
+  if (options.ttl) inFlight.set(cacheKey, run);
+  try {
+    return await run;
+  } finally {
+    inFlight.delete(cacheKey);
+  }
 }
 
-// Helper to sanitize job titles and prevent filter terms from replacing executive titles
-function getCleanJobTitle(
-  jobTitleRaw?: string,
-  fallbackJobTitle?: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _activeFilterTerms: (string | undefined)[] = []
-): string {
-  const title = jobTitleRaw?.trim();
+const toErrorInfo = (err: unknown, endpoint: string): ApolloErrorInfo =>
+  err instanceof ApolloApiError
+    ? err.info
+    : { code: 'HTTP_ERROR', endpoint, at: new Date().toISOString(), message: 'Apollo request failed unexpectedly.' };
 
-  return title || fallbackJobTitle || 'Executive';
-}
+// ---------------------------------------------------------------------------
+// Parameter helpers
+// ---------------------------------------------------------------------------
 
-// Helper to extract clean technology stack list across all Apollo API candidate and organization properties
-function extractApolloTechnologies(
-  org?: Record<string, unknown>,
-  person?: Record<string, unknown>,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _params?: ApolloSearchParams
-): string[] {
-  const safeOrg = org || {};
-  const safePerson = person || {};
-  const accountObj = (safeOrg.account as Record<string, unknown>) || (safePerson.account as Record<string, unknown>) || {};
-  const accountOrg = (accountObj.organization as Record<string, unknown>) || {};
+const clean = (v?: string) => (v ? v.replace(/^e\.g\.\s*/i, '').trim() || undefined : undefined);
+const splitList = (v?: string) => (v ? v.split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean) : []);
+export const normalizeDomain = (v?: string) =>
+  clean(v)?.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/[/?#].*$/, '') || undefined;
+// Apollo technology UIDs are lowercase with underscores, e.g. "google_analytics", "node_js".
+const toTechUids = (v?: string) => splitList(v).map((t) => t.toLowerCase().replace(/[\s.]+/g, '_').replace(/[^a-z0-9_]/g, ''));
+const orUndefined = <T>(arr: T[]) => (arr.length ? arr : undefined);
+const pickString = (...vals: unknown[]) => vals.find((v): v is string => typeof v === 'string' && v.trim().length > 0);
+const pickNumber = (...vals: unknown[]) => vals.find((v): v is number => typeof v === 'number' && Number.isFinite(v));
 
-  const sources = [
-    safeOrg.technology_names,
-    safePerson.technology_names,
-    safePerson.organization_technology_names,
-    accountObj.technology_names,
-    accountOrg.technology_names,
-    safeOrg.current_technologies,
-    accountObj.current_technologies,
-    accountOrg.current_technologies,
-    safePerson.current_technologies,
-    safePerson.technologies,
-    safeOrg.technologies,
-    safeOrg.keywords,
-    safeOrg.sanitized_keywords,
-  ];
-
-  const techNames: string[] = [];
-
+function extractTechnologies(org?: Record<string, unknown>, person?: Record<string, unknown>): string[] {
+  const o = org || {};
+  const p = person || {};
+  const sources = [o.technology_names, p.organization_technology_names, o.current_technologies, p.current_technologies];
+  const names: string[] = [];
   for (const source of sources) {
-    if (Array.isArray(source) && source.length > 0) {
-      for (const item of source) {
-        if (typeof item === 'string' && item.trim()) {
-          techNames.push(item.trim());
-        } else if (item && typeof item === 'object') {
-          const obj = item as Record<string, unknown>;
-          const val = (obj.name as string) || (obj.display_name as string) || (obj.uid as string) || (obj.value as string);
-          if (val && typeof val === 'string' && val.trim()) {
-            techNames.push(val.trim());
-          }
-        }
+    if (!Array.isArray(source)) continue;
+    for (const item of source) {
+      if (typeof item === 'string' && item.trim()) names.push(item.trim());
+      else if (item && typeof item === 'object') {
+        const val = pickString((item as Record<string, unknown>).name, (item as Record<string, unknown>).display_name);
+        if (val) names.push(val.trim());
       }
     }
   }
-
-  const uniqueTechs = Array.from(new Set(techNames));
-  if (uniqueTechs.length > 0) return uniqueTechs;
-
-  // No real technologies found, return empty array instead of mocking
-  return [];
+  return Array.from(new Set(names));
 }
 
+function nameFromDomain(domain?: string) {
+  const host = domain?.split('.')[0];
+  return host ? host.charAt(0).toUpperCase() + host.slice(1) : undefined;
+}
+
+function mapOrganization(o: Record<string, unknown>): ApolloOrganizationMatch {
+  const city = pickString(o.city);
+  const state = pickString(o.state);
+  const country = pickString(o.country);
+  const domain = pickString(o.primary_domain, o.domain);
+  const techList = extractTechnologies(o);
+  const openJobs = pickNumber(o.num_open_jobs, o.open_jobs_count);
+  const latestFundingStage = pickString(o.latest_funding_stage);
+  const latestFundingDate = pickString(o.latest_funding_round_date);
+  const latestFundingAmount = pickNumber(o.latest_funding_amount) !== undefined ? String(o.latest_funding_amount) : pickString(o.latest_funding_amount);
+
+  const summaryParts: string[] = [];
+  if (latestFundingStage || latestFundingDate) {
+    const when = latestFundingDate ? ` in ${new Date(latestFundingDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : '';
+    summaryParts.push(`Funded${latestFundingStage ? ` (${latestFundingStage})` : ''}${when}`);
+  }
+  if (openJobs && openJobs > 0) summaryParts.push(`Hiring for ${openJobs} roles`);
+  if (techList.length) summaryParts.push(`Uses ${techList.slice(0, 3).join(', ')}`);
+
+  return {
+    apolloOrganizationId: pickString(o.id, o.organization_id) || `apollo-org-${domain || pickString(o.name) || 'unknown'}`,
+    name: pickString(o.name) || nameFromDomain(domain) || 'Unnamed company',
+    domain,
+    websiteUrl: pickString(o.website_url),
+    linkedinUrl: pickString(o.linkedin_url),
+    industry: pickString(o.industry) || (Array.isArray(o.industries) ? pickString(o.industries[0]) : undefined),
+    description: pickString(o.short_description, o.seo_description),
+    location: pickString(o.raw_address) || [city, state, country].filter(Boolean).join(', ') || undefined,
+    city,
+    state,
+    country,
+    employeeCount: pickNumber(o.estimated_num_employees, o.employee_count),
+    employeeRange: pickString(o.employee_range, o.estimated_num_employees_printed),
+    revenuePrinted: pickString(o.organization_revenue_printed, o.annual_revenue_printed),
+    revenue: pickNumber(o.organization_revenue, o.annual_revenue),
+    technologies: techList.length ? techList.slice(0, 8) : undefined,
+    latestFundingStage,
+    latestFundingDate,
+    latestFundingAmount,
+    totalFundingPrinted: pickString(o.total_funding_printed),
+    totalFunding: pickNumber(o.total_funding),
+    openJobsCount: openJobs,
+    foundedYear: pickNumber(o.founded_year),
+    whyThisCompanySummary: summaryParts.length ? summaryParts.join(' • ') : undefined,
+    hasPhone: Boolean(o.phone || (o.primary_phone as Record<string, unknown> | undefined)?.number),
+    searchMatches: openJobs && openJobs > 0 ? [{ type: 'hiring', label: `Hiring for ${openJobs} roles` }] : undefined,
+  };
+}
+
+function mapPerson(p: Record<string, unknown>, fallback: { domain?: string; creditsUsed: number }): ApolloPersonMatch {
+  const org = (p.organization as Record<string, unknown>) || {};
+  const city = pickString(p.city);
+  const state = pickString(p.state);
+  const country = pickString(p.country);
+  const orgDomain = pickString(org.primary_domain, org.domain) || fallback.domain;
+  const industry = pickString(org.industry) || (Array.isArray(org.industries) ? pickString(org.industries[0]) : undefined);
+  const techList = extractTechnologies(org, p);
+  const openJobs = pickNumber(org.num_open_jobs);
+  const fundingStage = pickString(org.latest_funding_stage);
+  const searchMatches: NonNullable<ApolloPersonMatch['searchMatches']> = [];
+  if (openJobs && openJobs > 0) searchMatches.push({ type: 'hiring', label: `Hiring for ${openJobs} roles` });
+  if (fundingStage) searchMatches.push({ type: 'hiring', label: `Funded (${fundingStage})` });
+
+  const phoneNumbers = Array.isArray(p.phone_numbers) ? (p.phone_numbers as Record<string, unknown>[]) : [];
+  const personalEmails = Array.isArray(p.personal_emails) ? (p.personal_emails as string[]) : [];
+  const email = pickString(p.email);
+  // Apollo returns placeholder addresses for locked emails; never treat those as real.
+  const workEmail = email && !/email_not_unlocked|@domain\.com$/i.test(email) ? email : undefined;
+  const lastName = pickString(p.last_name, p.last_name_obfuscated) || '';
+
+  return {
+    apolloPersonId: pickString(p.id) || `apollo-p-${pickString(p.first_name) || 'unknown'}-${orgDomain || ''}`,
+    personName: `${pickString(p.first_name) || ''} ${lastName}`.trim() || pickString(p.name) || 'Unnamed contact',
+    linkedinUrl: pickString(p.linkedin_url),
+    jobTitle: pickString(p.title),
+    seniority: pickString(p.seniority),
+    organizationName: pickString(org.name, p.organization_name) || nameFromDomain(orgDomain),
+    organizationDomain: orgDomain,
+    organizationIndustry: industry,
+    location: [city, state, country].filter(Boolean).join(', ') || undefined,
+    country,
+    employeeCount: pickNumber(org.estimated_num_employees),
+    employeeRange: pickString(org.estimated_num_employees_printed, org.employee_range),
+    technologies: techList.length ? techList.slice(0, 6) : undefined,
+    workEmail,
+    personalEmail: personalEmails.find((e) => typeof e === 'string' && e.includes('@')),
+    phone: pickString(phoneNumbers[0]?.sanitized_number, phoneNumbers[0]?.raw_number, p.sanitized_phone),
+    apolloOrganizationId: pickString(org.id, p.organization_id),
+    hasEmailAvailable: Boolean(p.has_email || workEmail),
+    hasPhoneAvailable: p.has_direct_phone === 'Yes' || p.has_direct_phone === true || phoneNumbers.length > 0,
+    creditsUsed: fallback.creditsUsed,
+    searchMatches: searchMatches.length ? searchMatches : undefined,
+  };
+}
+
+const emptyPeople = (params: { page?: number; perPage?: number }, error?: ApolloErrorInfo): ApolloSearchResponse =>
+  ({ people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10, error });
+const emptyOrgs = (params: { page?: number; perPage?: number }, error?: ApolloErrorInfo): ApolloOrgSearchResponse =>
+  ({ organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10, error });
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
 
 export class DefaultApolloProvider implements ApolloProvider {
-  private apiKey: string | undefined;
-
-  constructor() {
-    this.apiKey = process.env.APOLLO_API_KEY;
-  }
-
   /**
-   * Search People on Apollo matching name and organization domain.
+   * Find one person by name at a company domain (people/match). Uses one credit when Apollo reveals data.
    */
   async searchPeople(params: { name: string; domain?: string }): Promise<ApolloPersonMatch[]> {
-    if (!this.apiKey || process.env.APOLLO_MOCK_MODE === 'true' || this.apiKey === 'your-apollo-api-key-here') {
-      if (process.env.NODE_ENV === 'production' && process.env.APOLLO_MOCK_MODE !== 'true') {
-        throw new Error('Production Configuration Error: APOLLO_API_KEY environment variable is not configured.');
-      }
-      return [];
-    }
-
+    const [first, ...rest] = params.name.trim().split(/\s+/);
+    const domain = normalizeDomain(params.domain);
     try {
-      const res = await fetch('https://api.apollo.io/v1/people/match', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'x-api-key': this.apiKey,
-        },
-        body: JSON.stringify({
-          api_key: this.apiKey,
-          first_name: params.name.split(' ')[0],
-          last_name: params.name.split(' ').slice(1).join(' ') || undefined,
-          domain: params.domain,
-        }),
+      const data = await apolloRequest<{ person?: Record<string, unknown> }>('people/match', {
+        body: { first_name: first, last_name: rest.join(' ') || undefined, domain },
+        ttl: TTL.enrich,
       });
-
-      if (!res.ok) {
-        return [];
-      }
-
-      const data = await res.json();
-      const p = data.person;
-      if (!p) return [];
-
-      const org = (p.organization as Record<string, unknown>) || {};
-      const orgDomain = (org.primary_domain as string) || (org.domain as string) || params.domain;
-      const cleanOrgName = getCleanOrganizationName((org.name as string) || (p.organization_name as string), orgDomain, [params.name]);
-
-      return [{
-        apolloPersonId: p.id || 'apollo-p-1',
-        personName: `${p.first_name || ''} ${p.last_name || ''}`.trim() || params.name,
-        linkedinUrl: p.linkedin_url || undefined,
-        jobTitle: getCleanJobTitle(p.title, 'Executive / Decision Maker', [params.name]),
-        seniority: p.seniority || undefined,
-        organizationName: cleanOrgName,
-        organizationDomain: orgDomain,
-        organizationIndustry: (org.industry as string) || (org.industries as string[])?.[0] || undefined,
-        workEmail: p.email || undefined,
-        apolloOrganizationId: p.organization?.id || undefined,
-        creditsUsed: 1,
-        hasEmailAvailable: Boolean(p.has_email || p.email),
-        hasPhoneAvailable: Boolean(p.has_direct_phone === 'Yes' || org.has_phone),
-      }];
-    } catch (err: unknown) {
-      logger.error('Apollo searchPeople failed', err);
+      return data.person ? [mapPerson(data.person, { domain, creditsUsed: 1 })] : [];
+    } catch (err) {
+      if (!(err instanceof ApolloApiError)) logger.error('Apollo searchPeople failed', err);
       return [];
     }
   }
 
   /**
-   * Advanced Apollo People Search supporting multi-filter research parameters.
+   * People search (mixed_people/api_search). Costs no credits, but has a daily call limit.
+   * Note: this endpoint returns limited fields (obfuscated last name, title, company name, has_email flags).
    */
   async searchPeopleAdvanced(params: ApolloSearchParams): Promise<ApolloSearchResponse> {
-    if (!this.apiKey || process.env.APOLLO_MOCK_MODE === 'true' || this.apiKey === 'your-apollo-api-key-here') {
-      return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-    }
+    const domain = normalizeDomain(params.domain);
+    const keywordParts = [clean(params.keywords), clean(params.companyName), clean(params.hiringActivity)].filter(Boolean);
+    const perPage = Math.min(Math.max(params.perPage || 10, 1), 100);
+    const body: Record<string, unknown> = {
+      person_titles: orUndefined(splitList(clean(params.jobTitle))),
+      person_seniorities: orUndefined(splitList(params.seniority).map((s) => s.toLowerCase())),
+      person_locations: orUndefined(splitList(clean(params.personLocation))),
+      organization_locations: orUndefined(splitList(clean(params.orgLocation))),
+      // The correct filter name; Apollo silently ignores "organization_domains".
+      q_organization_domains_list: domain ? [domain] : undefined,
+      currently_using_any_of_technology_uids: orUndefined(toTechUids(params.techUsage)),
+      q_keywords: keywordParts.length ? keywordParts.join(' ') : undefined,
+      page: params.page || 1,
+      per_page: perPage,
+    };
 
     try {
-      const cleanString = (val?: string) => val ? val.replace(/^e\.g\.\s*/i, '').trim() : undefined;
-
-      const cleanJobTitleVal = cleanString(params.jobTitle);
-      const cleanCompanyVal = cleanString(params.companyName);
-      const cleanDomainVal = cleanString(params.domain)?.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
-      const cleanKeywordsVal = cleanString(params.keywords);
-      const cleanPersonLocVal = cleanString(params.personLocation);
-      const cleanOrgLocVal = cleanString(params.orgLocation);
-
-      const parsedTitles = cleanJobTitleVal
-        ? cleanJobTitleVal.split(',').map(t => t.trim()).filter(Boolean)
-        : undefined;
-
-      const parsedPersonLocs = cleanPersonLocVal
-        ? cleanPersonLocVal.split(',').map(l => l.trim()).filter(Boolean)
-        : undefined;
-
-      const parsedOrgLocs = cleanOrgLocVal
-        ? cleanOrgLocVal.split(',').map(l => l.trim()).filter(Boolean)
-        : undefined;
-
-      const activeFilterTerms = [
-        cleanCompanyVal,
-        cleanKeywordsVal,
-        params.techUsage,
-        params.hiringActivity,
-        cleanJobTitleVal,
-        cleanDomainVal,
-        cleanPersonLocVal,
-        cleanOrgLocVal,
-        params.seniority,
-      ];
-
-      const techUids = params.techUsage ? params.techUsage.toLowerCase().split(/[,;\s]+/).filter(Boolean) : undefined;
-      const combinedKeywords = [cleanKeywordsVal, cleanCompanyVal, params.hiringActivity].filter(Boolean).join(' ');
-
-      const res = await fetch('https://api.apollo.io/v1/mixed_people/api_search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'x-api-key': this.apiKey,
-        },
-        body: JSON.stringify({
-          api_key: this.apiKey,
-          person_titles: parsedTitles,
-          person_seniorities: params.seniority ? [params.seniority.toLowerCase()] : undefined,
-          person_locations: parsedPersonLocs,
-          organization_locations: parsedOrgLocs,
-          q_organization_keyword_tags: combinedKeywords ? combinedKeywords.split(/[,;\s]+/).filter(Boolean) : undefined,
-          currently_using_any_of_technology_uids: techUids,
-          q_keywords: combinedKeywords || undefined,
-          organization_domains: cleanDomainVal ? [cleanDomainVal] : undefined,
-          page: params.page || 1,
-          per_page: params.perPage || 10,
-        }),
-      });
-
-      if (!res.ok) {
-        let errorData = null;
-        try {
-          errorData = await res.json();
-        } catch { }
-
-        const errorMsg = errorData?.error || errorData?.message || '';
-        if (errorMsg && typeof errorMsg === 'string' && (errorMsg.includes('api calls allowed') || errorMsg.includes('rate') || errorMsg.includes('limit') || errorMsg.includes('upgrade') || errorMsg.includes('Free plan'))) {
-          logger.warn(`Apollo API Plan Limit reached: "${errorMsg}". Falling back to organization-derived mock people.`);
-          return this.getFallbackPeopleFromOrgs(params);
-        }
-
-        logger.warn(`Apollo searchPeopleAdvanced returned status ${res.status}. Returning empty.`);
-        return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      const data = await res.json();
-
-      if (data.message && typeof data.message === 'string' && (data.message.includes('api calls allowed') || data.message.includes('rate') || data.message.includes('limit') || data.message.includes('upgrade') || data.message.includes('Free plan'))) {
-        logger.warn(`Apollo API Rate Limit reached: "${data.message}". Falling back to organization-derived mock people.`);
-        return this.getFallbackPeopleFromOrgs(params);
-      }
-
-      if (data.error && typeof data.error === 'string' && (data.error.includes('upgrade') || data.error.includes('Free plan'))) {
-        logger.warn(`Apollo API Plan Limit reached: "${data.error}". Falling back to organization-derived mock people.`);
-        return this.getFallbackPeopleFromOrgs(params);
-      }
-
-      if (!data.people || !Array.isArray(data.people) || data.people.length === 0) {
-        logger.info('Apollo API returned 0 people.');
-        return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      const totalEntries = data.total_entries || data.pagination?.total_entries || data.people.length;
-
-      const peopleList: ApolloPersonMatch[] = data.people.map((p: Record<string, unknown>) => {
-        const org = (p.organization as Record<string, unknown>) || {};
-
-        // Location formatting
-        const city = (p.city as string) || (org.city as string);
-        const state = (p.state as string) || (org.state as string);
-        const country = (p.country as string) || (org.country as string);
-        const locParts = [city, state, country].filter(Boolean);
-        const locationStr = locParts.length > 0 ? locParts.join(', ') : undefined;
-
-        // Extract technology stack from candidate and organization metadata
-        const techList = extractApolloTechnologies(org, p, params);
-
-        // Real growth signals extracted from candidate's organization metadata
-        const searchMatches: { type: 'keyword' | 'tech' | 'hiring' | 'title' | 'domain'; label: string }[] = [];
-
-        const openJobs = typeof org.num_open_jobs === 'number' ? org.num_open_jobs : (typeof org.open_jobs_count === 'number' ? org.open_jobs_count : undefined);
-        if (openJobs && openJobs > 0) {
-          searchMatches.push({ type: 'hiring', label: `Hiring ${openJobs} open roles` });
-        }
-
-        const fundingStage = (org.latest_funding_stage as string) || (org.funding_stage as string);
-        if (fundingStage) {
-          searchMatches.push({ type: 'hiring', label: `Funded (${fundingStage})` });
-        }
-
-        // Industry from Apollo metadata
-        const realIndustry = (org.industry as string) ||
-          (Array.isArray(org.industries) ? (org.industries[0] as string) : undefined) ||
-          (org.sanitized_industry as string) || undefined;
-
-        // Clean Organization Name derivation
-        const orgDomain = (org.primary_domain as string) || (org.domain as string);
-        const cleanOrgName = getCleanOrganizationName(
-          (org.name as string) || (p.organization_name as string),
-          orgDomain,
-          activeFilterTerms,
-          realIndustry
-        );
-
-        // Clean Job Title derivation
-        const cleanJobTitle = getCleanJobTitle(
-          (p.title as string),
-          params.jobTitle || 'Executive',
-          activeFilterTerms
-        );
-
-        // Employee count & location from Apollo metadata
-        const empCount = typeof org.estimated_num_employees === 'number'
-          ? org.estimated_num_employees
-          : (typeof org.employee_count === 'number' ? org.employee_count : (typeof p.organization_num_employees === 'number' ? p.organization_num_employees : undefined));
-        const empRange = (org.estimated_num_employees_printed as string) || (org.employee_range as string) || undefined;
-        const realCountry = (country as string) || (p.country as string) || (org.country as string) || (locParts.length > 0 ? locParts[locParts.length - 1] : undefined);
-
-        return {
-          apolloPersonId: (p.id as string) || `apollo-p-${Math.random()}`,
-          personName: `${(p.first_name as string) || ''} ${(p.last_name as string) || (p.last_name_obfuscated as string) || ''}`.trim() || (p.name as string) || 'Apollo Lead',
-          linkedinUrl: (p.linkedin_url as string) || undefined,
-          jobTitle: cleanJobTitle,
-          seniority: (p.seniority as string) || undefined,
-          organizationName: cleanOrgName,
-          organizationDomain: orgDomain || undefined,
-          organizationIndustry: realIndustry || undefined,
-          workEmail: (p.email as string) || undefined,
-          creditsUsed: 0,
-          location: locationStr,
-          country: realCountry,
-          employeeCount: empCount,
-          employeeRange: empRange,
-          technologies: techList.length > 0 ? techList.slice(0, 4) : undefined,
-          searchMatches: searchMatches.length > 0 ? searchMatches : undefined,
-          hasEmailAvailable: Boolean(p.has_email || p.email),
-          hasPhoneAvailable: Boolean(p.has_direct_phone === 'Yes' || org.has_phone),
-        };
-      });
-
+      const data = await apolloRequest<{ people?: Record<string, unknown>[]; total_entries?: number; pagination?: { total_entries?: number } }>(
+        'mixed_people/api_search', { body, ttl: TTL.search }
+      );
+      const people = (data.people || []).map((p) => mapPerson(p, { domain, creditsUsed: 0 }));
       return {
-        people: peopleList,
-        totalCount: totalEntries,
+        people,
+        totalCount: data.total_entries ?? data.pagination?.total_entries ?? people.length,
         page: params.page || 1,
-        perPage: params.perPage || 10,
-      };
-    } catch (err: unknown) {
-      logger.error('Apollo searchPeopleAdvanced failed', err);
-      return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-    }
-  }
-
-  private async getFallbackPeopleFromOrgs(params: ApolloSearchParams): Promise<ApolloSearchResponse> {
-    try {
-      const orgParams = { 
-        ...params, 
-        location: (params as any).location || params.orgLocation || params.personLocation,
-        perPage: params.perPage ? Math.max(params.perPage, 10) : 10 
-      };
-      const orgResponse = await this.searchOrganizationsAdvanced(orgParams);
-      
-      if (!orgResponse.organizations || orgResponse.organizations.length === 0) {
-        return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      const peopleList: ApolloPersonMatch[] = [];
-      const firstNames = ['James', 'David', 'Sarah', 'Michael', 'Emma', 'John', 'Jessica', 'Robert', 'Lisa', 'William', 'Ashley', 'Richard'];
-      const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
-      
-      orgResponse.organizations.forEach((org, index) => {
-        const titleTarget = params.jobTitle ? params.jobTitle.split(',')[0].trim() : (params.seniority === 'c_suite' ? 'Chief Executive Officer' : 'Decision Maker');
-        const fName = firstNames[(index * 7) % firstNames.length];
-        const lName = lastNames[(index * 3) % lastNames.length];
-        
-        peopleList.push({
-          apolloPersonId: `apollo-fb-p-${org.apolloOrganizationId || Math.random()}`,
-          personName: `${fName} ${lName}`,
-          linkedinUrl: org.domain ? `https://linkedin.com/company/${org.domain}/people` : undefined,
-          jobTitle: titleTarget,
-          seniority: params.seniority || 'Manager',
-          organizationName: org.name || 'Unknown Company',
-          organizationDomain: org.domain || undefined,
-          organizationIndustry: org.industry || undefined,
-          location: org.location || undefined,
-          country: org.country || undefined,
-          employeeCount: org.employeeCount || undefined,
-          employeeRange: org.employeeRange || undefined,
-          technologies: org.technologies || undefined,
-          searchMatches: [{ type: 'title', label: `Live Company Data` }],
-          hasEmailAvailable: true,
-          hasPhoneAvailable: false,
-          creditsUsed: 0,
-        });
-      });
-
-      return {
-        people: peopleList,
-        totalCount: orgResponse.totalCount,
-        page: params.page || 1,
-        perPage: params.perPage || 10,
+        perPage,
       };
     } catch (err) {
-      logger.error('Apollo fallback people generator failed', err);
-      return { people: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
+      if (!(err instanceof ApolloApiError)) logger.error('Apollo searchPeopleAdvanced failed', err);
+      return emptyPeople({ ...params, perPage }, toErrorInfo(err, 'mixed_people/api_search'));
     }
   }
 
-
   /**
-   * Advanced Apollo Organization Search supporting company prospecting filters.
+   * Company search (organizations/search). Costs no credits, but has a daily call limit.
    */
   async searchOrganizationsAdvanced(params: ApolloOrgSearchParams): Promise<ApolloOrgSearchResponse> {
-    if (!this.apiKey || process.env.APOLLO_MOCK_MODE === 'true' || this.apiKey === 'your-apollo-api-key-here') {
-      return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
+    const domain = normalizeDomain(params.domain);
+    const perPage = Math.min(Math.max(params.perPage || 10, 1), 100);
+    const body: Record<string, unknown> = {
+      q_organization_name: clean(params.name),
+      q_organization_domains_list: domain ? [domain] : undefined,
+      q_organization_keyword_tags: orUndefined(splitList(clean(params.keywords))),
+      q_organization_job_titles: orUndefined(splitList(clean(params.hiringKeywords))),
+      organization_locations: orUndefined(splitList(clean(params.location))),
+      organization_num_employees_ranges: params.employeeCountRange ? [params.employeeCountRange] : undefined,
+      currently_using_any_of_technology_uids: orUndefined(toTechUids(params.techUsage)),
+      latest_funding_stage_cd: orUndefined(splitList(params.fundingStage)),
+      page: params.page || 1,
+      per_page: perPage,
+    };
+    if (params.minRevenue !== undefined || params.maxRevenue !== undefined) {
+      body.revenue_range = { min: params.minRevenue, max: params.maxRevenue };
+    }
+    if (params.minOpenJobs) body.organization_num_jobs_range = { min: params.minOpenJobs };
+    if (params.fundingPresetDays || params.fundingDateFrom || params.fundingDateTo) {
+      const today = new Date();
+      const min = params.fundingPresetDays
+        ? new Date(today.getTime() - params.fundingPresetDays * 86400000).toISOString().split('T')[0]
+        : params.fundingDateFrom;
+      if (min) body.latest_funding_date_range = { min, max: params.fundingDateTo || today.toISOString().split('T')[0] };
     }
 
     try {
-      const payload: Record<string, unknown> = {
-        api_key: this.apiKey,
-        page: params.page || 1,
-        per_page: params.perPage || 10,
-      };
-
-      const cleanStr = (v?: string) => v ? v.replace(/^e\.g\.\s*/i, '').trim() : undefined;
-
-      const cleanKeywords = cleanStr(params.keywords);
-      const cleanName = cleanStr(params.name);
-      const cleanDomain = cleanStr(params.domain)?.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
-      const cleanLocation = cleanStr(params.location);
-
-      const cleanHiring = cleanStr(params.hiringKeywords);
-      const combinedOrgKeywords = [cleanKeywords, cleanHiring].filter(Boolean).join(' ');
-
-      if (combinedOrgKeywords) {
-        payload.q_organization_keyword_tags = combinedOrgKeywords.split(/[,;\s]+/).filter(Boolean);
-      }
-      if (cleanName) {
-        payload.q_organization_name = cleanName;
-      }
-      if (cleanDomain) {
-        payload.organization_domains = [cleanDomain];
-      }
-      if (cleanLocation) {
-        payload.organization_locations = [cleanLocation];
-      }
-      if (params.employeeCountRange) {
-        payload.organization_num_employees_ranges = [params.employeeCountRange];
-      }
-      if (params.techUsage) {
-        payload.currently_using_any_of_technology_uids = params.techUsage.toLowerCase().split(/[,;\s]+/).filter(Boolean);
-      }
-      if (params.fundingStage) {
-        payload.latest_funding_stage_cd = params.fundingStage.split(',').map(s => s.trim());
-      }
-
-      // Dynamic funding date range calculation if fundingPresetDays provided
-      if (params.fundingPresetDays || params.fundingDateFrom || params.fundingDateTo) {
-        const today = new Date();
-        let minDateStr = params.fundingDateFrom;
-        const maxDateStr = params.fundingDateTo || today.toISOString().split('T')[0];
-
-        if (params.fundingPresetDays) {
-          const pastDate = new Date(today.getTime() - params.fundingPresetDays * 24 * 60 * 60 * 1000);
-          minDateStr = pastDate.toISOString().split('T')[0];
-        }
-
-        if (minDateStr) {
-          payload.latest_funding_date_range = {
-            min: minDateStr,
-            max: maxDateStr,
-          };
-        }
-      }
-
-      const res = await fetch('https://api.apollo.io/v1/organizations/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'x-api-key': this.apiKey,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        let errorData = null;
-        try {
-          errorData = await res.json();
-        } catch { }
-
-        const errorMsg = errorData?.error || errorData?.message || '';
-        if (errorMsg && typeof errorMsg === 'string' && (errorMsg.includes('api calls allowed') || errorMsg.includes('rate') || errorMsg.includes('limit') || errorMsg.includes('upgrade') || errorMsg.includes('Free plan'))) {
-          logger.warn(`Apollo API Plan Limit reached for Organizations: "${errorMsg}". Returning empty.`);
-          return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-        }
-
-        logger.warn(`Apollo searchOrganizationsAdvanced returned status ${res.status}. Returning empty.`);
-        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      const data = await res.json();
-
-      if (data.message && typeof data.message === 'string' && (data.message.includes('api calls allowed') || data.message.includes('rate') || data.message.includes('limit') || data.message.includes('upgrade') || data.message.includes('Free plan'))) {
-        logger.warn(`Apollo API Rate Limit reached: "${data.message}". Returning empty.`);
-        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      if (data.error && typeof data.error === 'string' && (data.error.includes('upgrade') || data.error.includes('Free plan'))) {
-        logger.warn(`Apollo API Plan Limit reached: "${data.error}". Returning empty.`);
-        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      if (!data.organizations || !Array.isArray(data.organizations) || data.organizations.length === 0) {
-        logger.info('Apollo API returned 0 organizations.');
-        return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
-      }
-
-      const totalEntries = data.pagination?.total_entries || data.num_fetch_result || data.organizations.length;
-
-      const orgList: ApolloOrganizationMatch[] = data.organizations.map((o: Record<string, unknown>) => {
-        const city = o.city as string;
-        const state = o.state as string;
-        const country = o.country as string;
-        const locParts = [city, state, country].filter(Boolean);
-        const locStr = (o.raw_address as string) || (locParts.length > 0 ? locParts.join(', ') : undefined);
-
-        let techList = extractApolloTechnologies(o);
-
-        if (techList.length === 0 && params.techUsage) {
-          techList = params.techUsage.split(/[,;\s]+/).filter(Boolean).map(t => t.trim());
-        }
-
-        const openJobs = typeof o.num_open_jobs === 'number' ? o.num_open_jobs : undefined;
-        const latestFundingStage = (o.latest_funding_stage as string) || undefined;
-        const latestFundingDate = (o.latest_funding_round_date as string) || undefined;
-        const latestFundingAmount = (o.latest_funding_amount as string) || undefined;
-        const totalFundingPrinted = (o.total_funding_printed as string) || undefined;
-
-        // Build deterministic Why This Company? summary
-        const summaryParts: string[] = [];
-        if (latestFundingStage || latestFundingAmount || latestFundingDate) {
-          const stageStr = latestFundingStage ? `${latestFundingStage} ` : '';
-          const dateStr = latestFundingDate ? `in ${new Date(latestFundingDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : '';
-          summaryParts.push(`Recently funded ${stageStr}${dateStr}`.trim());
-        }
-        if (openJobs && openJobs > 0) {
-          summaryParts.push(`Currently hiring ${openJobs} roles`);
-        }
-        if (techList.length > 0) {
-          summaryParts.push(`Uses ${techList.slice(0, 3).join(', ')}`);
-        }
-        const whyThisCompany = summaryParts.length > 0
-          ? summaryParts.join(' • ')
-          : 'No strong growth signal detected.';
-
-        return {
-          apolloOrganizationId: (o.id as string) || `apollo-org-${Math.random()}`,
-          name: getCleanOrganizationName(
-            (o.name as string),
-            (o.primary_domain as string) || (o.domain as string),
-            [params.keywords, params.name, params.domain, params.location, params.techUsage, params.hiringKeywords],
-            (o.industry as string)
-          ),
-          domain: (o.primary_domain as string) || (o.domain as string) || undefined,
-          websiteUrl: (o.website_url as string) || undefined,
-          industry: (o.industry as string) || (Array.isArray(o.industries) ? (o.industries[0] as string) : undefined) || undefined,
-          location: locStr,
-          employeeCount: typeof o.estimated_num_employees === 'number' ? o.estimated_num_employees : (typeof o.employee_count === 'number' ? o.employee_count : undefined),
-          employeeRange: (o.employee_range as string) || (o.estimated_num_employees_printed as string) || undefined,
-          city,
-          state,
-          country,
-          revenuePrinted: (o.organization_revenue_printed as string) || undefined,
-          revenue: typeof o.organization_revenue === 'number' ? o.organization_revenue : undefined,
-          technologies: techList.length > 0 ? techList.slice(0, 4) : undefined,
-          latestFundingStage,
-          latestFundingDate,
-          latestFundingAmount,
-          totalFundingPrinted,
-          totalFunding: typeof o.total_funding === 'number' ? o.total_funding : undefined,
-          openJobsCount: openJobs,
-          whyThisCompanySummary: whyThisCompany,
-          hasPhone: Boolean(o.phone || o.raw_address),
-          searchMatches: openJobs && openJobs > 0 ? [{ type: 'hiring', label: `Hiring ${openJobs} open roles` }] : undefined,
-        };
-      });
-
+      const data = await apolloRequest<{ organizations?: Record<string, unknown>[]; accounts?: Record<string, unknown>[]; pagination?: { total_entries?: number } }>(
+        'organizations/search', { body, ttl: TTL.search }
+      );
+      const raw = [...(data.organizations || []), ...(data.accounts || [])];
+      const organizations = raw.map(mapOrganization);
       return {
-        organizations: orgList,
-        totalCount: totalEntries,
+        organizations,
+        totalCount: data.pagination?.total_entries ?? organizations.length,
         page: params.page || 1,
-        perPage: params.perPage || 10,
+        perPage,
       };
-    } catch (err: unknown) {
-      logger.error('Apollo searchOrganizationsAdvanced failed', err);
-      return { organizations: [], totalCount: 0, page: params.page || 1, perPage: params.perPage || 10 };
+    } catch (err) {
+      if (!(err instanceof ApolloApiError)) logger.error('Apollo searchOrganizationsAdvanced failed', err);
+      return emptyOrgs({ ...params, perPage }, toErrorInfo(err, 'organizations/search'));
     }
   }
 
   /**
-   * Enrich person details (optionally revealing personal email or phone if allowed).
+   * Reveal a person's contact details (people/match). Uses Apollo credits.
+   * Returns null when Apollo has no match or cannot answer; see getLastApolloErrors() for the reason.
    */
   async enrichPerson(params: {
     apolloPersonId: string;
@@ -741,149 +592,102 @@ export class DefaultApolloProvider implements ApolloProvider {
     revealPhone?: boolean;
     webhookUrl?: string;
   }): Promise<ApolloPersonMatch | null> {
-    if (!this.apiKey || process.env.APOLLO_MOCK_MODE === 'true' || this.apiKey === 'your-apollo-api-key-here') {
-      if (process.env.NODE_ENV === 'production' && process.env.APOLLO_MOCK_MODE !== 'true') {
-        throw new Error('Production Configuration Error: APOLLO_API_KEY environment variable is not configured.');
-      }
-      return null;
+    const body: Record<string, unknown> = {};
+    // Synthetic ids (from our own fallbacks) must not be sent as Apollo ids.
+    if (params.apolloPersonId && !params.apolloPersonId.startsWith('apollo-')) body.id = params.apolloPersonId;
+    const domain = normalizeDomain(params.domain);
+    if (domain) body.domain = domain;
+    if (params.name) {
+      const parts = params.name.replace(/\*+/g, '').trim().split(/\s+/);
+      body.first_name = parts[0];
+      // Obfuscated last names ("Br***n") are useless for matching; rely on the id instead.
+      if (parts.length > 1 && !/\*/.test(params.name)) body.last_name = parts.slice(1).join(' ');
     }
+    if (params.firstName) body.first_name = params.firstName;
+    if (params.lastName) body.last_name = params.lastName;
+    if (params.organizationName) body.organization_name = params.organizationName;
+    if (params.revealPersonalEmail) body.reveal_personal_emails = true;
+    const webhookUrl = params.webhookUrl || process.env.APOLLO_WEBHOOK_URL;
+    if (params.revealPhone && webhookUrl?.startsWith('http')) {
+      body.reveal_phone_number = true;
+      body.webhook_url = webhookUrl;
+    }
+    if (!body.id && !(body.first_name && (body.domain || body.organization_name))) return null;
 
     try {
-      const payload: Record<string, unknown> = {
-        api_key: this.apiKey,
-        id: params.apolloPersonId,
-        person_id: params.apolloPersonId,
-      };
-
-      if (params.domain) {
-        payload.domain = params.domain;
-        payload.organization_domain = params.domain;
-      }
-      if (params.firstName) {
-        payload.first_name = params.firstName;
-      }
-      if (params.lastName) {
-        payload.last_name = params.lastName;
-      }
-      if (params.name) {
-        const parts = params.name.trim().split(/\s+/);
-        if (parts[0]) payload.first_name = parts[0];
-        if (parts.length > 1) payload.last_name = parts.slice(1).join(' ');
-      }
-      if (params.organizationName) {
-        payload.organization_name = params.organizationName;
-      }
-      if (params.revealPersonalEmail) {
-        payload.reveal_personal_emails = true;
-      }
-      
-      const webhookUrl = params.webhookUrl || process.env.APOLLO_WEBHOOK_URL;
-      if (params.revealPhone && webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('http')) {
-        payload.reveal_phone_number = true;
-        payload.webhook_url = webhookUrl;
-      }
-
-      let res: Response;
-      try {
-        res = await fetch('https://api.apollo.io/v1/people/match', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'x-api-key': this.apiKey,
-          },
-          body: JSON.stringify(payload),
-        });
-      } catch (fetchErr) {
-        logger.warn('Apollo enrichPerson network fetch failed', { error: String(fetchErr) });
-        return null;
-      }
-
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '');
-        logger.warn(`Apollo enrichPerson API HTTP ${res.status}: ${errorText || res.statusText}`);
-        return null;
-      }
-
-      const data = await res.json().catch(() => null);
-      if (!data) return null;
-      const p = data.person;
-      if (!p) return null;
-
-      const orgPhone = p.organization?.primary_phone?.number || p.organization?.phone || p.sanitized_phone || p.phone_numbers?.[0]?.sanitized_number;
-
-      return {
-        apolloPersonId: p.id,
-        personName: `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Apollo Contact',
-        linkedinUrl: p.linkedin_url || undefined,
-        jobTitle: p.title || undefined,
-        organizationName: p.organization?.name || undefined,
-        organizationDomain: p.organization?.primary_domain || undefined,
-        workEmail: p.email || undefined,
-        personalEmail: p.personal_emails?.[0] || undefined,
-        phone: orgPhone || undefined,
-        apolloOrganizationId: p.organization?.id || undefined,
-        creditsUsed: 1,
-      };
+      const data = await apolloRequest<{ person?: Record<string, unknown> }>('people/match', { body, ttl: TTL.enrich });
+      return data.person ? mapPerson(data.person, { domain, creditsUsed: 1 }) : null;
     } catch (err) {
-      logger.warn('Apollo enrichPerson processing error', { error: String(err) });
+      if (!(err instanceof ApolloApiError)) logger.error('Apollo enrichPerson failed', err);
       return null;
     }
   }
 
   /**
-   * Enrich Organization details by Apollo Organization ID.
+   * Company details by domain (organizations/enrich) or by Apollo id (organizations/{id}).
    */
-  async enrichOrganization(params: { apolloOrgId: string }): Promise<ApolloOrganizationMatch | null> {
-    if (!this.apiKey || process.env.APOLLO_MOCK_MODE === 'true' || this.apiKey === 'your-apollo-api-key-here') {
-      if (process.env.NODE_ENV === 'production' && process.env.APOLLO_MOCK_MODE !== 'true') {
-        throw new Error('Production Configuration Error: APOLLO_API_KEY environment variable is not configured.');
+  async enrichOrganization(params: { apolloOrgId?: string; domain?: string }): Promise<ApolloOrganizationMatch | null> {
+    const domain = normalizeDomain(params.domain);
+    try {
+      if (domain) {
+        const data = await apolloRequest<{ organization?: Record<string, unknown> }>('organizations/enrich', { method: 'GET', query: { domain }, ttl: TTL.enrich });
+        return data.organization ? mapOrganization(data.organization) : null;
+      }
+      if (params.apolloOrgId && !params.apolloOrgId.startsWith('apollo-org-')) {
+        const data = await apolloRequest<{ organization?: Record<string, unknown> }>(`organizations/${encodeURIComponent(params.apolloOrgId)}`, { method: 'GET', ttl: TTL.enrich });
+        return data.organization ? mapOrganization(data.organization) : null;
       }
       return null;
-    }
-
-    try {
-      const res = await fetch(`https://api.apollo.io/v1/organizations/enrich?id=${params.apolloOrgId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'x-api-key': this.apiKey,
-        },
-      });
-
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      const o = data.organization;
-      if (!o) return null;
-
-      return {
-        apolloOrganizationId: o.id || params.apolloOrgId,
-        name: o.name || 'Organization',
-        domain: o.primary_domain || o.domain || undefined,
-        websiteUrl: o.website_url || undefined,
-        industry: o.industry || undefined,
-        employeeCount: o.estimated_num_employees || undefined,
-      };
     } catch (err) {
-      logger.error('Apollo enrichOrganization failed', err);
+      if (!(err instanceof ApolloApiError)) logger.error('Apollo enrichOrganization failed', err);
       return null;
     }
   }
 
-  /**
-   * Search Contacts by email or name.
-   */
   async searchContacts(params: { email?: string; name?: string }): Promise<ApolloPersonMatch[]> {
-    return this.searchPeople({ name: params.name || 'Contact', domain: params.email?.split('@')[1] });
+    if (!params.name) return [];
+    return this.searchPeople({ name: params.name, domain: params.email?.split('@')[1] });
   }
 
-  /**
-   * Get Contact details by Contact ID.
-   */
   async getContact(params: { contactId: string }): Promise<ApolloPersonMatch | null> {
     return this.enrichPerson({ apolloPersonId: params.contactId });
+  }
+
+  /**
+   * Real daily quota per endpoint from Apollo's usage stats API (not an estimate).
+   */
+  async getUsage(): Promise<ApolloUsageEndpoint[] | null> {
+    try {
+      const data = await apolloRequest<Record<string, { day?: { limit: number; consumed: number; left_over: number } }>>('usage_stats/api_usage_stats', { ttl: TTL.usage });
+      const wanted: Record<string, string> = {
+        '["api/v1/mixed_people", "api_search"]': 'mixed_people/api_search',
+        '["api/v1/organizations", "search"]': 'organizations/search',
+        '["api/v1/people", "match"]': 'people/match',
+        '["api/v1/organizations", "enrich"]': 'organizations/enrich',
+      };
+      return Object.entries(wanted)
+        .filter(([k]) => data[k]?.day)
+        .map(([k, endpoint]) => ({
+          endpoint,
+          label: ENDPOINT_LABELS[endpoint],
+          dayLimit: data[k].day!.limit,
+          dayUsed: data[k].day!.consumed,
+          dayLeft: data[k].day!.left_over,
+        }));
+    } catch {
+      return null;
+    }
+  }
+
+  async checkHealth(): Promise<{ ok: boolean; message: string }> {
+    try {
+      const data = await apolloRequest<{ healthy?: boolean; is_logged_in?: boolean }>('auth/health', { method: 'GET', ttl: TTL.health });
+      return data.is_logged_in
+        ? { ok: true, message: 'Apollo API key is valid.' }
+        : { ok: false, message: 'Apollo rejected the API key. Check APOLLO_API_KEY.' };
+    } catch (err) {
+      return { ok: false, message: err instanceof ApolloApiError ? err.info.message : 'Could not reach Apollo.' };
+    }
   }
 }
 

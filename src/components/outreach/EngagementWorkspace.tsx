@@ -1,56 +1,62 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { OutreachMessageDraft, OutreachChannel, ToneSetting, EngagementTelemetry, FollowupStage } from '@/features/outreach/types';
 import { TemplateSelector } from './TemplateSelector';
-import { OutreachEditor } from './OutreachEditor';
-import { FollowupTimeline } from './FollowupTimeline';
-import { generateOutreachDraftAction, approveOutreachDraftAction } from '@/features/outreach/actions';
-import { Database, Sparkles, Loader2, Building2, CheckCircle2, Copy, Check, Mail, Phone, Globe, UserCheck, MessageSquare, Calendar, TrendingUp, Target } from 'lucide-react';
+import { OutreachEditor, EditorBusy, copyToClipboard } from './OutreachEditor';
+import { FollowupTimeline, STAGES } from './FollowupTimeline';
+import { OutreachCampaignDashboard } from './OutreachCampaignDashboard';
+import {
+  generateOutreachDraftAction,
+  scheduleOutreachSequenceAction,
+  markStageSentAction,
+  setSequencePausedAction,
+} from '@/features/outreach/actions';
+import {
+  Search, Sparkles, Loader2, Building2, CheckCircle2, AlertTriangle, Copy, Check, Mail, Globe,
+  UserRound, MessageSquare, CalendarClock, TrendingUp, Target,
+} from 'lucide-react';
 import { DiscoveryLeadItem } from '@/features/discovery/types';
+import { importLinkedInResearchAction } from '@/features/linkedin/actions';
+import s from './outreach.module.css';
 
-const copyToClipboard = (text: string): boolean => {
-  if (!text) return false;
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch { }
+const PLACEHOLDER_DOMAINS = ['', 'enterprise.com', 'acmehealth.com'];
+const NOTES_KEY = 'bdos_outreach_research_notes';
 
+const EXAMPLE_ACCOUNTS = [
+  { name: 'SaaS Labs', domain: 'saaslabs.com', tag: 'SaaS' },
+  { name: 'Vercel', domain: 'vercel.com', tag: 'Cloud platform' },
+  { name: 'Supabase', domain: 'supabase.com', tag: 'Database' },
+  { name: 'Linear', domain: 'linear.app', tag: 'Productivity' },
+  { name: 'Postman', domain: 'postman.com', tag: 'API platform' },
+  { name: 'Sentry', domain: 'sentry.io', tag: 'Developer tools' },
+];
+
+type Lead = { name: string; domain: string; tag: string };
+
+const readSavedLeads = (): Lead[] => {
   try {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '0';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(textArea);
-    return ok;
+    const raw = localStorage.getItem('bdos_company360_migrated_leads');
+    if (!raw) return [];
+    const parsed: Record<string, DiscoveryLeadItem> = JSON.parse(raw);
+    return Object.values(parsed)
+      .filter((l) => l && l.domain && l.companyName)
+      .map((l) => ({
+        name: l.companyName.replace(/\(.*?\)/g, '').trim(),
+        domain: l.domain,
+        tag: [l.icpScore ? `ICP ${l.icpScore}` : '', l.industry || ''].filter(Boolean).join(' · ') || 'Saved lead',
+      }));
   } catch {
-    return false;
+    return [];
   }
 };
 
-const curatedTargetAccounts = [
-  { name: 'SaaS Labs', domain: 'saaslabs.com', tag: 'SaaS • High Intent' },
-  { name: 'Vercel', domain: 'vercel.com', tag: 'Cloud Platform • Active' },
-  { name: 'Stripe', domain: 'stripe.com', tag: 'FinTech Infrastructure' },
-  { name: 'Supabase', domain: 'supabase.com', tag: 'Database & Cloud' },
-  { name: 'Cloudflare', domain: 'cloudflare.com', tag: 'Security & CDN' },
-  { name: 'Linear', domain: 'linear.app', tag: 'Productivity SaaS' },
-  { name: 'GitHub', domain: 'github.com', tag: 'Developer Platform' },
-  { name: 'Datadog', domain: 'datadoghq.com', tag: 'Observability' },
-  { name: 'Postman', domain: 'postman.com', tag: 'API Platform' },
-  { name: 'Sentry', domain: 'sentry.io', tag: 'Developer Tools' },
-];
+const cleanDomain = (value: string) =>
+  value.trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').split(/[/?#]/)[0].toLowerCase();
 
 export function EngagementWorkspace({
   initialDraft,
-  telemetry
+  telemetry,
 }: {
   initialDraft: OutreachMessageDraft;
   telemetry: EngagementTelemetry;
@@ -58,486 +64,472 @@ export function EngagementWorkspace({
   const [draft, setDraft] = useState<OutreachMessageDraft>(initialDraft);
   const [channel, setChannel] = useState<OutreachChannel>(initialDraft.channel);
   const [tone, setTone] = useState<ToneSetting>(initialDraft.tone);
-  const [domainQuery, setDomainQuery] = useState(initialDraft.domain || 'saaslabs.com');
+  const [domainQuery, setDomainQuery] = useState(PLACEHOLDER_DOMAINS.includes(initialDraft.domain) ? '' : initialDraft.domain);
+  const [domainError, setDomainError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState<EditorBusy>(null);
+  const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [quickSelectLeads, setQuickSelectLeads] = useState<{ name: string; domain: string; tag: string }[]>([]);
+  const [campaignsVersion, setCampaignsVersion] = useState(0);
+  // Research notes per company domain (LinkedIn About, a recent post, news), remembered in this browser.
+  const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+  const notesMapRef = useRef<Record<string, string>>({});
+  const researchRef = useRef<HTMLTextAreaElement>(null);
+  const [profileUrlInput, setProfileUrlInput] = useState('');
+  const [importingResearch, setImportingResearch] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-      if (savedLeads) {
-        const parsed: Record<string, DiscoveryLeadItem> = JSON.parse(savedLeads);
-        const leads = Object.values(parsed).filter(l => l && l.domain && l.companyName);
-        if (leads.length > 0) {
-          const formatted = leads.map(l => ({
-            name: l.companyName.replace(/\(.*?\)/g, '').trim(),
-            domain: l.domain,
-            tag: `ICP ${l.icpScore || 92}/100 • ${l.industry || 'Software'}`,
-          }));
-          setQuickSelectLeads(formatted);
+  const notify = useCallback((msg: string, error = false) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, error });
+    toastTimer.current = setTimeout(() => setToast(null), error ? 5000 : 3200);
+  }, []);
 
-          const initialDomain = initialDraft.domain;
-          if (!initialDomain || initialDomain === 'acmehealth.com' || initialDomain === 'enterprise.com') {
-            const first = formatted[0];
-            if (first && first.domain) {
-              setDomainQuery(first.domain);
-            }
-          }
-        }
-      }
-    } catch { }
-  }, [initialDraft.domain]);
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
-  const triggerToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
-  };
+  // Latest draft for async handlers that finish after a re-render.
+  const draftRef = useRef(draft);
+  useEffect(() => { draftRef.current = draft; });
 
-  const handleCopyText = (text: string, key: string, label: string) => {
-    const ok = copyToClipboard(text);
-    if (ok) {
-      setCopiedKey(key);
-      triggerToast(`Copied ${label} to clipboard!`);
-      setTimeout(() => setCopiedKey(null), 2000);
-    } else {
-      triggerToast('Failed to copy text.');
-    }
-  };
-
-  const handleGenerateCustom = async (targetDomain?: string) => {
-    const domainToFetch = targetDomain || domainQuery;
-    if (!domainToFetch.trim()) return;
+  const regenerate = useCallback(async (targetDomain: string, nextChannel: OutreachChannel, nextTone: ToneSetting, persist: boolean) => {
+    const id = ++requestId.current;
     setIsGenerating(true);
     try {
-      const updated = await generateOutreachDraftAction(domainToFetch.trim(), channel, draft.category, tone);
-      setDraft(updated);
-      setDomainQuery(domainToFetch);
-      triggerToast(`Generated AI outreach draft for ${updated.companyName}`);
+      const notes = notesMapRef.current[targetDomain]?.trim() || undefined;
+      const updated = await generateOutreachDraftAction(targetDomain, nextChannel, 'COLD_OUTREACH', nextTone, persist, true, notes);
+      if (id !== requestId.current) return null; // a newer request superseded this one
+      // Keep a LinkedIn profile imported for this same company; forget it when the company changes.
+      const prev = draftRef.current;
+      const sameCompany = prev.domain === updated.domain;
+      if (!sameCompany) setProfileUrlInput('');
+      const keptProfile = sameCompany && /linkedin\.com\/in\//i.test(prev.targetContactLinkedin || '') ? prev.targetContactLinkedin : undefined;
+      setDraft({ ...updated, targetContactLinkedin: updated.targetContactLinkedin || keptProfile });
+      if (updated.sequenceSource === 'FALLBACK') notify('AI is unavailable right now, so a template sequence was loaded. Review it before sending.', true);
+      else notify(updated.sequence ? `4-stage sequence ready for ${updated.companyName}` : `Draft ready for ${updated.companyName}`);
+      return updated;
     } catch {
-      triggerToast('Generation completed with target profile.');
+      if (id === requestId.current) notify('Generation failed. Please try again.', true);
+      return null;
     } finally {
-      setIsGenerating(false);
+      if (id === requestId.current) setIsGenerating(false);
+    }
+  }, [notify]);
+
+  // On mount: load saved leads, then write the real AI sequence (the server render skips AI for speed).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const saved = readSavedLeads();
+      setLeads(saved);
+      try {
+        const storedNotes = JSON.parse(localStorage.getItem(NOTES_KEY) || '{}');
+        if (storedNotes && typeof storedNotes === 'object') {
+          notesMapRef.current = storedNotes;
+          setNotesMap(storedNotes);
+        }
+      } catch { /* storage unavailable */ }
+      const usePlaceholder = PLACEHOLDER_DOMAINS.includes(initialDraft.domain);
+      const target = usePlaceholder && saved[0] ? saved[0].domain : initialDraft.domain;
+      if (usePlaceholder && saved[0]) setDomainQuery(saved[0].domain);
+      if (!initialDraft.sequence && (initialDraft.channel === 'EMAIL' || initialDraft.channel === 'LINKEDIN')) {
+        regenerate(target, initialDraft.channel, initialDraft.tone, false);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const researchNotes = notesMap[draft.domain] || '';
+  const handleNotesChange = (value: string) => {
+    const next = { ...notesMapRef.current, [draft.domain]: value };
+    if (!value.trim()) delete next[draft.domain];
+    notesMapRef.current = next;
+    setNotesMap(next);
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+  };
+
+  const handleImportLinkedIn = async () => {
+    if (importingResearch) return;
+    setImportingResearch(true);
+    try {
+      const knownUrl = /linkedin\.com\/in\//i.test(draft.targetContactLinkedin || '') ? draft.targetContactLinkedin : undefined;
+      const res = await importLinkedInResearchAction({
+        linkedinUrl: profileUrlInput.trim() || knownUrl,
+        contactName: draft.targetContactName,
+        contactTitle: draft.targetContactTitle,
+        companyName: draft.companyName,
+        domain: draft.domain,
+      });
+      if (res.error || !res.notes) {
+        notify(res.error || 'LinkedIn returned no research for this contact.', true);
+        return;
+      }
+      // Keep anything the BDE already typed; add the LinkedIn research after it.
+      const merged = [researchNotes.trim(), res.notes].filter(Boolean).join('\n\n').slice(0, 2000);
+      handleNotesChange(merged);
+      if (res.profileUrl) {
+        setProfileUrlInput(res.profileUrl);
+        setDraft((prev) => ({ ...prev, targetContactLinkedin: res.profileUrl }));
+      }
+      notify(`Imported LinkedIn research for ${res.fullName || draft.targetContactName}. Click "Regenerate with research".`);
+    } catch {
+      notify('Could not import from LinkedIn. Please try again.', true);
+    } finally {
+      setImportingResearch(false);
     }
   };
 
-  const handleChannelChange = async (newChannel: OutreachChannel) => {
-    setChannel(newChannel);
-    try {
-      const updated = await generateOutreachDraftAction(draft.domain, newChannel, draft.category, tone);
-      setDraft(updated);
-    } catch { }
+  const focusResearch = () => {
+    researchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => researchRef.current?.focus(), 350);
   };
 
-  const handleToneChange = async (newTone: ToneSetting) => {
-    setTone(newTone);
-    try {
-      const updated = await generateOutreachDraftAction(draft.domain, channel, draft.category, newTone);
-      setDraft(updated);
-    } catch { }
+  const confirmDiscard = () => {
+    const committed = draft.scheduledStartAt || draft.sentStages?.length;
+    return !committed || window.confirm('This sequence is already scheduled or partly sent. Regenerating starts a new draft (the saved sequence keeps its schedule). Continue?');
+  };
+
+  const handleGenerate = async (target?: string) => {
+    const domain = cleanDomain(target ?? domainQuery);
+    if (!domain || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain)) {
+      setDomainError('Enter a company domain such as stripe.com');
+      return;
+    }
+    if (isGenerating || !confirmDiscard()) return;
+    setDomainError(null);
+    setDomainQuery(domain);
+    await regenerate(domain, channel, tone, true);
+  };
+
+  const handleChannelChange = async (next: OutreachChannel) => {
+    if (isGenerating || !confirmDiscard()) return;
+    setChannel(next);
+    await regenerate(draft.domain, next, tone, false);
+  };
+
+  const handleToneChange = async (next: ToneSetting) => {
+    if (isGenerating || !confirmDiscard()) return;
+    setTone(next);
+    await regenerate(draft.domain, channel, next, false);
+  };
+
+  // Keep edits per stage so switching stages never loses them.
+  const handleEditorChange = (patch: { subjectLine?: string; bodyContent?: string }) => {
+    setDraft((prev) => ({
+      ...prev,
+      ...patch,
+      sequence: prev.sequence?.map((st) => (st.stage === prev.followupStage ? { ...st, ...patch } : st)),
+    }));
   };
 
   const handleStageSelect = (stage: FollowupStage) => {
-    let stageSubject = draft.subjectLine;
-    let stageBody = draft.bodyContent;
-
-    const isGeneric = !draft.targetContactName || draft.targetContactName === 'Engineering Lead' || draft.targetContactName.includes('Decision Maker');
-    const firstName = isGeneric ? 'there' : draft.targetContactName.split(' ')[0];
-
-    if (stage === 'STAGE_1_INITIAL') {
-      stageSubject = `Scaling ${draft.companyName}'s Engineering Squad | Tiny Script`;
-      stageBody = `Hi ${firstName},\n\nI noticed ${draft.companyName}'s recent engineering expansion and your active roadmap targets.\n\nAt Tiny Script Soft Tech, we deploy senior engineering squads within 48 hours to help high-growth teams accelerate product releases.\n\nWould you be open to a brief 10-minute discovery call this Thursday?\n\nBest regards,\nBDE Lead | Tiny Script Soft Tech`;
-    } else if (stage === 'STAGE_2_FOLLOWUP') {
-      stageSubject = `Quick follow-up regarding ${draft.companyName}'s roadmap velocity`;
-      stageBody = `Hi ${firstName},\n\nWanted to quickly follow up on my previous note. We recently helped a similar high-growth company accelerate their delivery velocity by 40% with a dedicated 2-engineer React & Node.js squad.\n\nDo you have 5 minutes for a quick chat next Tuesday?\n\nBest,\nBDE Lead | Tiny Script Soft Tech`;
-    } else if (stage === 'STAGE_3_VALUE_ADD') {
-      stageSubject = `Free Microservices Architecture Blueprint for ${draft.companyName}`;
-      stageBody = `Hi ${firstName},\n\nI put together a complimentary architecture & performance audit overview tailored for ${draft.companyName}.\n\nHappy to share the full PDF breakdown if this is relevant to your current sprint priorities.\n\nBest regards,\nBDE Lead | Tiny Script Soft Tech`;
-    } else if (stage === 'STAGE_4_BREAKUP') {
-      stageSubject = `Closing the loop - ${draft.companyName} engineering support`;
-      stageBody = `Hi ${firstName},\n\nI understand you are busy and timing may not be right. I'll close out this thread for now, but feel free to reach out anytime if you need senior engineering firepower on short notice.\n\nWishing you and ${draft.companyName} continued success!\n\nBest regards,\nBDE Lead | Tiny Script Soft Tech`;
-    }
-
-    setDraft({
-      ...draft,
-      followupStage: stage,
-      subjectLine: stageSubject,
-      bodyContent: stageBody,
-    });
+    const step = draft.sequence?.find((st) => st.stage === stage);
+    if (step) setDraft({ ...draft, followupStage: stage, subjectLine: step.subjectLine, bodyContent: step.bodyContent });
   };
 
-  const contactEmail = draft.targetContactEmail || `cto@${draft.domain || 'company.com'}`;
-  const contactPhone = '+1 (415) 890-4321';
-  const contactLinkedin = draft.targetContactLinkedin || `https://linkedin.com/in/${(draft.targetContactName || 'cto').toLowerCase().replace(/\s+/g, '')}`;
+  const handleSchedule = async (startAt?: string) => {
+    setBusy('schedule');
+    try {
+      const res = await scheduleOutreachSequenceAction(draft, startAt);
+      setDraft((prev) => ({ ...prev, status: res.draft.status, scheduledStartAt: res.draft.scheduledStartAt, sequencePaused: false }));
+      setCampaignsVersion((v) => v + 1);
+      notify(res.message);
+      return true;
+    } catch {
+      notify('Could not save the schedule. Please try again.', true);
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleMarkSent = async () => {
+    setBusy('send');
+    try {
+      const res = await markStageSentAction(draft, draft.followupStage);
+      const sentStages = res.draft.sentStages || [];
+      // Move on to the next unsent stage so the flow continues naturally.
+      const next = draft.sequence?.find((st) => !sentStages.includes(st.stage));
+      setDraft((prev) => ({
+        ...prev,
+        status: res.draft.status,
+        sentStages,
+        ...(next ? { followupStage: next.stage, subjectLine: next.subjectLine, bodyContent: next.bodyContent } : {}),
+      }));
+      setCampaignsVersion((v) => v + 1);
+      const n = STAGES.findIndex((st) => st.id === draft.followupStage) + 1;
+      notify(next ? `Stage ${n} marked as sent. Showing the next stage.` : `Stage ${n} marked as sent.`);
+    } catch {
+      notify('Could not record the sent stage. Please try again.', true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleTogglePause = async () => {
+    const paused = !draft.sequencePaused;
+    setBusy('pause');
+    try {
+      await setSequencePausedAction(draft.id, paused);
+      setDraft((prev) => ({ ...prev, sequencePaused: paused }));
+      setCampaignsVersion((v) => v + 1);
+      notify(paused ? 'Sequence paused. Remaining stages are on hold.' : 'Sequence resumed.');
+    } catch {
+      notify('Could not update the sequence. Please try again.', true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCopy = async (text: string, key: string, label: string) => {
+    if (await copyToClipboard(text)) {
+      setCopiedKey(key);
+      notify(`${label} copied to clipboard`);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1800);
+    } else {
+      notify('Copy failed.', true);
+    }
+  };
+
+  const hasName = draft.targetContactName && !/engineering lead|decision maker/i.test(draft.targetContactName);
+  const emailGuessed = draft.targetContactEmailStatus && draft.targetContactEmailStatus !== 'Verified';
+  const suggestionList = (leads.length ? leads : EXAMPLE_ACCOUNTS).slice(0, 8);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <style>{`
-        .copy-btn-icon {
-          padding: 6px;
-          border-radius: 6px;
-          background: transparent;
-          color: #94a3b8;
-          border: none;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .copy-btn-icon:hover {
-          color: #6366f1;
-          background: #eef2ff;
-        }
-        .copy-btn-icon.copied {
-          background: #dcfce7 !important;
-          color: #15803d !important;
-        }
-        .custom-tooltip-wrapper {
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .custom-tooltip-text {
-          position: absolute;
-          bottom: 100%;
-          right: 50%;
-          transform: translateX(50%);
-          margin-bottom: 6px;
-          background-color: #0f172a;
-          color: #ffffff;
-          font-size: 0.72rem;
-          font-weight: 700;
-          padding: 6px 10px;
-          border-radius: 6px;
-          white-space: nowrap;
-          opacity: 0;
-          visibility: hidden;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          pointer-events: none;
-          z-index: 50;
-        }
-        .custom-tooltip-text::after {
-          content: '';
-          position: absolute;
-          top: 100%;
-          left: 50%;
-          margin-left: -4px;
-          border-width: 4px;
-          border-style: solid;
-          border-color: #0f172a transparent transparent transparent;
-        }
-        .custom-tooltip-wrapper:hover .custom-tooltip-text {
-          opacity: 1;
-          visibility: visible;
-          transform: translateX(50%) translateY(-2px);
-        }
-        .kpi-card {
-          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .kpi-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08) !important;
-        }
-        .kpi-card-indigo:hover {
-          border-color: #6366f1 !important;
-        }
-        .kpi-card-green:hover {
-          border-color: #10b981 !important;
-        }
-        .kpi-card-amber:hover {
-          border-color: #f59e0b !important;
-        }
-      `}</style>
-      {/* Toast Notification */}
-      {toastMsg && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 999999, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '2px solid var(--accent-indigo)', padding: '14px 22px', borderRadius: '12px', boxShadow: '0 12px 32px rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', fontWeight: 700 }}>
-          <CheckCircle2 size={20} style={{ color: 'var(--accent-indigo)' }} /> {toastMsg}
+    <div className={s.root}>
+      {toast && (
+        <div className={`${s.toast} ${toast.error ? s.toastError : ''}`} role="status" aria-live="polite">
+          {toast.error ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />} {toast.msg}
         </div>
       )}
 
-      {/* Target Account / Apollo Search Bar */}
-      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '6px', borderRadius: '6px', boxShadow: '0 2px 10px rgba(99, 102, 241, 0.25)' }}>
-              <Database size={16} style={{ color: '#ffffff' }} />
-            </div>
-            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Target Company Domain or Apollo Lead URL
-            </span>
+      {/* Target search */}
+      <section className={s.card} aria-label="Target company">
+        <div className={s.cardHeader}>
+          <div>
+            <h3 className={s.cardTitle}>
+              <span className={s.iconTile}><Search size={16} /></span>
+              Target company
+            </h3>
+            <p className={s.cardSubtitle}>Enter a domain to enrich the prospect with Apollo and LinkedIn signals and write the sequence.</p>
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#8ba0cb', fontWeight: 600 }}>Apollo.io & LinkedIn live data enrichment</span>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); handleGenerateCustom(); }} style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: '280px', position: 'relative' }}>
-            <input
-              type="text"
-              value={domainQuery}
-              onChange={(e) => setDomainQuery(e.target.value)}
-              placeholder="Enter target domain (e.g. saaslabs.com, stripe.com, vercel.com)..."
-              style={{ width: '100%', height: '50px', padding: '0 18px', borderRadius: '8px', background: '#f8fafc', border: '1.5px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem', fontWeight: 600, outline: 'none', transition: 'all 0.2s ease', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}
-              disabled={isGenerating}
-            />
-          </div>
-
-          <button
-            type="submit"
+        <form onSubmit={(e) => { e.preventDefault(); handleGenerate(); }} className={s.searchRow} noValidate>
+          <input
+            className={`${s.input} ${s.inputLg} ${domainError ? s.inputError : ''}`}
+            value={domainQuery}
+            onChange={(e) => { setDomainQuery(e.target.value); setDomainError(null); }}
+            placeholder="company.com"
+            aria-label="Company domain"
+            aria-invalid={!!domainError}
             disabled={isGenerating}
-            style={{
-              height: '50px',
-              padding: '0 32px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
-              color: '#ffffff',
-              fontWeight: 800,
-              fontSize: '0.95rem',
-              border: 'none',
-              cursor: isGenerating ? 'not-allowed' : 'pointer',
-              opacity: isGenerating ? 0.7 : 1,
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              boxShadow: '0 6px 16px rgba(99, 102, 241, 0.35)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            {isGenerating ? <Loader2 size={18} className="spin-anim" /> : <Sparkles size={18} />}
-            {isGenerating ? 'Enriching & Generating...' : 'Generate AI Outreach'}
+          />
+          <button type="submit" className={`${s.btn} ${s.btnPrimary} ${s.btnLg}`} disabled={isGenerating}>
+            {isGenerating ? <Loader2 size={17} className={s.spin} /> : <Sparkles size={17} />}
+            {isGenerating ? 'Generating…' : 'Generate sequence'}
           </button>
         </form>
+        {domainError && <div className={s.fieldError} style={{ marginTop: -8 }}>{domainError}</div>}
 
-        {/* Quick Select Qualified Enterprise Target Chips */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '8px' }}>
-          <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.02em' }}>
-            <Building2 size={18} style={{ color: '#6366f1' }} /> Select Qualified Enterprise Lead:
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {(quickSelectLeads.length > 0 ? quickSelectLeads : curatedTargetAccounts).slice(0, 10).map((acc) => (
+        <div>
+          <div className={s.sectionLabel}><Building2 size={13} /> {leads.length ? 'Your qualified leads' : 'Example accounts'}</div>
+          <div className={s.chipRow}>
+            {suggestionList.map((acc) => (
               <button
                 key={acc.domain}
                 type="button"
-                onClick={() => handleGenerateCustom(acc.domain)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  background: domainQuery === acc.domain ? '#eef2ff' : '#f8fafc',
-                  border: domainQuery === acc.domain ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
-                  color: domainQuery === acc.domain ? '#4338ca' : '#475569',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
+                disabled={isGenerating}
+                onClick={() => handleGenerate(acc.domain)}
+                className={`${s.chip} ${draft.domain === acc.domain ? s.chipActive : ''}`}
               >
-                {acc.name} <span style={{ fontSize: '0.68rem', color: domainQuery === acc.domain ? '#6366f1' : '#94a3b8', fontWeight: 600, marginLeft: '4px' }}>({acc.tag})</span>
+                {acc.name} <span className={s.chipMeta}>{acc.tag}</span>
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Enriched Target Contact Intelligence & 1-Click Copy Panel */}
-      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '6px', borderRadius: '6px', boxShadow: '0 2px 10px rgba(99, 102, 241, 0.25)' }}>
-              <UserCheck size={18} style={{ color: '#ffffff' }} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '0.02em' }}>
-              Verified Decision Maker Contact Intelligence ({draft.companyName})
-            </h3>
-          </div>
-
+      {/* Contact */}
+      <section className={s.card} aria-label="Decision maker">
+        <div className={s.cardHeader}>
+          <h3 className={s.cardTitle}>
+            <span className={s.iconTile}><UserRound size={16} /></span>
+            Decision maker at {draft.companyName}
+          </h3>
           <button
             type="button"
-            onClick={() => handleCopyText(`Contact: ${draft.targetContactName} (${draft.targetContactTitle} at ${draft.companyName})\nEmail: ${contactEmail}\nPhone: ${contactPhone}\nLinkedIn: ${contactLinkedin}\nDomain: ${draft.domain}`, 'all-contact', 'Full Contact Profile')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              fontWeight: 800,
-              background: copiedKey === 'all-contact' ? '#dcfce7' : '#f8fafc',
-              color: copiedKey === 'all-contact' ? '#15803d' : '#0f172a',
-              border: copiedKey === 'all-contact' ? '1px solid #16a34a' : '1px solid #cbd5e1',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.15s ease',
-            }}
+            className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+            onClick={() => handleCopy(
+              [`${draft.targetContactName} (${draft.targetContactTitle}, ${draft.companyName})`,
+                draft.targetContactEmail && `Email: ${draft.targetContactEmail}${emailGuessed ? ' (unverified)' : ''}`,
+                draft.targetContactLinkedin && `LinkedIn: ${draft.targetContactLinkedin}`,
+                `Domain: ${draft.domain}`].filter(Boolean).join('\n'),
+              'card', 'Contact card')}
           >
-            {copiedKey === 'all-contact' ? <Check size={14} style={{ color: '#16a34a' }} /> : <Copy size={14} />}
-            {copiedKey === 'all-contact' ? 'Copied Contact Card!' : 'Copy Full Contact Card'}
+            {copiedKey === 'card' ? <Check size={14} /> : <Copy size={14} />} Copy contact
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-          {/* Executive Name & Title */}
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px' }}>
-            <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Target Decision Maker</div>
-            <div style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a', marginTop: '6px' }}>{draft.targetContactName}</div>
-            <div style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 700, marginTop: '2px' }}>{draft.targetContactTitle}</div>
+        <div className={s.contactGrid}>
+          <div className={s.contactItem}>
+            <div className={s.contactLabel}><span>Contact</span></div>
+            <div className={`${s.contactValue} ${hasName ? '' : s.contactEmpty}`}>{hasName ? draft.targetContactName : 'Not found'}</div>
+            <div className={s.contactSub}>{draft.targetContactTitle}</div>
           </div>
 
-          {/* Verified Email + Copy */}
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.02em' }}>
-                <Mail size={14} style={{ color: '#10b981' }} /> Verified Work Email
+          <div className={s.contactItem}>
+            <div className={s.contactLabel}>
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Mail size={13} /> Email</span>
+              {draft.targetContactEmail && (
+                <span className={`${s.badge} ${emailGuessed ? s.badgeAmber : s.badgeGreen}`}>{emailGuessed ? 'Unverified' : 'Verified'}</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div className={`${s.contactValue} ${draft.targetContactEmail ? '' : s.contactEmpty}`} style={{ flex: 1 }} title={draft.targetContactEmail}>
+                {draft.targetContactEmail || 'Not found'}
               </div>
-              <div className="custom-tooltip-wrapper">
-                <button
-                  type="button"
-                  onClick={() => handleCopyText(contactEmail, 'email', 'Work Email')}
-                  className={`copy-btn-icon ${copiedKey === 'email' ? 'copied' : ''}`}
-                >
+              {draft.targetContactEmail && (
+                <button type="button" className={`${s.iconBtn} ${copiedKey === 'email' ? s.iconBtnDone : ''}`} onClick={() => handleCopy(draft.targetContactEmail!, 'email', 'Email')} aria-label="Copy email">
                   {copiedKey === 'email' ? <Check size={14} /> : <Copy size={14} />}
                 </button>
-                <div className="custom-tooltip-text">
-                  {copiedKey === 'email' ? 'Copied!' : 'Copy Email'}
-                </div>
-              </div>
+              )}
             </div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '8px', wordBreak: 'break-all' }}>{contactEmail}</div>
           </div>
 
-          {/* Direct Phone + Copy */}
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.02em' }}>
-                <Phone size={14} style={{ color: '#3b82f6' }} /> Direct Mobile Phone
-              </div>
-              <div className="custom-tooltip-wrapper">
-                <button
-                  type="button"
-                  onClick={() => handleCopyText(contactPhone, 'phone', 'Phone Number')}
-                  className={`copy-btn-icon ${copiedKey === 'phone' ? 'copied' : ''}`}
-                >
-                  {copiedKey === 'phone' ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-                <div className="custom-tooltip-text">
-                  {copiedKey === 'phone' ? 'Copied!' : 'Copy Phone'}
-                </div>
-              </div>
+          <div className={s.contactItem}>
+            <div className={s.contactLabel}><span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><MessageSquare size={13} /> LinkedIn</span></div>
+            <div className={s.contactValue}>
+              {draft.targetContactLinkedin
+                ? <a className={s.link} href={draft.targetContactLinkedin} target="_blank" rel="noopener noreferrer">{draft.targetContactLinkedin.replace(/^https?:\/\/(www\.)?/, '')}</a>
+                : <span className={s.contactEmpty}>Not found</span>}
             </div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#3b82f6', marginTop: '8px' }}>{contactPhone}</div>
           </div>
 
-          {/* LinkedIn Profile + Copy */}
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.02em' }}>
-                <Globe size={14} style={{ color: '#0ea5e9' }} /> LinkedIn Profile
-              </div>
-              <div className="custom-tooltip-wrapper">
-                <button
-                  type="button"
-                  onClick={() => handleCopyText(contactLinkedin, 'linkedin', 'LinkedIn Link')}
-                  className={`copy-btn-icon ${copiedKey === 'linkedin' ? 'copied' : ''}`}
-                >
-                  {copiedKey === 'linkedin' ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-                <div className="custom-tooltip-text">
-                  {copiedKey === 'linkedin' ? 'Copied!' : 'Copy LinkedIn'}
-                </div>
-              </div>
+          <div className={s.contactItem}>
+            <div className={s.contactLabel}><span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Globe size={13} /> Website</span></div>
+            <div className={s.contactValue}>
+              <a className={s.link} href={`https://${draft.domain}`} target="_blank" rel="noopener noreferrer">{draft.domain}</a>
             </div>
-            <a href={contactLinkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0ea5e9', textDecoration: 'none', display: 'block', marginTop: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {contactLinkedin}
-            </a>
           </div>
+        </div>
+
+        {/* Prospect research: the single biggest lever for message quality */}
+        <div>
+          <div className={s.fieldHead}>
+            <label className={s.label} htmlFor="prospect-research">
+              Prospect research <span className={s.chipMeta}>(optional, strongly recommended)</span>
+            </label>
+            <span className={s.chipMeta}>{researchNotes.length}/2000</span>
+          </div>
+          <textarea
+            id="prospect-research"
+            ref={researchRef}
+            className={s.textarea}
+            style={{ minHeight: 96 }}
+            maxLength={2000}
+            disabled={isGenerating}
+            value={researchNotes}
+            onChange={(e) => handleNotesChange(e.target.value)}
+            placeholder={`Paste real facts about ${hasName ? draft.targetContactName.split(' ')[0] : 'this prospect'}: their LinkedIn About section, a recent post, a launch, hiring news or funding. The AI only states facts it is given, so this is what makes the message specific.`}
+          />
+          <div className={s.fieldFoot}>
+            <span>Saved in this browser for {draft.domain}.</span>
+            <button
+              type="button"
+              className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+              disabled={isGenerating || !researchNotes.trim()}
+              onClick={() => confirmDiscard() && regenerate(draft.domain, channel, tone, false)}
+            >
+              <Sparkles size={14} /> Regenerate with research
+            </button>
+          </div>
+
+          {/* Pull the research straight from the contact's LinkedIn profile */}
+          <div className={s.searchRow} style={{ marginTop: 10, alignItems: 'center' }}>
+            <input
+              className={s.input}
+              style={{ height: 36, fontSize: 13 }}
+              value={profileUrlInput}
+              onChange={(e) => setProfileUrlInput(e.target.value)}
+              placeholder="LinkedIn profile URL (optional, e.g. https://www.linkedin.com/in/username)"
+              aria-label="Contact LinkedIn profile URL"
+              disabled={importingResearch || isGenerating}
+            />
+            <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} style={{ height: 36 }} disabled={importingResearch || isGenerating} onClick={handleImportLinkedIn}>
+              {importingResearch ? <Loader2 size={14} className={s.spin} /> : <MessageSquare size={14} />}
+              {importingResearch ? 'Importing…' : 'Import from LinkedIn'}
+            </button>
+          </div>
+          <div className={s.actionHint} style={{ marginTop: 6 }}>
+            Fills the box with their headline, About section and recent posts. Without a URL it looks the contact up at {draft.companyName} by name and title.
+          </div>
+        </div>
+      </section>
+
+      {/* KPIs */}
+      <div className={s.kpiGrid}>
+        <div className={s.kpi}>
+          <div className={s.kpiHead}>Drafts today <MessageSquare size={16} className={s.accent} /></div>
+          <div className={s.kpiValue}>{telemetry.draftsGeneratedToday}</div>
+          <div className={s.kpiFoot}>{telemetry.emailsAwaitingApproval} awaiting approval</div>
+        </div>
+        <div className={s.kpi}>
+          <div className={s.kpiHead}>Stages scheduled <CalendarClock size={16} className={s.good} /></div>
+          <div className={s.kpiValue}>{telemetry.followupsScheduled}</div>
+          <div className={s.kpiFoot}>{telemetry.activeSequences ?? 0} active sequences</div>
+        </div>
+        <div className={s.kpi}>
+          <div className={s.kpiHead}>Est. pipeline <TrendingUp size={16} className={s.warn} /></div>
+          <div className={s.kpiValue}>{telemetry.pipelineInfluencedInr}</div>
+          <div className={s.kpiFoot}>Active sequences × ₹18L avg. deal</div>
+        </div>
+        <div className={s.kpi}>
+          <div className={s.kpiHead}>Est. revenue <Target size={16} className={s.accent} /></div>
+          <div className={s.kpiValue}>{telemetry.estimatedRevenueInr}</div>
+          <div className={s.kpiFoot}>At an assumed 35% close rate</div>
         </div>
       </div>
 
-      {/* KPI Cards Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-        <div className="kpi-card kpi-card-indigo" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden', cursor: 'default' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: '#6366f1' }}></div>
-          <div style={{ position: 'absolute', top: 0, right: 0, width: '3px', height: '100%', background: '#6366f1' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Drafts Generated Today</div>
-            <div style={{ background: '#eef2ff', padding: '8px', borderRadius: '10px' }}>
-              <MessageSquare size={16} style={{ color: '#6366f1' }} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#6366f1' }}>{telemetry.draftsGeneratedToday} <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>Messages</span></div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', fontWeight: 600 }}>{telemetry.emailsAwaitingApproval} Pending BDE Review</div>
-        </div>
-
-        <div className="kpi-card kpi-card-green" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden', cursor: 'default' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: '#10b981' }}></div>
-          <div style={{ position: 'absolute', top: 0, right: 0, width: '3px', height: '100%', background: '#10b981' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Follow-ups Scheduled</div>
-            <div style={{ background: '#dcfce7', padding: '8px', borderRadius: '10px' }}>
-              <Calendar size={16} style={{ color: '#10b981' }} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#10b981' }}>{telemetry.followupsScheduled} <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>Scheduled</span></div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', fontWeight: 600 }}>4-Stage Auto Sequences</div>
-        </div>
-
-        <div className="kpi-card kpi-card-amber" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden', cursor: 'default' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: '#f59e0b' }}></div>
-          <div style={{ position: 'absolute', top: 0, right: 0, width: '3px', height: '100%', background: '#f59e0b' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pipeline Influenced</div>
-            <div style={{ background: '#fef3c7', padding: '8px', borderRadius: '10px' }}>
-              <TrendingUp size={16} style={{ color: '#f59e0b' }} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#f59e0b', letterSpacing: '-0.02em' }}>{telemetry.pipelineInfluencedInr}</div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', fontWeight: 600 }}>{telemetry.proposalRequestsCount} Active RFPs</div>
-        </div>
-
-        <div className="kpi-card kpi-card-indigo" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden', cursor: 'default' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: '#6366f1' }}></div>
-          <div style={{ position: 'absolute', top: 0, right: 0, width: '3px', height: '100%', background: '#6366f1' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Estimated Revenue</div>
-            <div style={{ background: '#eef2ff', padding: '8px', borderRadius: '10px' }}>
-              <Target size={16} style={{ color: '#6366f1' }} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#6366f1', letterSpacing: '-0.02em' }}>{telemetry.estimatedRevenueInr}</div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px', fontWeight: 600 }}>Projected Deal Revenue</div>
-        </div>
-      </div>
-
-      {/* Main 2-Column Engagement Workspace */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px' }}>
-        {/* Left Control Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Workspace */}
+      <div className={s.mainGrid}>
+        <div className={s.col}>
           <TemplateSelector
             selectedChannel={channel}
             selectedTone={tone}
             onSelectChannel={handleChannelChange}
             onSelectTone={handleToneChange}
+            disabled={isGenerating || busy !== null}
           />
           <FollowupTimeline
             currentStage={draft.followupStage}
             onSelectStage={handleStageSelect}
+            sequence={draft.sequence}
+            sentStages={draft.sentStages}
+            scheduledStartAt={draft.scheduledStartAt}
+            disabled={isGenerating}
           />
         </div>
 
-        {/* Right Editor Column */}
-        <div>
+        <div className={`${s.col} ${s.stickyCol}`}>
           <OutreachEditor
-            initialDraft={draft}
-            onApprove={(id) => {
-              approveOutreachDraftAction(id);
-              triggerToast('Outreach draft approved & scheduled successfully!');
-            }}
+            draft={draft}
+            isGenerating={isGenerating}
+            busy={busy}
+            onChange={handleEditorChange}
+            onRegenerate={() => confirmDiscard() && regenerate(draft.domain, channel, tone, false)}
+            onSchedule={handleSchedule}
+            onMarkSent={handleMarkSent}
+            onTogglePause={handleTogglePause}
+            notify={notify}
+            onAddResearch={focusResearch}
+            hasResearch={!!researchNotes.trim()}
           />
         </div>
       </div>
+
+      <OutreachCampaignDashboard version={campaignsVersion} notify={notify} />
     </div>
   );
 }

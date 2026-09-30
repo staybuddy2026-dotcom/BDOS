@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { KeywordStatus, PostStatus } from '@prisma/client';
 import './apolloProvider';
+import './linkedinProvider';
 
 export interface DiscoveryPost {
   postUrl: string;

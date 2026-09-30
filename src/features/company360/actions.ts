@@ -4,6 +4,7 @@ import { AuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { Company360Profile, Company360SearchResult, CompanyOverviewData, DecisionMakerContact } from './types';
+import type { ApolloOrganizationMatch } from '@/features/apollo/provider';
 import { GrowthIntelligenceData } from '../crunchbase/types';
 import { LinkedInIntelligenceData } from '../linkedin/types';
 import { fuseCompanyProfiles, normalizeCompanyDomain } from './merge';
@@ -36,37 +37,36 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
     const { DefaultApolloProvider } = await import('@/features/apollo/provider');
     const apolloProvider = new DefaultApolloProvider();
 
-    // Fetch actual Apollo Data
-    const apolloRes = await apolloProvider.searchOrganizationsAdvanced({
-      name: cleaned, // fallback
-      perPage: 1
-    }).catch(() => null);
+    // Real Apollo company data. Search by domain when we have one (searching the domain as a *name* rarely matches).
+    // Results are cached in the Apollo provider, so revisiting a profile costs no quota.
+    const looksLikeDomain = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(cleaned);
+    const apolloRes = await apolloProvider.searchOrganizationsAdvanced(
+      looksLikeDomain ? { domain: cleaned, perPage: 1 } : { name: cleaned, perPage: 1 }
+    ).catch(() => null);
+    if (apolloRes?.error) logger.warn(`Company 360: Apollo company lookup unavailable for '${cleaned}': ${apolloRes.error.message}`);
+    const orgData: ApolloOrganizationMatch | null = apolloRes?.organizations?.[0] || null;
 
-    interface ApolloOrgData {
-      name?: string;
-      latestFundingStage?: string;
-      latestFundingAmount?: number;
-      latestFundingDate?: string;
-      openJobsCount?: number;
-      estimatedNumEmployees?: string;
-    }
-    
-    let orgData: ApolloOrgData | null = null;
-    if (apolloRes && apolloRes.organizations && apolloRes.organizations.length > 0) {
-       orgData = apolloRes.organizations[0] as ApolloOrgData;
-    }
+    // Only real signals: no "Undisclosed" placeholder rounds.
+    const growthFromOrg = (o: ApolloOrganizationMatch): GrowthIntelligenceData | undefined =>
+      o.latestFundingStage || o.latestFundingDate
+        ? ({
+          latestRoundName: o.latestFundingStage || '',
+          latestRoundDate: o.latestFundingDate || '',
+          latestRoundAmountUsd: o.latestFundingAmount ? `$${Number(o.latestFundingAmount).toLocaleString()}` : '',
+          totalFundingRaisedUsd: o.totalFundingPrinted || '',
+          growthOpportunityScore: o.latestFundingDate ? 95 : 75,
+          expansionSignals: [],
+        } as unknown as GrowthIntelligenceData)
+        : undefined;
+    const linkedinFromOrg = (o: ApolloOrganizationMatch): LinkedInIntelligenceData | undefined =>
+      o.openJobsCount
+        ? ({ activeJobOpeningsCount: o.openJobsCount, engineeringExpansionIndex: 90, jobOpenings: [], recentPosts: [] } as unknown as LinkedInIntelligenceData)
+        : undefined;
 
     if (existing) {
       if (orgData) {
-        existing.growth = {
-          latestRoundName: orgData.latestFundingStage || 'Undisclosed',
-          latestRoundAmountUsd: orgData.latestFundingAmount ? `$${Number(orgData.latestFundingAmount).toLocaleString()}` : 'Undisclosed',
-          growthOpportunityScore: orgData.latestFundingDate ? 95 : 75
-        } as GrowthIntelligenceData;
-        existing.linkedin = {
-          activeJobOpeningsCount: orgData.openJobsCount || 0,
-          engineeringExpansionIndex: (orgData.openJobsCount || 0) > 0 ? 90 : 70
-        } as LinkedInIntelligenceData;
+        existing.growth = growthFromOrg(orgData) || existing.growth;
+        existing.linkedin = linkedinFromOrg(orgData) || existing.linkedin;
       }
       return existing;
     }
@@ -78,20 +78,8 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
     const dbLeadsData = await getMigratedCompaniesFromDbAction().catch(() => null);
     const migratedLead = dbLeadsData?.migratedLeadsMap?.[cleaned] || dbLeadsData?.migratedLeadsMap?.[companyIdOrDomain];
 
-    let growth: GrowthIntelligenceData | undefined = undefined;
-    let linkedin: LinkedInIntelligenceData | undefined = undefined;
-
-    if (orgData) {
-      growth = {
-        latestRoundName: orgData.latestFundingStage || 'Undisclosed',
-        latestRoundAmountUsd: orgData.latestFundingAmount ? `$${Number(orgData.latestFundingAmount).toLocaleString()}` : 'Undisclosed',
-        growthOpportunityScore: orgData.latestFundingDate ? 95 : 75
-      } as GrowthIntelligenceData;
-      linkedin = {
-        activeJobOpeningsCount: orgData.openJobsCount || 0,
-        engineeringExpansionIndex: (orgData.openJobsCount || 0) > 0 ? 90 : 70
-      } as LinkedInIntelligenceData;
-    }
+    const growth: GrowthIntelligenceData | undefined = orgData ? growthFromOrg(orgData) : undefined;
+    const linkedin: LinkedInIntelligenceData | undefined = orgData ? linkedinFromOrg(orgData) : undefined;
 
     const productHunt = undefined; // disabled
     const reddit = undefined; // disabled
@@ -101,11 +89,25 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       domain: cleaned,
     };
 
+    // Real Apollo company facts (industry, location, size, description) feed the profile and AI outreach.
+    if (orgData) {
+      apolloSeed.industry = orgData.industry;
+      apolloSeed.headquarters = orgData.location;
+      apolloSeed.employeeCount = orgData.employeeCount;
+      apolloSeed.employeeRange = orgData.employeeRange;
+      apolloSeed.estimatedRevenue = orgData.revenuePrinted;
+      apolloSeed.fundingStage = orgData.latestFundingStage;
+      apolloSeed.fundingTotal = orgData.totalFundingPrinted;
+      apolloSeed.companyDescription = orgData.description;
+      apolloSeed.websiteUrl = orgData.websiteUrl;
+      apolloSeed.linkedinPageUrl = orgData.linkedinUrl;
+    }
+
     if (migratedLead) {
-      apolloSeed.industry = migratedLead.industry;
-      apolloSeed.headquarters = migratedLead.country;
-      apolloSeed.employeeCount = migratedLead.employeeCount;
-      apolloSeed.fundingStage = migratedLead.fundingSummary;
+      apolloSeed.industry = apolloSeed.industry || migratedLead.industry;
+      apolloSeed.headquarters = apolloSeed.headquarters || migratedLead.country;
+      apolloSeed.employeeCount = apolloSeed.employeeCount || migratedLead.employeeCount;
+      apolloSeed.fundingStage = apolloSeed.fundingStage || migratedLead.fundingSummary;
       
       const rcName = migratedLead.recommendedContactName || '';
       const isDummy = !rcName || rcName.toLowerCase().includes('decision maker') || rcName.toLowerCase() === 'executive';
@@ -118,40 +120,51 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
             jobTitle: migratedLead.recommendedContactTitle || 'Executive',
             department: 'Engineering',
             seniority: 'Director',
-            email: migratedLead.contactEmail || `contact@${cleaned}`,
-            emailStatus: 'Verified',
-            linkedinUrl: migratedLead.contactLinkedinUrl || `https://linkedin.com/company/${cleaned}`,
+            email: migratedLead.contactEmail || '',
+            emailStatus: migratedLead.contactEmail ? 'Verified' : 'Unverified',
+            linkedinUrl: migratedLead.contactLinkedinUrl || '',
             source: 'Apollo'
           }
         ];
       }
     }
 
-    if (orgData && !apolloSeed.employeeCount) {
-        apolloSeed.employeeCount = orgData.estimatedNumEmployees ? parseInt(orgData.estimatedNumEmployees) : 0;
-    }
-
-    if (!apolloSeed.decisionMakers || apolloSeed.decisionMakers.length === 0) {
-      try {
-        const peopleRes = await apolloProvider.searchPeopleAdvanced({
-          domain: cleaned,
-          perPage: 3
-        });
-        if (peopleRes && peopleRes.people && peopleRes.people.length > 0) {
-          apolloSeed.decisionMakers = peopleRes.people.filter(p => !p.personName.toLowerCase().includes('decision maker')).map((p, idx) => ({
-            id: `dm_${cleaned}_${idx}`,
-            name: p.personName,
-            jobTitle: p.jobTitle || 'Executive',
-            department: 'Engineering',
-            seniority: (p.seniority as "Manager" | "Director" | "C-Level" | "VP" | "Lead") || 'Director',
-            email: p.hasEmailAvailable ? `${p.personName.split(' ')[0].toLowerCase()}@${cleaned}` : `contact@${cleaned}`,
-            emailStatus: p.hasEmailAvailable ? 'Verified' : 'Unverified',
-            linkedinUrl: p.linkedinUrl || `https://linkedin.com/company/${cleaned}`,
-            source: 'Apollo'
-          }));
-        }
-      } catch (err) {
-        logger.error('Failed to fetch real decision makers for company360', err);
+    // Senior people at this exact company (the domain filter now works, so no more unrelated celebrities).
+    if ((!apolloSeed.decisionMakers || apolloSeed.decisionMakers.length === 0) && looksLikeDomain) {
+      const peopleRes = await apolloProvider.searchPeopleAdvanced({
+        domain: cleaned,
+        seniority: 'owner,founder,c_suite,partner,vp,head,director',
+        perPage: 5,
+      });
+      if (peopleRes.error) logger.warn(`Company 360: Apollo people lookup unavailable for '${cleaned}': ${peopleRes.error.message}`);
+      const seniorityMap: Record<string, DecisionMakerContact['seniority']> = {
+        owner: 'C-Level', founder: 'C-Level', c_suite: 'C-Level', partner: 'C-Level', vp: 'VP', head: 'Director', director: 'Director', manager: 'Manager',
+      };
+      // Most relevant buyer first (outreach uses the first contact); recruiters/HR are least relevant.
+      const titleRank = (t = '') =>
+        /talent|recruit|people|hr\b|human resources/i.test(t) ? 9
+          : /founder|\bceo\b|chief executive|owner/i.test(t) ? 0
+            : /\bcto\b|chief technology|chief product|\bcpo\b/i.test(t) ? 1
+              : /chief|president|\bcoo\b|\bcio\b/i.test(t) ? 2
+                : /\bvp\b|vice president/i.test(t) ? 3
+                  : /head of/i.test(t) ? 4
+                    : /director/i.test(t) ? 5 : 6;
+      const people = peopleRes.people
+        .filter((p) => p.personName && !/decision maker/i.test(p.personName))
+        .sort((a, b) => titleRank(a.jobTitle) - titleRank(b.jobTitle));
+      if (people.length) {
+        apolloSeed.decisionMakers = people.map((p, idx) => ({
+          id: p.apolloPersonId || `dm_${cleaned}_${idx}`,
+          name: p.personName,
+          jobTitle: p.jobTitle || 'Executive',
+          department: /product/i.test(p.jobTitle || '') ? 'Product' : /engineer|technolog|cto|developer/i.test(p.jobTitle || '') ? 'Engineering' : 'Executive',
+          seniority: seniorityMap[p.seniority || ''] || 'Director',
+          // Apollo search never includes emails; reveal one explicitly via Apollo Search enrichment.
+          email: p.workEmail || '',
+          emailStatus: p.workEmail ? 'Verified' : 'Unverified',
+          linkedinUrl: p.linkedinUrl || '',
+          source: 'Apollo',
+        }));
       }
     }
 

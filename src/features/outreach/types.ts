@@ -16,6 +16,17 @@ export type FollowupStage =
   | 'STAGE_3_VALUE_ADD' 
   | 'STAGE_4_BREAKUP';
 
+export type SequenceStepDraft = {
+  stage: FollowupStage;
+  stageNumber: 1 | 2 | 3 | 4;
+  subjectLine: string;
+  bodyContent: string;
+  confidence: 'high' | 'low';
+  proofUsed: string;
+  missingInfo: string;
+  qualityWarnings: string[];
+};
+
 export type OutreachMessageDraft = {
   id: string;
   companyId: string;
@@ -24,6 +35,7 @@ export type OutreachMessageDraft = {
   targetContactName: string;
   targetContactTitle: string;
   targetContactEmail?: string;
+  targetContactEmailStatus?: 'Verified' | 'Unverified' | 'Extrapolated';
   targetContactLinkedin?: string;
   channel: OutreachChannel;
   category: OutreachCategory;
@@ -36,6 +48,13 @@ export type OutreachMessageDraft = {
   spamRiskIndicator: 'LOW' | 'MEDIUM' | 'HIGH';
   status: 'DRAFT' | 'APPROVED' | 'SCHEDULED' | 'SENT';
   followupStage: FollowupStage;
+  // AI-generated 4-stage sequence (EMAIL / LINKEDIN channels). subjectLine/bodyContent mirror the active stage.
+  sequence?: SequenceStepDraft[];
+  sequenceSource?: 'AI' | 'FALLBACK';
+  sequenceLanguage?: string;
+  sentStages?: FollowupStage[];
+  sequencePaused?: boolean;
+  scheduledStartAt?: string;
   scheduledDate?: string;
   createdAt: string;
   updatedAt: string;
@@ -51,4 +70,6 @@ export type EngagementTelemetry = {
   proposalRequestsCount: number;
   pipelineInfluencedInr: string;
   estimatedRevenueInr: string;
+  activeSequences?: number;
+  sentCount?: number;
 };

@@ -113,7 +113,8 @@ export function fuseCompanyProfiles(
     companyName,
     domain,
     websiteUrl: apolloData.websiteUrl || `https://${domain}`,
-    industry: apolloData.industry || 'Technology & B2B Software',
+    // Unknown stays empty: invented defaults were being passed to AI outreach as facts.
+    industry: apolloData.industry || '',
     headquarters: apolloData.headquarters || '',
     employeeCount: apolloData.employeeCount || 0,
     employeeRange: apolloData.employeeRange || (apolloData.employeeCount 
@@ -131,7 +132,7 @@ export function fuseCompanyProfiles(
       : 'Undisclosed'),
     fundingStage: apolloData.fundingStage || 'Undisclosed',
     fundingTotal: apolloData.fundingTotal || 'Undisclosed',
-    companyDescription: apolloData.companyDescription || `Leading company in the ${apolloData.industry || 'Technology'} space.`,
+    companyDescription: apolloData.companyDescription || '',
     logoUrl: apolloData.logoUrl || '',
     linkedinPageUrl: apolloData.linkedinPageUrl || '',
     source: 'Apollo',

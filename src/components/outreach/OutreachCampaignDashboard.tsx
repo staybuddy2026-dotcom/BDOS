@@ -1,104 +1,143 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { getActiveOutreachCampaignsAction } from '@/features/outreach/actions';
-import { Mail, CheckCircle2, Pause, Loader2, BarChart2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { getActiveOutreachCampaignsAction, setSequencePausedAction } from '@/features/outreach/actions';
+import type { OutreachCampaignRow } from '@/features/outreach/actions';
+import { BarChart3, Loader2, Mail, PauseCircle, PlayCircle, RefreshCw } from 'lucide-react';
+import s from './outreach.module.css';
 
-type Campaign = {
-  id: string;
-  companyName: string;
-  targetContactName: string;
-  targetContactTitle: string;
-  domain: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-};
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
-export function OutreachCampaignDashboard() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+function StatusBadge({ row }: { row: OutreachCampaignRow }) {
+  if (row.paused) return <span className={`${s.badge} ${s.badgeAmber}`}>Paused</span>;
+  if (row.stagesTotal > 0 && row.stagesSent >= row.stagesTotal) return <span className={`${s.badge} ${s.badgeGreen}`}>Completed</span>;
+  if (row.stagesSent > 0) return <span className={`${s.badge} ${s.badgeIndigo}`}>Running</span>;
+  return <span className={`${s.badge} ${s.badgeGray}`}>Scheduled</span>;
+}
+
+export function OutreachCampaignDashboard({
+  version = 0,
+  notify,
+}: {
+  version?: number;
+  notify?: (msg: string, isError?: boolean) => void;
+}) {
+  const [campaigns, setCampaigns] = useState<OutreachCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setCampaigns(await getActiveOutreachCampaignsAction());
+    } catch {
+      notify?.('Could not load campaigns.', true);
+    } finally {
+      setLoading(false);
+    }
+  }, [notify]);
 
   useEffect(() => {
-    async function loadCampaigns() {
-      try {
-        const data = await getActiveOutreachCampaignsAction();
-        setCampaigns(data);
-      } catch (err) {
-        console.error('Failed to load campaigns:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadCampaigns();
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load, version]);
 
-    // Poll every 30 seconds for new approved campaigns
-    const interval = setInterval(loadCampaigns, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const togglePause = async (row: OutreachCampaignRow) => {
+    setPendingId(row.id);
+    try {
+      await setSequencePausedAction(row.id, !row.paused);
+      setCampaigns((list) => list.map((c) => (c.id === row.id ? { ...c, paused: !row.paused } : c)));
+      notify?.(row.paused ? `Resumed sequence for ${row.companyName}` : `Paused sequence for ${row.companyName}`);
+    } catch {
+      notify?.('Could not update the sequence. Please try again.', true);
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const isDone = (row: OutreachCampaignRow) => row.stagesTotal > 0 && row.stagesSent >= row.stagesTotal;
 
   return (
-    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 24px rgba(0,0,0,0.03)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+    <section className={s.card} aria-label="Active outreach campaigns">
+      <div className={s.cardHeader}>
         <div>
-          <h3 style={{ fontSize: '1.3rem', fontWeight: 900, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: '#eef2ff', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <BarChart2 size={20} style={{ color: '#6366f1' }} />
-            </div>
-            Active Outreach Campaigns
+          <h3 className={s.cardTitle}>
+            <span className={s.iconTile}><BarChart3 size={16} /></span>
+            Active sequences
           </h3>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0 0', fontWeight: 600 }}>
-            Tracking {campaigns.length} ongoing multi-channel outreach sequences
+          <p className={s.cardSubtitle}>
+            {loading ? 'Loading…' : `${campaigns.length} approved sequence${campaigns.length === 1 ? '' : 's'} with their stage progress`}
           </p>
         </div>
+        <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={load} disabled={loading}>
+          <RefreshCw size={14} className={loading ? s.spin : undefined} /> Refresh
+        </button>
       </div>
 
-      {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-          <Loader2 size={24} className="spin" style={{ margin: '0 auto 12px auto' }} />
-          <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Loading active campaigns...</p>
-        </div>
+      {loading && campaigns.length === 0 ? (
+        <div className={s.empty}><Loader2 size={22} className={s.spin} /></div>
       ) : campaigns.length === 0 ? (
-        <div style={{ padding: '40px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1.5px dashed #cbd5e1' }}>
-          <Mail size={32} style={{ color: '#64748b', margin: '0 auto 12px auto', opacity: 0.5 }} />
-          <p style={{ margin: 0, fontSize: '1rem', color: '#0f172a', fontWeight: 700 }}>No Active Campaigns</p>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Generate and approve a draft above to start a campaign.</p>
+        <div className={s.empty}>
+          <Mail size={26} style={{ opacity: 0.5 }} />
+          <div className={s.emptyTitle}>No active sequences yet</div>
+          Approve and schedule a sequence above to start tracking it here.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div className={s.tableWrap}>
+          <table className={s.table}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 700 }}>
-                <th style={{ padding: '12px 16px' }}>Target Prospect</th>
-                <th style={{ padding: '12px 16px' }}>Company</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Last Updated</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+              <tr>
+                <th>Prospect</th>
+                <th>Company</th>
+                <th>Progress</th>
+                <th>Next stage</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {campaigns.map((camp) => (
-                <tr key={camp.id} style={{ borderBottom: '1px solid #e2e8f0', transition: 'background 0.2s', cursor: 'default' }}>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{camp.targetContactName}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px', fontWeight: 600 }}>{camp.targetContactTitle}</div>
+              {campaigns.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div className={s.cellStrong}>{row.targetContactName}</div>
+                    <div className={s.cellSub}>{row.targetContactTitle}</div>
                   </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>{camp.companyName}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#6366f1', marginTop: '2px', fontWeight: 600 }}>{camp.domain}</div>
+                  <td>
+                    <div className={s.cellStrong}>{row.companyName}</div>
+                    <div className={s.cellSub}>{row.domain}</div>
                   </td>
-                  <td style={{ padding: '16px' }}>
-                    <span style={{ fontSize: '0.75rem', background: '#eef2ff', color: '#6366f1', border: '1px solid #6366f1', padding: '4px 10px', borderRadius: '12px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <CheckCircle2 size={14} /> {camp.status === 'APPROVED' ? 'RUNNING' : camp.status}
-                    </span>
+                  <td>
+                    <div className={s.cellSub} style={{ marginTop: 0 }}>{row.stagesSent} of {row.stagesTotal || 4} sent</div>
+                    <div className={s.progress} aria-hidden>
+                      {Array.from({ length: row.stagesTotal || 4 }).map((_, i) => (
+                        <span key={i} className={`${s.progressDot} ${i < row.stagesSent ? s.progressDotDone : ''}`} />
+                      ))}
+                    </div>
                   </td>
-                  <td style={{ padding: '16px', fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>
-                    {new Date(camp.updatedAt).toLocaleDateString()}
+                  <td>
+                    {row.nextStage && row.nextDueDate ? (
+                      <>
+                        <div className={s.cellStrong}>Stage {row.nextStage}</div>
+                        <div className={s.cellSub}>{row.paused ? 'On hold' : `Due ${formatDate(row.nextDueDate)}`}</div>
+                      </>
+                    ) : (
+                      <span className={s.cellSub}>—</span>
+                    )}
                   </td>
-                  <td style={{ padding: '16px', textAlign: 'right' }}>
-                    <button style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px 14px', fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', transition: 'all 0.15s ease' }}>
-                      <Pause size={14} style={{ color: '#64748b' }} /> Pause
-                    </button>
+                  <td><StatusBadge row={row} /></td>
+                  <td style={{ textAlign: 'right' }}>
+                    {!isDone(row) && (
+                      <button
+                        type="button"
+                        className={`${s.btn} ${s.btnSm} ${row.paused ? s.btnSuccess : s.btnSecondary}`}
+                        onClick={() => togglePause(row)}
+                        disabled={pendingId === row.id}
+                      >
+                        {pendingId === row.id ? <Loader2 size={13} className={s.spin} /> : row.paused ? <PlayCircle size={13} /> : <PauseCircle size={13} />}
+                        {row.paused ? 'Resume' : 'Pause'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -106,6 +145,6 @@ export function OutreachCampaignDashboard() {
           </table>
         </div>
       )}
-    </div>
+    </section>
   );
 }
