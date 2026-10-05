@@ -1,0 +1,31 @@
+/* Design tokens shared by every page and the components in src/components/ui. */
+:root {
+  --o-bg: #ffffff;
+  --o-surface: #f8fafc;
+  --o-surface-2: #f1f5f9;
+  --o-border: #e2e8f0;
+  --o-border-strong: #cbd5e1;
+  --o-text: #0f172a;
+  --o-text-2: #334155;
+  --o-muted: #64748b;
+  --o-subtle: #94a3b8;
+  --o-accent: #4f46e5;
+  --o-accent-hover: #4338ca;
+  --o-accent-soft: #eef2ff;
+  --o-accent-ring: rgba(79, 70, 229, 0.18);
+  --o-success: #047857;
+  --o-success-soft: #ecfdf5;
+  --o-success-border: #a7f3d0;
+  --o-warn: #b45309;
+  --o-warn-soft: #fffbeb;
+  --o-warn-border: #fde68a;
+  --o-info: #1d4ed8;
+  --o-info-soft: #eff6ff;
+  --o-info-border: #bfdbfe;
+  --o-danger: #dc2626;
+  --o-danger-soft: #fef2f2;
+  --o-radius: 12px;
+  --o-radius-sm: 8px;
+  --o-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+  --o-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}

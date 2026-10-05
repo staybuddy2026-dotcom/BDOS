@@ -1,138 +1,141 @@
 'use client';
 
-import { OpportunityPlaybookModel } from '@/features/playbook/types';
-import { generateOpportunityPlaybook } from '@/features/playbook/generator';
-import { WhyTinyScriptPanel } from './WhyTinyScriptPanel';
-import { RecommendedServices } from './RecommendedServices';
-import { OutreachChannelTable } from './OutreachChannelTable';
-import { DiscoveryPrepPanel } from './DiscoveryPrepPanel';
-import { ConversationGuide } from './ConversationGuide';
-import { ObjectionPanel } from './ObjectionPanel';
-import { BookOpen, AlertTriangle, Users, Award, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, BookOpen, CheckCircle2, CircleDashed, HelpCircle, Layers, MessageSquare, ShieldQuestion, Users } from 'lucide-react';
+import type { OpportunityPlaybookModel } from '@/features/playbook/types';
+import s from '@/components/ui/ui.module.css';
 
-export function OpportunityPlaybook({ 
-  playbook = generateOpportunityPlaybook()
-}: { 
-  playbook?: OpportunityPlaybookModel;
-}) {
+/**
+ * The sales playbook for one company. Everything company-specific comes from its Company 360 profile;
+ * areas with no data say so, so the BDE knows what to find out rather than repeating a guess.
+ */
+export function OpportunityPlaybook({ playbook }: { playbook: OpportunityPlaybookModel }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-focus)', borderRadius: '14px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 24px rgba(15,23,42,0.03)' }}>
-        <div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <BookOpen size={12} /> AI Sales Copilot • Opportunity Playbook Refinement
-          </span>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)', margin: '4px 0 0 0' }}>
-            Sales Opportunity Playbook for {playbook.companyName}
-          </h2>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {playbook.overview.summary}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <section className={s.card}>
+        <div className={s.cardHeader} style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className={s.sectionLabel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BookOpen size={13} /> Sales playbook</div>
+            <h3 className={s.cardTitle} style={{ marginTop: 4 }}>{playbook.companyName}</h3>
+            <p className={s.cardSubtitle}>{playbook.summary}</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className={s.sectionLabel}>Fit score</div>
+            <div className={s.kpiValue} style={{ marginTop: 2 }}>{playbook.fitScore}</div>
+            <div className={s.cellSub}>{playbook.dataCompleteness}% of the data found</div>
           </div>
         </div>
-
-        <div style={{ textAlign: 'right', background: 'var(--color-success-bg)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '10px 16px', borderRadius: '10px' }}>
-          <div style={{ fontSize: '0.68rem', color: 'var(--color-success)', fontWeight: 800, textTransform: 'uppercase' }}>Win Probability</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--color-success)' }}>{playbook.overallWinProbabilityPercent}%</div>
+        <div className={`${s.notice} ${s.noticeInfo}`} style={{ alignItems: 'center' }}>
+          <ArrowRight size={15} className={s.noticeIcon} />
+          <span style={{ flex: 1 }}><strong>Next step:</strong> {playbook.nextBestAction}</span>
+          {playbook.domain && (
+            <Link href={`/engagement?domain=${encodeURIComponent(playbook.domain)}`} className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`}>Write outreach</Link>
+          )}
         </div>
-      </div>
+      </section>
 
-      {/* Next Best Action Banner */}
-      <div style={{ background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(16, 185, 129, 0.15))', border: '1px solid var(--border-focus)', borderRadius: '10px', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase' }}>AI Recommended Next Best Sales Action</div>
-          <div style={{ fontSize: '0.86rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '2px' }}>{playbook.nextBestAction}</div>
-        </div>
+      <section className={s.card}>
+        <h4 className={s.cardTitle}><CheckCircle2 size={15} /> What the score is based on</h4>
+        {playbook.evidence.length === 0 ? (
+          <p className={s.cardSubtitle}>Nothing is known about this company yet, so it has no score. Search it in Apollo to fill in the profile.</p>
+        ) : (
+          <table className={s.table} style={{ fontSize: 13 }}>
+            <tbody>
+              {playbook.evidence.map((e) => (
+                <tr key={e.label}>
+                  <td style={{ padding: '8px 0', fontWeight: 600, whiteSpace: 'nowrap', paddingRight: 12 }}>{e.label}</td>
+                  <td style={{ padding: '8px 0', color: 'var(--o-text-2)' }}>{e.detail}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>+{e.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
-        <a
-          href="/review"
-          style={{
-            background: 'linear-gradient(135deg, var(--accent-indigo), var(--accent-indigo-hover))',
-            color: 'var(--bg-primary)',
-            padding: '8px 14px',
-            borderRadius: '6px',
-            fontSize: '0.78rem',
-            fontWeight: 800,
-            textDecoration: 'none',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          Generate Outreach <ArrowRight size={14} />
-        </a>
-      </div>
-
-      {/* Business Challenges & Decision Maker Rankings */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-        <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '10px', padding: '14px' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--color-warning)', fontWeight: 800, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlertTriangle size={14} style={{ color: '#eab308' }} /> Predicted Business Challenges
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {playbook.businessChallenges.map((ch, idx) => (
-              <div key={idx} style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>• {ch.challenge}:</strong> {ch.description} ({ch.confidencePercent}% Confidence)
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-focus)', borderRadius: '10px', padding: '14px' }}>
-          <div style={{ fontSize: '0.76rem', color: 'var(--accent-indigo)', fontWeight: 800, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Users size={14} style={{ color: 'var(--accent-indigo)' }} /> Decision Maker Star Rankings
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {playbook.decisionMakerRankings.map((dm, idx) => (
-              <div key={idx} style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>#{dm.rank} {dm.role} ({dm.starRating}★)</span>
-                <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>{dm.responseProbabilityPercent}% Response Prob.</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Refinement 2: "Why Tiny Script?" Recommendation Engine */}
-      <WhyTinyScriptPanel whyFit={playbook.whyTinyScript} />
-
-      {/* Recommended Tiny Script Services */}
-      <RecommendedServices services={playbook.serviceRecommendations} />
-
-      {/* Refinement 1: Recommended Outreach Channel Table */}
-      <OutreachChannelTable channels={playbook.outreachChannelTable} />
-
-      {/* Refinement 3: AI Discovery Meeting Preparation Panel */}
-      <DiscoveryPrepPanel prep={playbook.discoveryMeetingPrep} />
-
-      {/* AI Conversation Strategy & Questions */}
-      <ConversationGuide companyName={playbook.companyName} />
-
-      {/* Objection Handling Panel */}
-      <ObjectionPanel />
-
-      {/* Recommended Case Studies */}
-      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-focus)', borderRadius: '12px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Award size={16} style={{ color: 'var(--accent-indigo)' }} /> Recommended Tiny Script Case Studies for Pitch
-        </h4>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
-          {playbook.caseStudyRecommendations.map((cs, idx) => (
-            <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>{cs.title}</span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--color-success)', fontWeight: 900, background: 'var(--color-success-bg)', padding: '2px 6px', borderRadius: '4px' }}>
-                  {cs.relevanceScorePercent}% Match
-                </span>
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{cs.description}</div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--accent-indigo)' }}>Tech Stack: {cs.techStack.join(', ')}</div>
+      <section className={s.card}>
+        <h4 className={s.cardTitle}><Layers size={15} /> Fit</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+          {playbook.fitAreas.map((a) => (
+            <div key={a.area} className={s.metric} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className={s.metricLabel}>{a.area}</div>
+              {a.found.length ? (
+                a.found.map((f) => <div key={f} style={{ fontSize: 13, display: 'flex', gap: 6 }}><CheckCircle2 size={13} style={{ color: 'var(--o-success)', flexShrink: 0, marginTop: 2 }} /> {f}</div>)
+              ) : (
+                <div className={s.cellSub} style={{ display: 'flex', gap: 6 }}><CircleDashed size={13} style={{ flexShrink: 0, marginTop: 2 }} /> Not found yet</div>
+              )}
+              <div className={s.fieldHint}>{a.note}</div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
+
+      <section className={s.card}>
+        <h4 className={s.cardTitle}><Layers size={15} /> Services to offer</h4>
+        {playbook.services.length === 0 ? (
+          <p className={s.cardSubtitle}>No service in your catalog matches a known part of their stack yet. Admins can edit the catalog in Settings &gt; Service catalog.</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+            {playbook.services.map((svc) => (
+              <div key={svc.name} className={s.metric} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{svc.name}</div>
+                <div className={s.cellSub}>{svc.reason}</div>
+                <div className={s.badgeRow}>
+                  {svc.matchedTech.slice(0, 5).map((t) => <span key={t} className={`${s.badge} ${s.badgeIndigo}`}>{t}</span>)}
+                  {svc.startingPrice && <span className={`${s.badge} ${s.badgeGray}`}>{svc.startingPrice}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className={s.card}>
+        <h4 className={s.cardTitle}><Users size={15} /> Who to contact</h4>
+        {playbook.contacts.length === 0 ? (
+          <p className={s.cardSubtitle}>No senior contact found yet. Search this domain in Apollo.</p>
+        ) : (
+          <table className={s.table} style={{ fontSize: 13 }}>
+            <tbody>
+              {playbook.contacts.map((c, i) => (
+                <tr key={c.name + i}>
+                  <td style={{ padding: '8px 0', fontWeight: 600 }}>{i + 1}. {c.name}</td>
+                  <td style={{ padding: '8px 0', color: 'var(--o-text-2)' }}>{c.title}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right' }}>
+                    {c.channel === 'Email' && c.email
+                      ? <a className={s.link} href={`mailto:${c.email}`}>{c.email}</a>
+                      : c.linkedinUrl ? <a className={s.link} href={c.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a> : <span className={s.cellSub}>No contact details yet</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className={s.card}>
+        <h4 className={s.cardTitle}><MessageSquare size={15} /> Opening line</h4>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, fontStyle: 'italic' }}>&ldquo;{playbook.openingLine}&rdquo;</p>
+        <div>
+          <div className={s.sectionLabel} style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><HelpCircle size={13} /> Questions for the discovery call</div>
+          <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13.5, color: 'var(--o-text-2)' }}>
+            {playbook.discoveryQuestions.map((q) => <li key={q}>{q}</li>)}
+          </ol>
+        </div>
+      </section>
+
+      <section className={s.card}>
+        <h4 className={s.cardTitle}><ShieldQuestion size={15} /> Common objections</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {playbook.objections.map((ob) => (
+            <div key={ob.objection} className={s.metric} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>&ldquo;{ob.objection}&rdquo;</div>
+              <div style={{ fontSize: 13, color: 'var(--o-text-2)' }}>{ob.response}</div>
+              <div className={s.cellSub}>Ask: {ob.followUp}</div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { getSenderIdentity } from '@/lib/sender';
 import { z } from 'zod';
 
 export const outreachZodSchema = z.object({
@@ -35,7 +36,7 @@ export class OutreachService {
     // Rule: Fallback to mock generator if API key is missing
     if (!apiKey) {
       logger.warn('GEMINI_API_KEY is not defined. Falling back to mock outreach generator.');
-      return this.generateMockDraft(params);
+      return this.generateMockDraft(params, (await getSenderIdentity()).name);
     }
 
     const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
@@ -143,7 +144,7 @@ User Custom Instructions Override:
       logger.error(`Outreach generation failed for ${params.authorName}`, error);
       // Fallback to mock instead of crashing if the API has transient issues
       logger.warn('Falling back to mock outreach generator due to API error.');
-      return this.generateMockDraft(params);
+      return this.generateMockDraft(params, (await getSenderIdentity()).name);
     }
   }
 
@@ -156,7 +157,7 @@ User Custom Instructions Override:
     postPreview: string;
     suggestedAngle?: string;
     stepObjective?: string;
-  }): string {
+  }, senderName: string): string {
     const firstName = params.authorName.split(' ')[0] || params.authorName;
     const cleanAngle = params.suggestedAngle ? params.suggestedAngle.toLowerCase().replace(/\.$/, '') : 'share development strategies';
     const postSnippet = params.postPreview.substring(0, 70) + '...';
@@ -170,6 +171,6 @@ I notice that in ${params.authorHeadline ? params.authorHeadline.split('|')[0]?.
 Are you open to exchanging insights on how you're solving this?
 
 Best,
-Akash`;
+${senderName}`;
   }
 }

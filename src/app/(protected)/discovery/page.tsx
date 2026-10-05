@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import blob from '@/assets/blob.png';
 import {
   getUniversalLeadDiscoveryDataAction,
   saveSearchAction,
-  saveMigratedCompanyAction,
   enrichDiscoveryLeadContactAction
 } from '@/features/discovery/actions';
 import {
@@ -13,10 +13,8 @@ import {
   DiscoveryLeadItem,
   ProviderSelection
 } from '@/features/discovery/types';
-import { LeadExplanationModal } from '@/components/refinement/LeadExplanationModal';
-import { OmniOutreachDrawer } from '@/components/refinement/OmniOutreachDrawer';
-import { explainLeadScoreAction, generateOmniOutreachAction } from '@/features/refinement/actions';
-import { LeadExplanation, OmniChannelOutreachPackage } from '@/features/refinement/types';
+import { Modal } from '@/components/ui';
+import ui from '@/components/ui/ui.module.css';
 import {
   Search,
   Building,
@@ -41,6 +39,8 @@ import {
   GitBranch
 } from 'lucide-react';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
+import { addToShortlistAction, getShortlistAction, getWatchlistAction, setWatchedAction } from '@/features/prospecting/actions';
+import { importBrowserListsOnce } from '@/features/prospecting/browserImport';
 import '@/styles/globals.css';
 import '@/styles/dashboard.css';
 
@@ -68,10 +68,6 @@ function getInitialProviders(): ProviderSelection {
   return DEFAULT_PROVIDERS;
 }
 
-const DEFAULT_MIGRATED_IDS: string[] = [];
-
-const DEFAULT_MIGRATED_LEADS: Record<string, DiscoveryLeadItem> = {};
-
 export default function LeadDiscoveryPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<LeadDiscoveryData | null>(null);
@@ -79,8 +75,9 @@ export default function LeadDiscoveryPage() {
   const [page, setPage] = useState(1);
   const perPage = 10;
   const [activeTab, setActiveTab] = useState<'all' | 'migrated' | 'watchlist' | 'recent'>('all');
-  const [selectedExplanation, setSelectedExplanation] = useState<LeadExplanation | null>(null);
-  const [selectedOutreach, setSelectedOutreach] = useState<OmniChannelOutreachPackage | null>(null);
+  const router = useRouter();
+  // The lead whose score breakdown is open.
+  const [scoreLead, setScoreLead] = useState<DiscoveryLeadItem | null>(null);
   const [expandedContactCompanyId, setExpandedContactCompanyId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [migrationPromptCompany, setMigrationPromptCompany] = useState<DiscoveryLeadItem | null>(null);
@@ -93,122 +90,33 @@ export default function LeadDiscoveryPage() {
   // Persist V1 Provider Checkboxes in localStorage
   const [providerToggles, setProviderToggles] = useState<ProviderSelection>(getInitialProviders);
 
-  // Migrated Company 360 IDs persistent state
-  const [migratedCompanyIds, setMigratedCompanyIds] = useState<string[]>(() => {
-    let removed: string[] = [];
-    if (typeof window !== 'undefined') {
-      const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-      if (savedRemoved) {
-        try { removed = JSON.parse(savedRemoved).map((x: string) => x.toLowerCase().trim()); } catch { }
-      }
-      const saved = localStorage.getItem('bdos_company360_migrated_ids');
-      if (saved) {
-        try {
-          const parsed: string[] = JSON.parse(saved);
-          return Array.from(new Set([...DEFAULT_MIGRATED_IDS, ...parsed.map(x => x.toLowerCase().trim())])).filter(x => !removed.includes(x));
-        } catch { }
-      }
-    }
-    return DEFAULT_MIGRATED_IDS.filter(x => !removed.includes(x));
-  });
+  // The team's Company 360 shortlist and this person's watchlist, kept in the database (features/prospecting).
+  const [migratedCompanyIds, setMigratedCompanyIds] = useState<string[]>([]);
+  const [migratedLeadsMap, setMigratedLeadsMap] = useState<Record<string, DiscoveryLeadItem>>({});
+  const [watchlistMap, setWatchlistMap] = useState<Record<string, DiscoveryLeadItem>>({});
+  const [watchlistIds, setWatchlistIds] = useState<string[]>([]);
 
-  const [migratedLeadsMap, setMigratedLeadsMap] = useState<Record<string, DiscoveryLeadItem>>(() => {
-    let removed: string[] = [];
-    if (typeof window !== 'undefined') {
-      const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-      if (savedRemoved) {
-        try { removed = JSON.parse(savedRemoved).map((x: string) => x.toLowerCase().trim()); } catch { }
-      }
-      const saved = localStorage.getItem('bdos_company360_migrated_leads');
-      const map: Record<string, DiscoveryLeadItem> = {};
-      Object.entries(DEFAULT_MIGRATED_LEADS).forEach(([k, lead]) => {
-        const key = k.toLowerCase().trim();
-        const d = (lead.domain || '').toLowerCase().trim();
-        const id = (lead.companyId || '').toLowerCase().trim();
-        if (!removed.includes(key) && !removed.includes(d) && !removed.includes(id)) {
-          map[key] = lead;
-        }
-      });
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          Object.values(parsed).forEach((item) => {
-            if (item && typeof item === 'object') {
-              const lead = item as DiscoveryLeadItem;
-              const key = (lead.domain || lead.companyId || '').toLowerCase().trim();
-              const id = (lead.companyId || '').toLowerCase().trim();
-              if (key && !removed.includes(key) && !removed.includes(id)) {
-                map[key] = lead;
-              }
-            }
-          });
-        } catch { }
-      }
-      return map;
-    }
-    return DEFAULT_MIGRATED_LEADS;
-  });
-
-  const syncFromLocalStorage = useCallback(() => {
-    if (typeof window === 'undefined') return;
-
-    let removedList: string[] = [];
-    const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-    if (savedRemoved) {
-      try {
-        removedList = (JSON.parse(savedRemoved) as string[]).map((x) => String(x).toLowerCase().trim());
-      } catch { }
-    }
-
-    const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-    let userLeadsMap: Record<string, DiscoveryLeadItem> = {};
-    if (savedLeads) {
-      try { userLeadsMap = JSON.parse(savedLeads); } catch { }
-    }
-
-    const combinedMap: Record<string, DiscoveryLeadItem> = { ...DEFAULT_MIGRATED_LEADS };
-    Object.entries(userLeadsMap).forEach(([k, item]) => {
-      if (item && typeof item === 'object') {
-        const key = (item.domain || item.companyId || k).toLowerCase().trim();
-        if (key) combinedMap[key] = item;
-      }
-    });
-
-    const finalMap: Record<string, DiscoveryLeadItem> = {};
-    const finalIdsSet = new Set<string>();
-
-    Object.entries(combinedMap).forEach(([k, lead]) => {
-      const key = k.toLowerCase().trim();
-      const dom = (lead.domain || '').toLowerCase().trim();
-      const id = (lead.companyId || '').toLowerCase().trim();
-
-      const isExplicitUserMigration = Boolean(userLeadsMap[dom] || userLeadsMap[id] || userLeadsMap[key]);
-      const isRemoved = !isExplicitUserMigration && (removedList.includes(key) || removedList.includes(dom) || removedList.includes(id));
-
-      if (!isRemoved) {
-        finalMap[dom || key] = lead;
-        if (dom) finalIdsSet.add(dom);
-        if (id) finalIdsSet.add(id);
-        if (key) finalIdsSet.add(key);
-      }
-    });
-
-    setMigratedCompanyIds(Array.from(finalIdsSet));
-    setMigratedLeadsMap(finalMap);
+  const applyShortlist = useCallback((state: { leads: Record<string, DiscoveryLeadItem>; ids: string[] }) => {
+    setMigratedLeadsMap(state.leads);
+    setMigratedCompanyIds(state.ids);
   }, []);
 
+  const loadLists = useCallback(() => {
+    getShortlistAction().then(applyShortlist).catch(() => { /* keep what is shown */ });
+    getWatchlistAction()
+      .then((list) => {
+        setWatchlistMap(Object.fromEntries(list.map((l) => [l.companyId, l])));
+        setWatchlistIds(list.map((l) => l.companyId));
+      })
+      .catch(() => { /* keep what is shown */ });
+  }, [applyShortlist]);
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      syncFromLocalStorage();
-    }, 0);
-    window.addEventListener('storage', syncFromLocalStorage);
-    window.addEventListener('focus', syncFromLocalStorage);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('storage', syncFromLocalStorage);
-      window.removeEventListener('focus', syncFromLocalStorage);
-    };
-  }, [syncFromLocalStorage]);
+    // Lists this browser kept before they moved to the database are sent up once first.
+    importBrowserListsOnce().finally(loadLists);
+    window.addEventListener('focus', loadLists);
+    return () => window.removeEventListener('focus', loadLists);
+  }, [loadLists]);
 
   const handleCopy = async (text: string, field: string) => {
     if (typeof window === 'undefined') return;
@@ -254,92 +162,18 @@ export default function LeadDiscoveryPage() {
   };
 
   const handleConfirmMigration = async (company: DiscoveryLeadItem) => {
-    let currentIds: string[] = [];
-    let currentLeads: Record<string, DiscoveryLeadItem> = {};
-    if (typeof window !== 'undefined') {
-      const savedIds = localStorage.getItem('bdos_company360_migrated_ids');
-      if (savedIds) {
-        try { currentIds = JSON.parse(savedIds); } catch { }
-      }
-      const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-      if (savedLeads) {
-        try { currentLeads = JSON.parse(savedLeads); } catch { }
-      }
+    const res = await addToShortlistAction(company).catch(() => ({ error: 'Could not shortlist this company. Please try again.' } as const));
+    if ('error' in res && res.error) {
+      triggerNotification('error', res.error);
+      return;
     }
-
-    const domKey = (company.domain || '').toLowerCase().trim();
-    const idKey = (company.companyId || '').toLowerCase().trim();
-    const keysToAdd = [domKey, idKey].filter(Boolean);
-
-    const nextIds = Array.from(new Set([...currentIds, ...migratedCompanyIds, ...keysToAdd]));
-    const nextLeads = { ...migratedLeadsMap, ...currentLeads, [domKey || idKey]: company };
-
-    setMigratedCompanyIds(nextIds);
-    setMigratedLeadsMap(nextLeads);
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(nextIds));
-      localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(nextLeads));
-
-      // Clean removed ids list in localStorage
-      const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-      if (savedRemoved) {
-        try {
-          const removedList: string[] = JSON.parse(savedRemoved);
-          const cleanRemoved = removedList.filter(
-            (x) => x !== domKey && x !== idKey && x !== `comp_${domKey.replace(/[^a-z0-9]/g, '_')}`
-          );
-          localStorage.setItem('bdos_company360_removed_ids', JSON.stringify(cleanRemoved));
-        } catch { }
-      }
-    }
-
-    // Persist directly to PostgreSQL database ApplicationSettings
-    const dbRes = await saveMigratedCompanyAction(company).catch(() => null);
-    if (dbRes && dbRes.success && dbRes.migratedLeadsMap) {
-      setMigratedLeadsMap(dbRes.migratedLeadsMap);
-      if (dbRes.migratedCompanyIds) {
-        setMigratedCompanyIds(dbRes.migratedCompanyIds);
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(dbRes.migratedLeadsMap));
-        if (dbRes.migratedCompanyIds) {
-          localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(dbRes.migratedCompanyIds));
-        }
-        if (dbRes.removedCompanyIds) {
-          localStorage.setItem('bdos_company360_removed_ids', JSON.stringify(dbRes.removedCompanyIds));
-        }
-      }
-    }
-
+    applyShortlist(res as { leads: Record<string, DiscoveryLeadItem>; ids: string[] });
     setMigrationPromptCompany(null);
-    triggerNotification('success', `Migrated ${company.companyName} to Company 360.`);
+    triggerNotification('success', `Added ${company.companyName} to Company 360.`);
   };
 
+  // Recently viewed stays in this browser: it is a personal convenience, not team data.
   // Watchlist & Recently Viewed persistent state
-  const [watchlistMap, setWatchlistMap] = useState<Record<string, DiscoveryLeadItem>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bdos_watchlist_leads');
-      if (saved) { try { return JSON.parse(saved); } catch { } }
-    }
-    return {};
-  });
-
-  const [watchlistIds, setWatchlistIds] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedIds = localStorage.getItem('bdos_watchlist_ids');
-      const savedMap = localStorage.getItem('bdos_watchlist_leads');
-      if (savedIds) { 
-        try { 
-          const ids = JSON.parse(savedIds) as string[]; 
-          const map = savedMap ? JSON.parse(savedMap) : {};
-          return ids.filter(id => !!map[id]);
-        } catch { } 
-      }
-    }
-    return [];
-  });
-
   const [recentlyViewedMap, setRecentlyViewedMap] = useState<Record<string, DiscoveryLeadItem>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('bdos_recently_viewed_leads');
@@ -365,22 +199,16 @@ export default function LeadDiscoveryPage() {
 
   const toggleWatchlist = (lead: DiscoveryLeadItem) => {
     const id = lead.companyId;
-    const isAdded = !watchlistIds.includes(id);
-    const nextIds = isAdded ? [...watchlistIds, id] : watchlistIds.filter((x) => x !== id);
-    const nextMap = { ...watchlistMap };
-    
-    if (isAdded) {
-      nextMap[id] = lead;
-    } else {
-      delete nextMap[id];
-    }
-    
-    setWatchlistIds(nextIds);
-    setWatchlistMap(nextMap);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('bdos_watchlist_ids', JSON.stringify(nextIds));
-      localStorage.setItem('bdos_watchlist_leads', JSON.stringify(nextMap));
-    }
+    const watched = !watchlistIds.includes(id);
+    setWatchlistIds((prev) => (watched ? [id, ...prev] : prev.filter((x) => x !== id)));
+    setWatchlistMap((prev) => {
+      const next = { ...prev };
+      if (watched) next[id] = lead; else delete next[id];
+      return next;
+    });
+    setWatchedAction(lead, watched)
+      .then((res) => { if (res.error) { triggerNotification('error', res.error); loadLists(); } })
+      .catch(() => { triggerNotification('error', 'Could not update the watchlist.'); loadLists(); });
   };
 
   const markRecentlyViewed = (company: DiscoveryLeadItem) => {
@@ -419,38 +247,13 @@ export default function LeadDiscoveryPage() {
         triggerNotification('error', res.apiError);
       }
 
-      if (typeof window !== 'undefined') {
-        if (res.migratedLeadsMap && Object.keys(res.migratedLeadsMap).length > 0) {
-          const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-          let currentLeadsMap: Record<string, DiscoveryLeadItem> = {};
-          if (savedLeads) { try { currentLeadsMap = JSON.parse(savedLeads); } catch { } }
-          const mergedLeads = { ...res.migratedLeadsMap, ...currentLeadsMap };
-          localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(mergedLeads));
-        }
-        if (res.migratedCompanyIds && res.migratedCompanyIds.length > 0) {
-          const savedIds = localStorage.getItem('bdos_company360_migrated_ids');
-          let currentIds: string[] = [];
-          if (savedIds) { try { currentIds = JSON.parse(savedIds); } catch { } }
-          const mergedIds = Array.from(new Set([...currentIds, ...res.migratedCompanyIds]));
-          localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(mergedIds));
-        }
-        if (res.removedCompanyIds && res.removedCompanyIds.length > 0) {
-          const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-          let currentRemoved: string[] = [];
-          if (savedRemoved) { try { currentRemoved = JSON.parse(savedRemoved); } catch { } }
-          const mergedRemoved = Array.from(new Set([...currentRemoved, ...res.removedCompanyIds]));
-          localStorage.setItem('bdos_company360_removed_ids', JSON.stringify(mergedRemoved));
-        }
-      }
+      if (res.migratedLeadsMap && res.migratedCompanyIds) applyShortlist({ leads: res.migratedLeadsMap, ids: res.migratedCompanyIds });
     } catch {
       // fallback
     } finally {
       setLoading(false);
-      if (typeof window !== 'undefined') {
-        syncFromLocalStorage();
-      }
     }
-  }, [providerToggles, syncFromLocalStorage]);
+  }, [providerToggles, applyShortlist]);
 
   // Initial URL Parameter Reader (e.g. /discovery?q=SaaS from Home Dashboard Universal Search)
   useEffect(() => {
@@ -489,10 +292,9 @@ export default function LeadDiscoveryPage() {
     await loadDiscoveryData(searchQuery, page);
   };
 
-  const handleExplain = async (company: DiscoveryLeadItem) => {
+  const handleExplain = (company: DiscoveryLeadItem) => {
     markRecentlyViewed(company);
-    const exp = await explainLeadScoreAction(company.companyId, company.companyName, company.domain, company.buyingScore);
-    setSelectedExplanation(exp);
+    setScoreLead(company);
   };
 
   const [enrichingLeadId, setEnrichingLeadId] = useState<string | null>(null);
@@ -535,10 +337,14 @@ export default function LeadDiscoveryPage() {
     }
   };
 
-  const handleOutreach = async (company: DiscoveryLeadItem) => {
+  // Outreach is written on the Outreach page, from the company's real research.
+  const handleOutreach = (company: DiscoveryLeadItem) => {
     markRecentlyViewed(company);
-    const pkg = await generateOmniOutreachAction(company.companyName, company.domain, company.recommendedContactName, company.recommendedContactTitle);
-    setSelectedOutreach(pkg);
+    if (!company.domain) {
+      triggerNotification('error', `No website is known for ${company.companyName}. Open it in Company 360 or Apollo to find it first.`);
+      return;
+    }
+    router.push(`/engagement?domain=${encodeURIComponent(company.domain)}`);
   };
 
   const rawLeads = data?.leads || [];
@@ -967,7 +773,7 @@ export default function LeadDiscoveryPage() {
                       </button>
 
                       <button onClick={() => handleOutreach(lead)} style={{ padding: '7px 16px', borderRadius: '8px', fontSize: '0.76rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', color: '#ffffff', fontWeight: 800, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
-                        <Send size={13} /> 1-Click Omni-Outreach
+                        <Send size={13} /> Write outreach
                       </button>
                     </div>
                   </div>
@@ -983,7 +789,7 @@ export default function LeadDiscoveryPage() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '0.68rem', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)', color: '#6366f1', padding: '2px 8px', borderRadius: '4px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <Database size={10} /> Apollo.io Verified API Lead
+                        <Database size={10} /> {lead.matchedProviders.includes('apollo') ? 'From Apollo' : lead.matchedProviders.includes('linkedin') ? 'From LinkedIn' : 'Search result'}
                       </span>
                       <button
                         type="button"
@@ -1224,8 +1030,24 @@ export default function LeadDiscoveryPage() {
         )}
 
         {/* MODALS */}
-        {selectedExplanation && <LeadExplanationModal explanation={selectedExplanation} onClose={() => setSelectedExplanation(null)} />}
-        {selectedOutreach && <OmniOutreachDrawer packageData={selectedOutreach} onClose={() => setSelectedOutreach(null)} />}
+        {scoreLead && (
+          <Modal title={`Why ${scoreLead.buyingScore}?`} onClose={() => setScoreLead(null)}>
+            <p className={ui.modalText}>How the fit score for {scoreLead.companyName} was worked out, from what is actually known about this lead.</p>
+            {scoreLead.scoreReasons?.length ? (
+              <table className={ui.table} style={{ fontSize: 13 }}>
+                <tbody>
+                  {scoreLead.scoreReasons.map((r) => (
+                    <tr key={r.label}><td style={{ padding: '8px 0' }}>{r.label}</td><td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>+{r.points}</td></tr>
+                  ))}
+                  <tr><td style={{ padding: '8px 0', fontWeight: 700 }}>Score</td><td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>{scoreLead.buyingScore}</td></tr>
+                </tbody>
+              </table>
+            ) : (
+              <p className={ui.modalText}>This lead was saved before scores came with reasons. Search again to see the breakdown.</p>
+            )}
+            {scoreLead.whyContactReason && <p className={ui.fieldHint} style={{ margin: 0 }}>{scoreLead.whyContactReason}</p>}
+          </Modal>
+        )}
       </div>
     </div>
   );

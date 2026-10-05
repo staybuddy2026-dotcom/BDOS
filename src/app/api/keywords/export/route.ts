@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { errorResponse } from '@/lib/errors';
+import { AuthService } from '@/lib/auth';
 
 export async function GET() {
   try {
+    await AuthService.verifySession();
     const keywords = await db.keyword.findMany({
       orderBy: { keyword: 'asc' },
     });

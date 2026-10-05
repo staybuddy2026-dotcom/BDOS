@@ -21,23 +21,19 @@ import {
   createCrmDealFromCompany360,
   sendCompany360ToReviewQueue
 } from '@/features/company360/actions';
-import { removeMigratedCompanyAction, getMigratedCompaniesFromDbAction } from '@/features/discovery/actions';
+import { getShortlistAction, removeFromShortlistAction } from '@/features/prospecting/actions';
+import { importBrowserListsOnce } from '@/features/prospecting/browserImport';
+import { lookupCrmStatusAction } from '@/features/crm/actions';
+import type { CrmMatch } from '@/features/crm/types';
 import {
   Company360Profile,
   Company360SearchResult
 } from '@/features/company360/types';
 import { CompanyOverviewPanel } from '@/components/company360/CompanyOverview';
-import { IcpFitCard } from '@/components/icp/IcpFitCard';
-import { calculateIcpMatchScore } from '@/features/icp/engine';
-import { WhyNotThisCompany } from '@/components/company360/WhyNotThisCompany';
-import { ProjectValueCard } from '@/components/company360/ProjectValueCard';
-import { CompetitiveFitPanel } from '@/components/company360/CompetitiveFitPanel';
+import { CompanyFitCard } from '@/components/company360/CompanyFitCard';
 import { AICopilotPanel } from '@/components/company360/AICopilotPanel';
 import { OpportunityPlaybook } from '@/components/company360/OpportunityPlaybook';
 import { generateOpportunityPlaybook } from '@/features/playbook/generator';
-import { evaluateNegativeQualification } from '@/features/icp/negativeQualification';
-import { estimateProjectValue } from '@/features/icp/valueEngine';
-import { analyzeCompetitiveFit } from '@/features/icp/competitiveFit';
 import { DecisionMakerPanel } from '@/components/company360/DecisionMakerPanel';
 import { LinkedInInsightsPanel } from '@/components/company360/LinkedInInsightsPanel';
 
@@ -55,10 +51,6 @@ interface MigratedLeadRecord {
   buyingScore?: number;
   icpScore?: number;
 }
-
-const DEFAULT_MIGRATED_LEADS: Record<string, MigratedLeadRecord> = {};
-
-const DEFAULT_MIGRATED_IDS: string[] = [];
 
 export default function Company360WorkspacePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,128 +71,40 @@ export default function Company360WorkspacePage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Created Deals State
-  const [createdDealIds, setCreatedDealIds] = useState<string[]>([]);
+  // Which shortlisted companies already have a deal in the CRM (looked up, so it is right for the whole team).
+  const [crmCompanies, setCrmCompanies] = useState<Record<string, CrmMatch>>({});
+  const [crmLookupVersion, setCrmLookupVersion] = useState(0);
 
-  // Migrated Company 360 IDs persistent state
-  const [migratedCompanyIds, setMigratedCompanyIds] = useState<string[]>(DEFAULT_MIGRATED_IDS);
+  // The team's shortlist, kept in the database (features/prospecting).
+  const [migratedCompanyIds, setMigratedCompanyIds] = useState<string[]>([]);
+  const [migratedLeadsMap, setMigratedLeadsMap] = useState<Record<string, MigratedLeadRecord>>({});
 
-  const [migratedLeadsMap, setMigratedLeadsMap] = useState<Record<string, MigratedLeadRecord>>(DEFAULT_MIGRATED_LEADS);
-
-  const syncFromLocalStorage = useCallback(() => {
-    if (typeof window === 'undefined') return;
-
-    const savedDeals = localStorage.getItem('bdos_created_deals');
-    if (savedDeals) {
-      try { setCreatedDealIds(JSON.parse(savedDeals)); } catch {}
-    }
-
-    let removedList: string[] = [];
-    const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-    if (savedRemoved) {
-      try {
-        removedList = (JSON.parse(savedRemoved) as string[]).map((x) => String(x).toLowerCase().trim());
-      } catch { }
-    }
-
-    const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-    let userLeadsMap: Record<string, MigratedLeadRecord> = {};
-    if (savedLeads) {
-      try { userLeadsMap = JSON.parse(savedLeads); } catch { }
-    }
-
-    const combinedMap: Record<string, MigratedLeadRecord> = { ...DEFAULT_MIGRATED_LEADS };
-    Object.entries(userLeadsMap).forEach(([k, item]) => {
-      if (item && typeof item === 'object') {
-        const key = (item.domain || item.companyId || k).toLowerCase().trim();
-        if (key) combinedMap[key] = item;
-      }
-    });
-
-    const finalMap: Record<string, MigratedLeadRecord> = {};
-    const finalIdsSet = new Set<string>();
-
-    Object.entries(combinedMap).forEach(([k, lead]) => {
-      const key = k.toLowerCase().trim();
-      const dom = (lead.domain || '').toLowerCase().trim();
-      const id = (lead.companyId || '').toLowerCase().trim();
-
-      const isExplicitUserMigration = Boolean(userLeadsMap[dom] || userLeadsMap[id] || userLeadsMap[key]);
-      const isRemoved = !isExplicitUserMigration && (removedList.includes(key) || removedList.includes(dom) || removedList.includes(id));
-
-      if (!isRemoved) {
-        finalMap[dom || key] = lead;
-        if (dom) finalIdsSet.add(dom);
-        if (id) finalIdsSet.add(id);
-        if (key) finalIdsSet.add(key);
-      }
-    });
-
-    setMigratedCompanyIds(Array.from(finalIdsSet));
-    setMigratedLeadsMap(finalMap);
+  const applyShortlist = useCallback((state: { leads: Record<string, MigratedLeadRecord>; ids: string[] }) => {
+    setMigratedLeadsMap(state.leads);
+    setMigratedCompanyIds(state.ids);
   }, []);
 
-  useEffect(() => {
-    setTimeout(() => {
-      syncFromLocalStorage();
-    }, 0);
-    getMigratedCompaniesFromDbAction().then((dbRes) => {
-      if (dbRes && dbRes.migratedLeadsMap && Object.keys(dbRes.migratedLeadsMap).length > 0) {
-        if (typeof window !== 'undefined') {
-          const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-          let localMap: Record<string, MigratedLeadRecord> = {};
-          if (savedLeads) { try { localMap = JSON.parse(savedLeads); } catch { } }
-          const mergedLeads = { ...dbRes.migratedLeadsMap, ...localMap };
-          localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(mergedLeads));
-          const savedIds = localStorage.getItem('bdos_company360_migrated_ids');
-          let localIds: string[] = [];
-          if (savedIds) { try { localIds = JSON.parse(savedIds); } catch { } }
-          const mergedIds = Array.from(new Set([...localIds, ...dbRes.migratedCompanyIds]));
-          localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(mergedIds));
-          syncFromLocalStorage();
-        }
-      }
-    }).catch(() => null);
+  const loadShortlist = useCallback(() => {
+    getShortlistAction().then(applyShortlist).catch(() => { /* keep what is shown */ });
+  }, [applyShortlist]);
 
-    window.addEventListener('storage', syncFromLocalStorage);
-    window.addEventListener('focus', syncFromLocalStorage);
-    return () => {
-      window.removeEventListener('storage', syncFromLocalStorage);
-      window.removeEventListener('focus', syncFromLocalStorage);
-    };
-  }, [syncFromLocalStorage]);
+  useEffect(() => {
+    // Lists this browser kept before they moved to the database are sent up once first.
+    importBrowserListsOnce().finally(loadShortlist);
+    // Teammates may shortlist companies too: refresh when the tab comes back into focus.
+    window.addEventListener('focus', loadShortlist);
+    return () => window.removeEventListener('focus', loadShortlist);
+  }, [loadShortlist]);
 
   const handleRemoveFromCompany360 = async (company: Company360SearchResult) => {
-    const domain = (company.domain || '').toLowerCase().trim();
-    const companyId = (company.companyId || '').toLowerCase().trim();
-    const removeKeys = [domain, companyId, `comp_${domain.replace(/[^a-z0-9]/g, '_')}`].filter(Boolean);
-
-    let currentRemoved: string[] = [];
-    if (typeof window !== 'undefined') {
-      const savedRemoved = localStorage.getItem('bdos_company360_removed_ids');
-      if (savedRemoved) {
-        try { currentRemoved = JSON.parse(savedRemoved); } catch { }
-      }
+    const res = await removeFromShortlistAction(company.domain || '', company.companyId || '');
+    if (res.error) {
+      triggerNotification('error', res.error);
+      return;
     }
-    const nextRemoved = Array.from(new Set([...currentRemoved, ...removeKeys]));
-
-    const nextIds = migratedCompanyIds.filter((id) => !removeKeys.includes(id.toLowerCase().trim()));
-    setMigratedCompanyIds(nextIds);
-
-    const nextMap = { ...migratedLeadsMap };
-    removeKeys.forEach((k) => delete nextMap[k]);
-    setMigratedLeadsMap(nextMap);
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('bdos_company360_removed_ids', JSON.stringify(nextRemoved));
-      localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(nextIds));
-      localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(nextMap));
-    }
-
-    // Persist removal to PostgreSQL database ApplicationSettings
-    await removeMigratedCompanyAction(domain, companyId).catch(() => null);
-
+    applyShortlist(res);
     triggerNotification('success', `Removed ${company.companyName} from Company 360.`);
+    const companyId = (company.companyId || '').toLowerCase().trim();
     if (selectedProfile?.companyId === companyId || (company.domain && selectedProfile?.domain === company.domain)) {
       setShowDrawer(false);
       setSelectedProfile(null);
@@ -315,14 +219,7 @@ export default function Company360WorkspacePage() {
     try {
       if (confirmModal.type === 'create_deal') {
         const res = await createCrmDealFromCompany360(targetId);
-        
-        // Track the newly created deal
-        const newCreatedIds = Array.from(new Set([...createdDealIds, (company.domain || '').toLowerCase().trim(), (company.companyId || '').toLowerCase().trim()]));
-        setCreatedDealIds(newCreatedIds);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('bdos_created_deals', JSON.stringify(newCreatedIds));
-        }
-
+        setCrmLookupVersion((v) => v + 1);
         triggerNotification('success', `✓ ${res.message} Migrated to CRM Pipeline!`);
         await runSearch();
       } else if (confirmModal.type === 'review_queue') {
@@ -345,13 +242,6 @@ export default function Company360WorkspacePage() {
   const displayedCompanies = (() => {
     const map = new Map<string, Company360SearchResult>();
 
-    searchResults.forEach((c) => {
-      const key = (c.domain || c.companyId).toLowerCase().trim();
-      if (migratedCompanyIds.includes(key) || migratedCompanyIds.includes(c.companyId.toLowerCase())) {
-        map.set(key, c);
-      }
-    });
-
     Object.values(migratedLeadsMap).forEach((lead) => {
       if (lead) {
         const id = lead.companyId || lead.domain;
@@ -359,16 +249,25 @@ export default function Company360WorkspacePage() {
         if (key && (migratedCompanyIds.includes(key) || migratedCompanyIds.includes(id.toLowerCase()))) {
           map.set(key, {
             companyId: id,
-            companyName: lead.companyName || lead.domain || 'Migrated Company',
+            companyName: lead.companyName || lead.domain || 'Unnamed company',
             domain: lead.domain || key,
-            industry: lead.industry || 'Technology & B2B Software',
-            headquarters: lead.country || 'USA',
-            employeeCount: lead.employeeCount !== undefined ? lead.employeeCount : 250,
-            opportunityScore: lead.buyingScore || 88,
-            engineeringMaturity: lead.icpScore || 92,
-            sourcesAvailable: ['Apollo', 'GitHub', 'AI'],
+            industry: lead.industry || '',
+            headquarters: lead.country || '',
+            employeeCount: lead.employeeCount || 0,
+            // 0 = not scored yet: the score comes from the Company 360 profile once it is opened.
+            opportunityScore: lead.buyingScore || 0,
+            engineeringMaturity: lead.icpScore || 0,
+            sourcesAvailable: ['Apollo'],
           });
         }
+      }
+    });
+
+    // A built profile (opened in 360) has the real score and facts, so it replaces the shortlist entry.
+    searchResults.forEach((c) => {
+      const key = (c.domain || c.companyId).toLowerCase().trim();
+      if (migratedCompanyIds.includes(key) || migratedCompanyIds.includes(c.companyId.toLowerCase())) {
+        map.set(key, c);
       }
     });
 
@@ -384,10 +283,22 @@ export default function Company360WorkspacePage() {
     return list;
   })();
 
-  const totalFused = displayedCompanies.length;
-  const highScoringOpps = displayedCompanies.filter(c => (c.opportunityScore || 0) >= 90).length;
+  // Look the shown companies up in the CRM (again after a deal is created here).
+  const crmLookupKey = displayedCompanies.map((c) => `${c.companyId}|${c.domain}`).join(',');
+  useEffect(() => {
+    if (!crmLookupKey) return;
+    let active = true;
+    const companies = crmLookupKey.split(',').map((pair) => {
+      const [companyId, domain] = pair.split('|');
+      return { key: (domain || companyId).toLowerCase().trim(), domain: domain || undefined };
+    });
+    lookupCrmStatusAction({ companies }).then((res) => { if (active) setCrmCompanies(res.companies); }).catch(() => { /* badges stay as they were */ });
+    return () => { active = false; };
+  }, [crmLookupKey, crmLookupVersion]);
+
+  const highScoringOpps = displayedCompanies.filter(c => (c.opportunityScore || 0) >= 70).length;
   const totalEmployees = displayedCompanies.reduce((sum, c) => sum + (c.employeeCount || 0), 0);
-  const avgMaturity = totalFused > 0 ? Math.round(displayedCompanies.reduce((sum, c) => sum + (c.engineeringMaturity || 0), 0) / totalFused) : 0;
+  const scoredCount = displayedCompanies.filter((c) => (c.opportunityScore || 0) > 0).length;
 
   return (
     <div className="apollo-search-workspace" style={{ 
@@ -620,7 +531,7 @@ export default function Company360WorkspacePage() {
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
                 <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{highScoringOpps}</div>
-                <div style={{ fontSize: '0.8rem', color: '#a855f7', marginTop: '8px', fontWeight: 600 }}>Priority Targets (Score 90+)</div>
+                <div style={{ fontSize: '0.8rem', color: '#a855f7', marginTop: '8px', fontWeight: 600 }}>Fit score 70 or more</div>
               </div>
               <div style={{ background: '#faf5ff', padding: '8px', borderRadius: '50%', color: '#d8b4fe' }}><ArrowRight size={18} /></div>
             </div>
@@ -634,13 +545,13 @@ export default function Company360WorkspacePage() {
                 <div style={{ background: '#f0f9ff', padding: '10px', borderRadius: '50%', color: '#0ea5e9', display: 'flex' }}>
                   <RotateCcw size={16} strokeWidth={2.5} />
                 </div>
-                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Average Maturity</span>
+                <span style={{ fontSize: '1rem', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Profiles Built</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
-                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{avgMaturity}/100</div>
-                <div style={{ fontSize: '0.8rem', color: '#0ea5e9', marginTop: '8px', fontWeight: 600 }}>Engineering Activity Signals</div>
+                <div suppressHydrationWarning style={{ fontSize: '1.9rem', fontWeight: 900, fontFamily: 'var(--font-kpi)', color: '#0f172a', lineHeight: 1 }}>{scoredCount}</div>
+                <div style={{ fontSize: '0.8rem', color: '#0ea5e9', marginTop: '8px', fontWeight: 600 }}>Opened in 360 and scored</div>
               </div>
               <div style={{ background: '#f0f9ff', padding: '8px', borderRadius: '50%', color: '#7dd3fc' }}><ArrowRight size={18} /></div>
             </div>
@@ -808,12 +719,11 @@ export default function Company360WorkspacePage() {
                         </div>
 
                         <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 900, color: 'var(--color-success)' }}>
-                            Score: {company.opportunityScore}/100
-                          </span>
-                          <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            Eng Maturity: {company.engineeringMaturity}/100
-                          </div>
+                          {company.opportunityScore ? (
+                            <span style={{ fontSize: '0.8rem', fontWeight: 900, color: 'var(--color-success)' }}>Fit {company.opportunityScore}/100</span>
+                          ) : (
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>Not scored yet</span>
+                          )}
                         </div>
                       </div>
 
@@ -852,15 +762,15 @@ export default function Company360WorkspacePage() {
                       </button>
 
                       {(() => {
-                        const hasDeal = createdDealIds.includes((company.domain || '').toLowerCase().trim()) || createdDealIds.includes((company.companyId || '').toLowerCase().trim());
-                        return hasDeal ? (
-                          <button
-                            type="button"
-                            style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 800, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', cursor: 'default' }}
-                            disabled
+                        const match = crmCompanies[(company.domain || company.companyId).toLowerCase().trim()];
+                        return match ? (
+                          <a
+                            href={match.dealId ? `/crm?deal=${match.dealId}` : '/crm'}
+                            title={match.ownerName ? `Owned by ${match.ownerName}` : 'Unassigned: claim it in the CRM'}
+                            style={{ padding: '8px 10px', borderRadius: '8px', fontSize: '0.76rem', fontWeight: 800, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', textDecoration: 'none' }}
                           >
-                            <CheckCircle size={13} /> Deal Created
-                          </button>
+                            <CheckCircle size={13} /> In CRM
+                          </a>
                         ) : (
                           <button
                             type="button"
@@ -997,26 +907,9 @@ export default function Company360WorkspacePage() {
                   {/* TAB CONTENT PANELS */}
                   {drawerTab === 'overview' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <IcpFitCard result={calculateIcpMatchScore(
-                        selectedProfile.companyId,
-                        selectedProfile.overview.companyName,
-                        selectedProfile.overview.domain,
-                        selectedProfile.opportunityScoring.overallScore,
-                        selectedProfile.engineering.primaryLanguages?.length ? selectedProfile.engineering.primaryLanguages : ['React', 'Node.js'],
-                        selectedProfile.overview.headquarters || 'United States',
-                        selectedProfile.overview.employeeCount || 100,
-                        selectedProfile.overview.fundingStage || 'Bootstrapped',
-                        selectedProfile.overview.industry || 'Technology'
-                      )} />
+                      <CompanyFitCard profile={selectedProfile} />
                       <AICopilotPanel profile={selectedProfile} />
                       <CompanyOverviewPanel overview={selectedProfile.overview} provenance={selectedProfile.provenance} />
-                      <ProjectValueCard estimate={estimateProjectValue(
-                        selectedProfile.overview.companyName,
-                        selectedProfile.overview.employeeCount || 100,
-                        selectedProfile.opportunityScoring.overallScore
-                      )} />
-                      <CompetitiveFitPanel analysis={analyzeCompetitiveFit(selectedProfile.overview.companyName, selectedProfile.overview.industry)} />
-                      <WhyNotThisCompany negativeSignals={evaluateNegativeQualification(selectedProfile.overview.companyName, selectedProfile.overview.employeeCount).negativeSignals} />
                     </div>
                   )}
 

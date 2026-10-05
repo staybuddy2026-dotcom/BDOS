@@ -1,17 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { Target, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Check } from 'lucide-react';
 
+/**
+ * Slim step bar for the guided BDE flow. Shows where this page sits in the day's work and
+ * links to every other step; earlier steps are ticked, the current one is highlighted.
+ */
 export function WorkflowGuide({ activeStep, stepOverrides }: { activeStep: number, stepOverrides?: Record<number, { name?: string, hint?: string }> }) {
+  // The BDE flow: decide who to work on, find and research them, write and send outreach,
+  // then run the deal in the CRM until it closes. Pages pass the same step number to BreadcrumbHeader.
   const defaultSteps = [
-    { step: 1, name: 'AI Priorities', link: '/priorities', hint: 'Daily Queue' },
-    { step: 2, name: 'Apollo B2B Search', link: '/apollo-search', hint: 'Find Decision Makers' },
-    { step: 3, name: 'Research Company 360', link: '/company', hint: 'Tech Stack & Profiles' },
-    { step: 4, name: 'AI Outreach Generator', link: '/engagement', hint: 'Personalized Copies' },
-    { step: 5, name: 'Review Queue', link: '/review', hint: 'Approve & Dispatch' },
-    { step: 6, name: 'Automated Sequences', link: '/re-engagement', hint: 'Follow-up Schedules' },
-    { step: 7, name: 'Revenue Pipeline', link: '/revenue', hint: 'Manage CRM Deals' },
+    { step: 1, name: 'Priorities', link: '/priorities', hint: 'Accounts showing buying signals today' },
+    { step: 2, name: 'Find leads', link: '/apollo-search', hint: 'Apollo, LinkedIn or the Marketplace' },
+    { step: 3, name: 'Research', link: '/company', hint: 'Company 360: stack, growth and fit' },
+    { step: 4, name: 'Write outreach', link: '/engagement', hint: 'AI-written email and LinkedIn sequences' },
+    { step: 5, name: 'Review & send', link: '/review', hint: 'Check, edit and approve every message' },
+    { step: 6, name: 'CRM', link: '/crm', hint: 'Meetings, proposals, won or lost' },
+    { step: 7, name: 'Forecast', link: '/revenue', hint: 'Expected revenue from open deals' },
   ];
 
   const steps = defaultSteps.map(s => {
@@ -22,118 +28,35 @@ export function WorkflowGuide({ activeStep, stepOverrides }: { activeStep: numbe
   });
 
   return (
-    <div className="px-7 pt-4">
-      <div className="bg-white backdrop-blur-xl border border-slate-200/60 rounded-[16px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)] relative overflow-hidden group/container">
-        {/* Subtle decorative background gradient */}
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none transition-transform duration-1000 group-hover/container:scale-110" />
-        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 rounded-full bg-blue-500/5 blur-3xl pointer-events-none transition-transform duration-1000 group-hover/container:scale-110" />
-
-        <div className="relative z-10">
-          <div className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2.5">
-            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-1.5 rounded-lg text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]">
-              <Target size={18} strokeWidth={2.5} className="animate-[pulse_3s_ease-in-out_infinite]" />
-            </div>
-            Daily BDE Guided Sales Execution Flow
-          </div>
-
-          <div className="flex items-stretch justify-between w-full gap-2 overflow-x-auto pt-3 pb-4 custom-scrollbar px-1 -mx-1">
-            {steps.map((s, index) => {
-              const isActive = activeStep === s.step;
-              const isPast = s.step < activeStep;
-
-              let cardStyle = '';
-              let badgeStyle = '';
-              let titleStyle = '';
-              let hintStyle = '';
-
-              if (isActive) {
-                cardStyle = 'bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 border-transparent shadow-[0_10px_30px_rgba(99,102,241,0.4)] -translate-y-1.5 ring-2 ring-indigo-500/30 ring-offset-2';
-                badgeStyle = 'bg-white/20 text-white shadow-sm';
-                titleStyle = 'text-white';
-                hintStyle = 'text-indigo-100/90';
-              } else if (isPast) {
-                cardStyle = 'bg-slate-50 border-slate-200 hover:bg-white hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300';
-                badgeStyle = 'bg-indigo-100/80 text-indigo-700';
-                titleStyle = 'text-slate-700';
-                hintStyle = 'text-slate-500';
-              } else {
-                cardStyle = 'bg-indigo-50 border-slate-200 opacity-80 hover:opacity-100 hover:border-indigo-200 hover:bg-indigo-50/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300';
-                badgeStyle = 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors duration-300';
-                titleStyle = 'text-slate-600 group-hover:text-slate-800 transition-colors duration-300';
-                hintStyle = 'text-slate-400 group-hover:text-slate-500 transition-colors duration-300';
-              }
-
-              return (
-                <div key={s.step} className="flex items-stretch gap-1.5 min-w-[125px] flex-1">
-                  <Link
-                    href={s.link}
-                    className={`flex-1 flex flex-col justify-between p-3 rounded-[12px] border transition-all duration-300 ease-out cursor-pointer group relative overflow-hidden h-full ${cardStyle}`}
-                  >
-                    {/* Animated shine effect on hover for active card */}
-                    {isActive && (
-                      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                    )}
-
-                    <div className="flex flex-col gap-1.5 flex-1">
-                      <div className="flex items-center justify-between relative z-10 mb-1">
-                        <div className={`text-[0.6rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit flex items-center gap-1.5 transition-all duration-300 ${badgeStyle}`}>
-                          {isPast && <CheckCircle2 size={12} strokeWidth={3} className="text-indigo-600" />}
-                          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />}
-                          STEP {s.step}
-                        </div>
-                        {!isActive && (
-                          <ArrowRight size={12} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-indigo-400" />
-                        )}
-                      </div>
-                      <div className="relative z-10 flex-1">
-                        <div className={`text-[0.8rem] font-bold leading-tight ${titleStyle}`}>{s.name}</div>
-                        <div className={`text-[0.68rem] font-medium mt-0.5 ${hintStyle}`}>{s.hint}</div>
-                      </div>
-                    </div>
-                  </Link>
-
-                  {index < steps.length - 1 && (
-                    <div className="flex-shrink-0 hidden md:flex items-center justify-center w-6 relative">
-                      <div className={`h-[2px] w-full rounded-full ${isPast ? 'bg-indigo-300' : 'bg-slate-200'}`} />
-                      <ChevronRight
-                        size={20}
-                        strokeWidth={2.5}
-                        className={`absolute bg-white/80 rounded-full ${isPast ? 'text-indigo-400' : 'text-slate-300'}`}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          height: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(226, 232, 240, 0.4);
-          border-radius: 8px;
-          margin: 0 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 8px;
-          border: 2px solid transparent;
-          background-clip: padding-box;
-        }
-        .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-          background: #94a3b8;
-          border: 2px solid transparent;
-          background-clip: padding-box;
-        }
-      `}} />
-    </div>
+    <nav aria-label="BDE workflow" className="px-7 pt-4 max-[768px]:px-4">
+      <ol className="m-0 flex list-none items-center gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur-xl p-2 shadow-[0_4px_20px_rgba(15,23,42,0.05)] transition-all duration-300 hover:shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
+        {steps.map((s, index) => {
+          const isActive = activeStep === s.step;
+          const isPast = s.step < activeStep;
+          return (
+            <li key={s.step} className="flex shrink-0 items-center gap-1.5">
+              <Link
+                href={s.link}
+                title={s.hint}
+                aria-current={isActive ? 'step' : undefined}
+                className={`group flex items-center gap-2 rounded-xl px-3 py-1.5 text-[0.8rem] font-bold whitespace-nowrap no-underline transition-all duration-300 ease-out ${
+                  isActive ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 !text-white shadow-[0_4px_14px_rgba(99,102,241,0.4)] scale-105 mx-1 ring-2 ring-indigo-600/20 ring-offset-1' : isPast ? 'text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:-translate-y-0.5 hover:shadow-[0_4px_10px_rgba(99,102,241,0.1)]' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:-translate-y-0.5 hover:shadow-[0_4px_10px_rgba(15,23,42,0.04)]'
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-full text-[0.68rem] font-bold transition-all duration-300 group-hover:scale-110 ${
+                    isActive ? 'bg-white/25 !text-white shadow-inner' : isPast ? 'bg-indigo-100 text-indigo-700 group-hover:bg-indigo-200' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                  }`}
+                >
+                  {isPast ? <Check size={12} strokeWidth={3} className="transition-transform group-hover:scale-110" /> : s.step}
+                </span>
+                {s.name}
+              </Link>
+              {index < steps.length - 1 && <span aria-hidden className={`h-[2px] w-4 rounded-full transition-colors duration-300 ${isPast ? 'bg-indigo-400/60' : 'bg-slate-200'}`} />}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
-

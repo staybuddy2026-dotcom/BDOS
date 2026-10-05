@@ -5,77 +5,28 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import logoImg from '@/assets/Logo.png';
-import {
-  Search,
-  Settings,
-  Home,
-  Building2,
-  Send,
-  Activity,
-  ChevronUp,
-  User,
-  LogOut,
-  Target,
-  Share2,
-  type LucideIcon,
-} from 'lucide-react';
+import { Search, ChevronUp, User, LogOut, Menu, X, ChevronDown } from 'lucide-react';
+import { navSections, type NavItem } from '@/components/navigation/nav';
+import type { UserSession } from '@/lib/auth';
+import { ROLE_LABELS, canSeeAllDeals } from '@/lib/roles';
 
-interface NavItem {
-  name: string;
-  href: string;
-  icon: LucideIcon;
-  /** Extra route prefixes that should also mark this item as active. */
-  alsoActiveFor?: string[];
-}
-
-interface NavSection {
-  label: string;
-  items: NavItem[];
-}
-
-const navSections: NavSection[] = [
-  {
-    label: 'Overview',
-    items: [
-      { name: 'Dashboard', href: '/dashboard', icon: Home },
-      {
-        name: 'BDE Workflow',
-        href: '/priorities',
-        icon: Target,
-        alsoActiveFor: ['/apollo-search', '/review', '/re-engagement', '/revenue'],
-      },
-    ],
-  },
-  {
-    label: 'Prospecting',
-    items: [
-      { name: 'Universal Search', href: '/discovery', icon: Search },
-      { name: 'LinkedIn', href: '/linkedin', icon: Share2 },
-      { name: 'Company 360', href: '/company', icon: Building2 },
-    ],
-  },
-  {
-    label: 'Engagement',
-    items: [
-      { name: 'Outreach', href: '/engagement', icon: Send },
-      { name: 'Activity', href: '/crm', icon: Activity },
-    ],
-  },
-  {
-    label: 'System',
-    items: [{ name: 'Settings', href: '/settings', icon: Settings }],
-  },
-];
-
-export function Sidebar({ user }: { user?: any }) {
+export function Sidebar({ user, todayCount = 0 }: { user?: UserSession | null; todayCount?: number }) {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // Phones and small tablets: the sidebar slides in over the page.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const name = user?.name || user?.email?.split('@')[0] || 'User';
   const initial = name.charAt(0).toUpperCase();
-  const role = user?.role === 'bde' ? 'BD Team' : 'User';
+  const role = user ? ROLE_LABELS[user.role] : 'User';
+  const showManagerItems = !!user && canSeeAllDeals(user.role);
+  const isAdmin = user?.role === 'ADMIN';
+  const visible = (item: NavItem) => (!item.managersOnly || showManagerItems) && (!item.adminOnly || isAdmin);
+  const isItemActive = (item: NavItem) =>
+    pathname === item.href || (item.href !== '/' && !!pathname?.startsWith(item.href)) || !!item.alsoActiveFor?.some((prefix) => pathname?.startsWith(prefix));
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -98,9 +49,35 @@ export function Sidebar({ user }: { user?: any }) {
   }, [isMenuOpen]);
 
   return (
+    <>
+    {/* Mobile: a slim top bar with the menu button, so it never sits on top of a page's own header */}
+    <div className="fixed inset-x-0 top-0 z-[998] hidden h-[var(--mobile-bar-h)] items-center gap-2 bg-[#070818] px-3 text-white shadow-md max-[768px]:flex">
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open menu"
+        aria-expanded={mobileOpen}
+        className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/10"
+      >
+        <Menu size={20} />
+      </button>
+      <Link href="/" aria-label="BDOS home" className="flex items-center">
+        <Image src={logoImg} alt="BDOS" width={96} height={24} style={{ objectFit: 'contain', objectPosition: 'left center' }} />
+      </Link>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event('bdos:open-command'))}
+        aria-label="Search"
+        className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/10"
+      >
+        <Search size={18} />
+      </button>
+    </div>
+    {mobileOpen && <div className="fixed inset-0 z-[999] hidden bg-slate-950/50 max-[768px]:block" onClick={() => setMobileOpen(false)} aria-hidden />}
+
     <aside
       aria-label="Sidebar"
-      className="fixed inset-y-0 left-0 z-[1000] flex h-screen w-[var(--sidebar-width,250px)] flex-col overflow-hidden border-r border-white/[0.06] text-white max-[768px]:hidden"
+      className={`fixed inset-y-0 left-0 z-[1000] flex h-screen w-[var(--sidebar-width,250px)] flex-col overflow-hidden border-r border-white/[0.06] text-white transition-transform duration-200 max-[768px]:w-[270px] ${mobileOpen ? '' : 'max-[768px]:-translate-x-full'}`}
       style={{
         backgroundColor: '#070818',
         backgroundImage:
@@ -142,30 +119,55 @@ export function Sidebar({ user }: { user?: any }) {
             priority
           />
         </Link>
-        <div className="mt-4 h-px bg-gradient-to-r from-white/20 via-white/10 to-transparent" />
+        <button type="button" onClick={() => setMobileOpen(false)} aria-label="Close menu" className="absolute top-4 right-4 hidden h-8 w-8 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 max-[768px]:flex">
+          <X size={18} />
+        </button>
+        {/* Opens the command palette (also Ctrl+K / Cmd+K anywhere) */}
+        <button
+          type="button"
+          onClick={() => { setMobileOpen(false); window.dispatchEvent(new Event('bdos:open-command')); }}
+          className="mt-4 flex w-full items-center gap-2.5 rounded-[10px] border border-white/[0.08] bg-white/[0.05] px-3 py-2 text-left text-[0.82rem] font-medium text-slate-400 transition-colors hover:bg-white/[0.09] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60"
+        >
+          <Search size={15} />
+          <span className="flex-1">Search deals, pages…</span>
+          <kbd className="rounded border border-white/15 px-1.5 py-0.5 font-sans text-[0.66rem] text-slate-400">Ctrl K</kbd>
+        </button>
       </div>
 
       {/* Navigation */}
       <nav aria-label="Main navigation" className="relative z-10 flex-1 overflow-y-auto px-3 pb-2">
-        {navSections.map((section) => (
-          <div key={section.label} className="mb-5">
-            <p className="px-3 pb-2 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-slate-500">
-              {section.label}
-            </p>
-            <ul className="m-0 flex list-none flex-col gap-1 p-0">
-              {section.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== '/' && !!pathname?.startsWith(item.href)) ||
-                  !!item.alsoActiveFor?.some((prefix) => pathname?.startsWith(prefix));
+        {navSections.filter((section) => section.items.some(visible)).map((section) => {
+          const open = !section.collapsible || moreOpen || section.items.some(isItemActive);
+          return (
+          <div key={section.label} className="mb-4">
+            {section.collapsible ? (
+              <button
+                type="button"
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-expanded={open}
+                className="flex w-full items-center justify-between px-3 pb-2 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-slate-500 hover:text-slate-300"
+              >
+                {section.label}
+                <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+              </button>
+            ) : (
+              <p className="px-3 pb-2 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+                {section.label}
+              </p>
+            )}
+            {open && (
+            <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+              {section.items.filter(visible).map((item) => {
+                const isActive = isItemActive(item);
                 const Icon = item.icon;
 
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={() => setMobileOpen(false)}
                       aria-current={isActive ? 'page' : undefined}
-                      className={`group relative flex items-center gap-3 rounded-[12px] border px-2.5 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 ${isActive
+                      className={`group relative flex items-center gap-3 rounded-[12px] border px-2.5 py-1.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 ${isActive
                         ? 'border-white/[0.08] bg-gradient-to-r from-indigo-500/[0.22] via-violet-500/[0.09] to-transparent'
                         : 'border-transparent hover:bg-white/[0.05]'
                         }`}
@@ -178,12 +180,12 @@ export function Sidebar({ user }: { user?: any }) {
                       )}
 
                       <span
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] transition-all duration-200 ${isActive
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] transition-all duration-200 ${isActive
                           ? 'bg-gradient-to-br from-violet-500 to-blue-500 text-white shadow-[0_4px_14px_rgba(99,102,241,0.5)]'
                           : 'bg-white/[0.05] text-slate-400 group-hover:bg-white/[0.1] group-hover:text-white'
                           }`}
                       >
-                        <Icon size={17} strokeWidth={2.2} />
+                        <Icon size={16} strokeWidth={2.2} />
                       </span>
 
                       <span
@@ -193,7 +195,14 @@ export function Sidebar({ user }: { user?: any }) {
                         {item.name}
                       </span>
 
-                      {isActive && (
+                      {item.href === '/today' && todayCount > 0 ? (
+                        <span
+                          className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[0.68rem] font-bold text-white"
+                          aria-label={`${todayCount} things to do today`}
+                        >
+                          {todayCount > 99 ? '99+' : todayCount}
+                        </span>
+                      ) : isActive && (
                         <span
                           aria-hidden
                           className="ml-auto h-1.5 w-1.5 rounded-full bg-violet-300 shadow-[0_0_8px_rgba(196,181,253,0.95)]"
@@ -204,8 +213,10 @@ export function Sidebar({ user }: { user?: any }) {
                 );
               })}
             </ul>
+            )}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Profile */}
@@ -269,5 +280,6 @@ export function Sidebar({ user }: { user?: any }) {
         </button>
       </div>
     </aside>
+    </>
   );
 }

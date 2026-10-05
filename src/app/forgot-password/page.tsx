@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, AlertCircle, ExternalLink } from 'lucide-react';
 import logo from '@/assets/Logo.png';
 import loginbg from '@/assets/loginbg.png';
 
@@ -11,26 +11,46 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [devResetUrl, setDevResetUrl] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setError(data?.error || 'Could not process your request. Please try again.');
+        return;
+      }
+
       setSubmitted(true);
-    }, 1500);
+      if (data?.devResetUrl) {
+        setDevResetUrl(data.devResetUrl);
+      }
+    } catch {
+      setError('A network error occurred. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!mounted) return <div className="min-h-screen bg-[#060a16]" />;
 
   return (
     <div className="relative min-h-screen flex font-sans overflow-hidden bg-[#090e22]">
-
       {/* Immersive Full-Screen Background */}
       <div className="absolute inset-0 z-0 w-full h-full">
         <Image
@@ -44,11 +64,17 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div className="relative z-10 w-full flex justify-between h-screen max-w-[1600px] mx-auto">
-
         {/* Left Side (Text & Branding) */}
         <div className="hidden lg:flex flex-col mt-40 z-20">
           <div className="mb-8 w-56 h-16 relative">
-            <Image src={logo} alt="BDOS Logo" fill className="object-contain object-left" priority sizes="(max-width: 768px) 100vw, 33vw" />
+            <Image
+              src={logo}
+              alt="BDOS Logo"
+              fill
+              className="object-contain object-left"
+              priority
+              sizes="(max-width: 768px) 100vw, 33vw"
+            />
           </div>
           <h1 className="text-5xl! font-bold leading-[1.3] mb-5 tracking-tight" style={{ color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>
             Regain Access.<br />
@@ -61,7 +87,8 @@ export default function ForgotPasswordPage() {
 
         {/* Right Side Reset Card */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-6 z-20">
-          <div className="w-full max-w-[500px] px-8 py-16 relative overflow-hidden"
+          <div
+            className="w-full max-w-[500px] px-8 py-16 relative overflow-hidden"
             style={{
               background: 'linear-gradient(145deg, rgba(21, 35, 86, 0.45) 0%, rgba(12, 23, 65, 0.7) 100%)',
               backdropFilter: 'blur(32px)',
@@ -71,8 +98,8 @@ export default function ForgotPasswordPage() {
               borderTop: '1px solid rgba(255, 255, 255, 0.2)',
               borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
               boxShadow: '0 30px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(80, 120, 255, 0.15), inset 0 0 30px rgba(100, 150, 255, 0.05)'
-            }}>
-
+            }}
+          >
             {/* Logo inside card */}
             <div className="flex justify-center mb-4">
               <div className="relative w-54 h-16">
@@ -93,9 +120,8 @@ export default function ForgotPasswordPage() {
               </h2>
               <p className="font-medium text-[0.9rem]! text-[#94a3b8]!">
                 {submitted
-                  ? "Check your email for the reset instructions"
-                  : "Enter your email to receive a reset link"
-                }
+                  ? 'Check your inbox for the reset link'
+                  : 'Enter your email to receive a secure reset link'}
               </p>
             </div>
 
@@ -103,10 +129,25 @@ export default function ForgotPasswordPage() {
               <div className="space-y-6">
                 <div className="bg-[#10b981]/10 border border-[#10b981]/20 rounded-xl p-4 text-center">
                   <p className="text-[#10b981] font-medium text-sm">
-                    We've sent a password reset link to <br />
+                    If an account is associated with this email, we have sent instructions to:
                     <strong className="text-white mt-1 block">{email}</strong>
                   </p>
                 </div>
+
+                {devResetUrl && (
+                  <div className="bg-indigo-950/60 border border-indigo-500/30 rounded-xl p-4 text-left">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-300 mb-1">
+                      <ExternalLink size={14} />
+                      <span>Development Mode Link:</span>
+                    </div>
+                    <Link
+                      href={devResetUrl}
+                      className="text-cyan-400 hover:text-cyan-300 text-xs font-mono break-all underline block"
+                    >
+                      Click here to reset your password directly &rarr;
+                    </Link>
+                  </div>
+                )}
 
                 <Link
                   href="/"
@@ -118,6 +159,13 @@ export default function ForgotPasswordPage() {
               </div>
             ) : (
               <form onSubmit={handleReset} className="space-y-6">
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-300 flex items-center gap-2.5">
+                    <AlertCircle size={16} className="shrink-0 text-red-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-[0.9rem]! font-medium ml-1" style={{ color: '#ffffff' }}>Email Address</label>
                   <div className="relative group mt-2">
@@ -162,7 +210,6 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

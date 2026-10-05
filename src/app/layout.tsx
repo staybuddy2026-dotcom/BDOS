@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import '../styles/globals.css';
+import '../styles/tokens.css';
 
 export const metadata: Metadata = {
   title: 'BDOS - Business Development Operating System',

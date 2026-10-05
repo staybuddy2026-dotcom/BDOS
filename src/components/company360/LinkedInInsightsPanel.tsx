@@ -7,7 +7,7 @@ import { getLinkedInCompanyInsightsAction, getLinkedInCompanyPeopleAction } from
 import type { LinkedInCompanyInsights } from '@/features/linkedin/actions';
 import type { LinkedInProfileResult } from '@/features/linkedin/types';
 import { addLinkedInProfileToCrm } from '@/features/crm/actions';
-import s from '@/components/outreach/outreach.module.css';
+import s from '@/components/ui/ui.module.css';
 
 const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 

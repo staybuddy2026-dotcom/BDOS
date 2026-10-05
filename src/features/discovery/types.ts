@@ -50,6 +50,8 @@ export type DiscoveryLeadItem = {
   estimatedBudgetUsd: string;
   conversionProbabilityPercent: number;
   recommendedServices: string[];
+  /** What the score is made of, so "Why this score?" can show it. */
+  scoreReasons?: { label: string; points: number }[];
 };
 
 export type LeadDiscoveryData = {
@@ -66,6 +68,5 @@ export type LeadDiscoveryData = {
   totalCompaniesCount?: number;
   migratedLeadsMap?: Record<string, DiscoveryLeadItem>;
   migratedCompanyIds?: string[];
-  removedCompanyIds?: string[];
   apiError?: string;
 };

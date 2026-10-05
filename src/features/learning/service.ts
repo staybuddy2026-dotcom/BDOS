@@ -13,6 +13,20 @@ export interface StylePatternsReport {
   topTones: string[];
 }
 
+const STOP_WORDS = new Set(['the', 'and', 'a', 'an', 'to', 'of', 'in', 'for', 'on', 'with', 'is', 'are', 'you', 'your', 'we', 'our', 'i', 'it', 'that', 'this', 'at', 'as', 'be', 'or', 'if', 'so']);
+
+/** Words the BDE most often adds to (or removes from) the AI's drafts, counted across all edits. */
+function topWordChanges(records: { originalDraft: string; userEditedVersion: string | null }[], direction: 'added' | 'removed'): string[] {
+  const words = (text: string) => new Set(text.toLowerCase().match(/[a-z][a-z'-]{3,}/g) || []);
+  const counts: Record<string, number> = {};
+  for (const rec of records) {
+    if (!rec.userEditedVersion) continue;
+    const [from, to] = direction === 'added' ? [words(rec.originalDraft), words(rec.userEditedVersion)] : [words(rec.userEditedVersion), words(rec.originalDraft)];
+    for (const w of to) if (!from.has(w) && !STOP_WORDS.has(w)) counts[w] = (counts[w] || 0) + 1;
+  }
+  return Object.entries(counts).filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([w]) => w);
+}
+
 export class AILearningService {
   /**
    * Save a user edit event to the database (strictly append-only).
@@ -45,13 +59,13 @@ export class AILearningService {
 
   /**
    * Analyze the collected user edits logs to identify writing patterns.
-   * Falls back to high-fidelity mock patterns if DB is disconnected.
+   * With no edits yet (or no database) the report is empty rather than made up.
    */
   static async analyzeStylePatterns(): Promise<StylePatternsReport> {
     try {
       const records = await db.aILearningData.findMany();
       if (records.length === 0) {
-        return this.getMockStylePatterns();
+        return this.emptyReport();
       }
 
       let totalOriginalLength = 0;
@@ -83,7 +97,7 @@ export class AILearningService {
       const total = records.length;
       
       // Determine preferred opening
-      let preferredOpening = 'Hi [Name],';
+      let preferredOpening = '';
       let maxOpeningVal = 0;
       Object.entries(openingsCount).forEach(([op, count]) => {
         if (count > maxOpeningVal) {
@@ -114,32 +128,29 @@ export class AILearningService {
         avgOriginalLength: Math.round(totalOriginalLength / total),
         avgEditedLength: Math.round(totalEditedLength / total),
         preferredOpening,
-        preferredCTA: 'Soft conversation questions (e.g. open to swap insights?)',
+        preferredCTA: '',
         directnessLevel,
-        commonlyAddedWords: ['blueprint', 'latency', 'worked for us', 'exchanging'],
-        commonlyRemovedWords: ['quick call', 'leading software', 'we specialize in', 'hope you are doing well'],
-        topTones: topTones.length > 0 ? topTones : ['Insightful', 'Casual'],
+        commonlyAddedWords: topWordChanges(records, 'added'),
+        commonlyRemovedWords: topWordChanges(records, 'removed'),
+        topTones,
       };
     } catch {
-      logger.warn('Prisma query warning for style patterns. Falling back to sandbox insights.');
-      return this.getMockStylePatterns();
+      logger.warn('Could not read the writing-style records.');
+      return this.emptyReport();
     }
   }
 
-  /**
-   * Pre-populated high-fidelity style patterns report.
-   */
-  private static getMockStylePatterns(): StylePatternsReport {
+  private static emptyReport(): StylePatternsReport {
     return {
-      totalEdits: 14,
-      avgOriginalLength: 110,
-      avgEditedLength: 72,
-      preferredOpening: 'Hi [Name],',
-      preferredCTA: 'Conversational soft exchange (e.g. open to swap insights?)',
-      directnessLevel: 'Highly direct (reduces AI text fluff by 35% on average)',
-      commonlyAddedWords: ['blueprint', 'bottleneck', 'exchanging insights', 'cycles'],
-      commonlyRemovedWords: ['quick call', 'hope you are doing well', 'we specialize in', 'schedule a chat'],
-      topTones: ['Insightful', 'Casual', 'Direct'],
+      totalEdits: 0,
+      avgOriginalLength: 0,
+      avgEditedLength: 0,
+      preferredOpening: '',
+      preferredCTA: '',
+      directnessLevel: 'Not enough edits yet',
+      commonlyAddedWords: [],
+      commonlyRemovedWords: [],
+      topTones: [],
     };
   }
 }

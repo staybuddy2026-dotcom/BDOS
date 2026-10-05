@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Check, ExternalLink, FileText, Loader2, Search, X } from 'lucide-react';
-import { findDecisionMakerOnLinkedIn, logLinkedInTouch, setDecisionMakerLinkedIn } from '@/features/crm/actions';
-import type { DecisionMakerContact, LinkedInTouch } from '@/features/crm/actions';
+import { findContactOnLinkedIn, logLinkedInTouch, setContactLinkedIn } from '@/features/crm/actions';
+import { LINKEDIN_DAILY_CONNECTION_LIMIT } from '@/features/crm/types';
+import type { CrmContact, LinkedInTouch } from '@/features/crm/types';
 
 const TOUCHES: { id: LinkedInTouch; label: string }[] = [
   { id: 'CONNECTION_SENT', label: 'Connection sent' },
@@ -25,15 +26,19 @@ const pill: React.CSSProperties = {
  * from, and log manual LinkedIn touches (LinkedIn messages are sent by hand) to the timeline.
  */
 export function LinkedInContactActions({
-  accountId,
-  contactIndex,
+  dealId,
   contact,
+  disabled = false,
+  connectionsToday,
   onChanged,
   notify,
 }: {
-  accountId: string;
-  contactIndex: number;
-  contact: DecisionMakerContact;
+  dealId: string;
+  contact: CrmContact;
+  /** True when the user cannot edit this deal (an unassigned lead that has not been claimed). */
+  disabled?: boolean;
+  /** Connection requests the signed-in user has logged today (all deals), for the daily safety limit. */
+  connectionsToday?: number;
   onChanged: () => void | Promise<void>;
   notify: (type: 'success' | 'error', message: string) => void;
 }) {
@@ -45,7 +50,7 @@ export function LinkedInContactActions({
   const saveUrl = async (url: string) => {
     setBusy('save');
     try {
-      const res = await setDecisionMakerLinkedIn(accountId, contactIndex, url);
+      const res = await setContactLinkedIn(dealId, contact.id, url);
       if (res.error) return notify('error', res.error);
       setEditing(false);
       setCandidates([]);
@@ -62,7 +67,7 @@ export function LinkedInContactActions({
   const find = async () => {
     setBusy('find');
     try {
-      const res = await findDecisionMakerOnLinkedIn(accountId, contactIndex);
+      const res = await findContactOnLinkedIn(dealId, contact.id);
       if (res.error) return notify('error', res.error);
       if (res.candidates?.length) {
         setCandidates(res.candidates);
@@ -80,8 +85,11 @@ export function LinkedInContactActions({
   const log = async (touch: LinkedInTouch, label: string) => {
     setBusy(touch);
     try {
-      await logLinkedInTouch(accountId, touch, contact.name);
-      notify('success', `Logged: ${label} (${contact.name}).`);
+      const res = await logLinkedInTouch(dealId, contact.id, touch);
+      if (res.error) return notify('error', res.error);
+      // The server adds a warning once today's connection requests reach the safe limit.
+      if (res.message) notify('error', res.message);
+      else notify('success', `Logged: ${label} (${contact.name}).`);
       await onChanged();
     } catch {
       notify('error', 'Could not log this LinkedIn activity.');
@@ -98,14 +106,14 @@ export function LinkedInContactActions({
             <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ ...pill, color: LINKEDIN_BLUE, borderColor: '#bfdbfe', background: '#eff6ff', textDecoration: 'none' }}>
               <ExternalLink size={12} /> LinkedIn profile
             </a>
-            <button type="button" style={pill} onClick={() => { setUrlInput(contact.linkedinUrl || ''); setEditing(true); }} title="Change the profile URL">Edit</button>
+            <button type="button" style={pill} onClick={() => { setUrlInput(contact.linkedinUrl || ''); setEditing(true); }} disabled={disabled} title="Change the profile URL">Edit</button>
           </>
         ) : (
           <>
-            <button type="button" style={{ ...pill, color: LINKEDIN_BLUE, borderColor: '#bfdbfe' }} onClick={find} disabled={busy !== null}>
+            <button type="button" style={{ ...pill, color: LINKEDIN_BLUE, borderColor: '#bfdbfe' }} onClick={find} disabled={disabled || busy !== null}>
               {busy === 'find' ? <Loader2 size={12} className="spin-li" /> : <Search size={12} />} Find on LinkedIn
             </button>
-            <button type="button" style={pill} onClick={() => setEditing(true)} disabled={busy !== null}>Paste URL</button>
+            <button type="button" style={pill} onClick={() => setEditing(true)} disabled={disabled || busy !== null}>Paste URL</button>
           </>
         )}
         {contact.sourcePostUrl && (
@@ -145,10 +153,17 @@ export function LinkedInContactActions({
       )}
 
       <div>
-        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Log LinkedIn activity</div>
+        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+          <span>Log LinkedIn activity</span>
+          {connectionsToday !== undefined && (
+            <span style={{ textTransform: 'none', letterSpacing: 0, color: connectionsToday >= LINKEDIN_DAILY_CONNECTION_LIMIT ? '#dc2626' : '#94a3b8' }} title="Connection requests you logged today, across all deals">
+              {connectionsToday}/{LINKEDIN_DAILY_CONNECTION_LIMIT} requests today
+            </span>
+          )}
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
           {TOUCHES.map((t) => (
-            <button key={t.id} type="button" style={pill} onClick={() => log(t.id, t.label)} disabled={busy !== null}>
+            <button key={t.id} type="button" style={pill} onClick={() => log(t.id, t.label)} disabled={disabled || busy !== null}>
               {busy === t.id ? <Loader2 size={11} className="spin-li" /> : null} {t.label}
             </button>
           ))}

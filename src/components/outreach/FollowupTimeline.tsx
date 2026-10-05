@@ -2,7 +2,7 @@
 
 import { FollowupStage, SequenceStepDraft } from '@/features/outreach/types';
 import { Check, AlertTriangle, ListChecks } from 'lucide-react';
-import s from './outreach.module.css';
+import s from '@/components/ui/ui.module.css';
 
 export const STAGES: { id: FollowupStage; day: number; label: string; desc: string }[] = [
   { id: 'STAGE_1_INITIAL', day: 1, label: 'Relevance', desc: 'Specific reason and one open question' },

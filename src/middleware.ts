@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { decrypt, updateSession } from './lib/jwt';
 
 // Ensure paths that shouldn't be protected are excluded
-const publicRoutes = ['/', '/api/auth/login', '/forgot-password', '/reset-password'];
+const publicRoutes = ['/', '/forgot-password', '/reset-password'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
   // Exclude static assets and api routes (except auth)
   if (pathname.startsWith('/_next') || pathname.includes('.')) {
     return NextResponse.next();
@@ -14,15 +14,19 @@ export async function middleware(request: NextRequest) {
 
   const isPublicRoute = publicRoutes.includes(pathname);
   const session = request.cookies.get('session')?.value;
-  
+
+  // A session is only valid when it points at a user account (older cookies had no user id).
   let parsedSession = null;
   if (session) {
-    parsedSession = await decrypt(session);
+    const payload = await decrypt(session);
+    if (payload?.uid) parsedSession = payload;
   }
 
   // 1. Redirect unauthenticated users trying to access protected routes
   if (!parsedSession && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/', request.url));
+    const res = NextResponse.redirect(new URL('/', request.url));
+    if (session) res.cookies.delete('session');
+    return res;
   }
 
   // 2. Redirect authenticated users trying to access login page
@@ -31,7 +35,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 3. Update session if it exists
-  return await updateSession(request) || NextResponse.next();
+  return (parsedSession && (await updateSession(request))) || NextResponse.next();
 }
 
 export const config = {

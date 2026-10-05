@@ -2,19 +2,20 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import blob from '@/assets/blob.png';
 import {
   User,
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
-  CheckCircle,
   Link as LinkIcon,
+  Loader2,
   Building2,
   Users,
   Zap,
-  Sparkles
+  Sparkles,
+  UserPlus,
+  Download
 } from 'lucide-react';
 import {
   searchApolloPeople,
@@ -22,10 +23,12 @@ import {
   linkApolloEnrichmentToPost,
   checkApolloCreditWarning,
   enrichApolloPersonDirect,
-  saveApolloPeopleMapToDb,
-  getApolloPeopleMapFromDb
 } from '@/features/apollo/actions';
+import { addToShortlistAction, getSavedPeopleAction, savePersonAction, unsavePersonAction } from '@/features/prospecting/actions';
+import { importBrowserListsOnce } from '@/features/prospecting/browserImport';
 import '@/styles/dashboard.css';
+import { addApolloCompanyToCrmAction, addApolloPeopleToCrmAction, lookupCrmStatusAction } from '@/features/crm/actions';
+import type { CrmMatch } from '@/features/crm/types';
 import { getReviewPosts, ReviewPostData } from '@/features/review/actions';
 import type { ApolloPersonMatch, ApolloOrganizationMatch } from '@/features/apollo/provider';
 import {
@@ -37,7 +40,6 @@ import {
   FrameworkStats
 } from '@/features/providers/actions';
 import { LeadItem, SavedSearchPreset } from '@/features/providers/types';
-import { saveMigratedCompanyAction } from '@/features/discovery/actions';
 import { DiscoveryLeadItem } from '@/features/discovery/types';
 import { ActiveHiringFilterPanel } from '@/components/apollo/ActiveHiringFilterPanel';
 import { ApolloSearchFilters } from '@/components/apollo/ApolloSearchFilters';
@@ -46,9 +48,9 @@ import { SavedSearchPresetsPanel } from '@/components/apollo/SavedSearchPresetsP
 import { BdeFastStartPresets, SearchPreset } from '@/components/apollo/BdeFastStartPresets';
 import { UniversalResultRenderer } from '@/components/UniversalResultRenderer';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
-import { CustomDropdown } from '@/components/CustomDropdown';
 import { WorkflowGuide } from '@/components/WorkflowGuide';
-import '@/styles/globals.css';
+import { PageShell, StatTile, Modal, useToast } from '@/components/ui';
+import s from '@/components/ui/ui.module.css';
 
 // Helper to format Apollo masked names cleanly (e.g., "Mike Br***m" -> "Mike B.")
 function formatPersonName(rawName: string): string {
@@ -56,10 +58,34 @@ function formatPersonName(rawName: string): string {
   return rawName.replace(/(\b[A-Za-z]+)\s+([A-Za-z])[a-zA-Z]*\*\*\*[a-zA-Z]*/g, '$1 $2.');
 }
 
+const companyKey = (org: ApolloOrganizationMatch) => (org.domain || org.apolloOrganizationId || org.name).toLowerCase().trim();
+
+// Downloads the given contacts as a CSV file (opens cleanly in Excel and Google Sheets).
+function downloadPeopleCsv(people: ApolloPersonMatch[]) {
+  const cell = (value?: string | number) => {
+    const text = value == null ? '' : String(value);
+    // Excel treats cells starting with = + - @ as formulas; a leading quote keeps them as text.
+    const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+    return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
+  const header = ['Name', 'Job title', 'Company', 'Website', 'Industry', 'Work email', 'Personal email', 'Phone', 'LinkedIn', 'Location'];
+  const rows = people.map((p) => [formatPersonName(p.personName), p.jobTitle, p.organizationName, p.organizationDomain, p.organizationIndustry, p.workEmail, p.personalEmail, p.phone, p.linkedinUrl, p.location].map(cell).join(','));
+  const blob = new Blob([`\uFEFF${[header.join(','), ...rows].join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `apollo-contacts-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ApolloSearchPage() {
   const router = useRouter();
 
   // Mode Switcher: 'people' | 'companies'
+  const { toast, notify } = useToast();
+  const triggerNotification = useCallback((type: 'success' | 'error', message: string) => notify(message, type === 'error'), [notify]);
+
   const [searchMode, setSearchMode] = useState<'people' | 'companies'>('people');
 
   // People Search Filters State
@@ -118,26 +144,16 @@ export default function ApolloSearchPage() {
   const [activeDataTab, setActiveDataTab] = useState<'saved' | 'fresh'>('fresh');
   const [savedPage, setSavedPage] = useState(1);
 
-  // Persistent Saved Contacts State (Synced with PostgreSQL DB & LocalStorage)
+  // The signed-in person's saved contacts, kept in the database (features/prospecting).
   const [savedPeopleMap, setSavedPeopleMap] = useState<Record<string, ApolloPersonMatch>>({});
 
-  // Load saved contacts from LocalStorage & PostgreSQL DB on mount (Client-side sync)
+  // On mount: read search filters from the URL, then load saved contacts.
   useEffect(() => {
     let isMounted = true;
 
     let hasSearchParams = false;
 
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bdos_apollo_saved_people_map');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-            setSavedPeopleMap(parsed);
-          }
-        } catch { }
-      }
-
       const params = new URLSearchParams(window.location.search);
       const paramName = params.get('name');
       const paramDomain = params.get('domain');
@@ -166,48 +182,29 @@ export default function ApolloSearchPage() {
       if (hasSearchParams) setAutoSearchTrigger((n) => n + 1);
     }
 
-    getApolloPeopleMapFromDb().then(dbJson => {
-      if (!isMounted || !dbJson || dbJson === '{}') return;
-      try {
-        const parsed = JSON.parse(dbJson);
-        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-          setSavedPeopleMap(prev => {
-            const merged = { ...parsed, ...prev };
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('bdos_apollo_saved_people_map', JSON.stringify(merged));
-            }
-            return merged;
-          });
-          if (!hasSearchParams) {
-            setActiveDataTab('saved');
-          }
-        }
-      } catch { }
-    });
+    // Lists this browser kept before they moved to the database are sent up once first.
+    importBrowserListsOnce()
+      .then(() => getSavedPeopleAction())
+      .then((saved) => {
+        if (!isMounted || !Object.keys(saved).length) return;
+        setSavedPeopleMap((prev) => ({ ...saved, ...prev }));
+        if (!hasSearchParams) setActiveDataTab('saved');
+      })
+      .catch(() => { /* the Saved tab stays empty; saving still works */ });
     return () => { isMounted = false; };
   }, []);
 
   const [savingPersonId, setSavingPersonId] = useState<string | null>(null);
 
+  // CRM link: which results already have a deal, row selection for bulk add, and the add in progress.
+  const [crmPeople, setCrmPeople] = useState<Record<string, CrmMatch>>({});
+  const [crmCompanies, setCrmCompanies] = useState<Record<string, CrmMatch>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [crmBusyKey, setCrmBusyKey] = useState<string | null>(null);
+
   const getPersonKey = useCallback((person: ApolloPersonMatch): string => {
     return String(person.apolloPersonId || (person.personName + '_' + (person.organizationDomain || ''))).toLowerCase().trim();
   }, []);
-
-  const markContactAsViewed = useCallback((person: ApolloPersonMatch) => {
-    const key = getPersonKey(person);
-    if (!key) return;
-    setSavedPeopleMap((prev) => {
-      if (prev[key]) return prev;
-      const next = { ...prev, [key]: person };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('bdos_apollo_saved_people_map', JSON.stringify(next));
-      }
-      setTimeout(() => {
-        saveApolloPeopleMapToDb(JSON.stringify(next)).catch(() => { });
-      }, 0);
-      return next;
-    });
-  }, [getPersonKey]);
 
   const handleSavePerson = useCallback(async (person: ApolloPersonMatch) => {
     const key = getPersonKey(person);
@@ -215,27 +212,16 @@ export default function ApolloSearchPage() {
     setSavingPersonId(key);
 
     try {
-      await new Promise(r => setTimeout(r, 100));
-
-      setSavedPeopleMap(prev => {
-        const next = { ...prev, [key]: person };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('bdos_apollo_saved_people_map', JSON.stringify(next));
-        }
-        setTimeout(() => {
-          saveApolloPeopleMapToDb(JSON.stringify(next)).catch(() => { });
-        }, 0);
-        return next;
-      });
-
-      markContactAsViewed(person);
-      triggerNotification('success', `✓ Saved ${formatPersonName(person.personName)} to PostgreSQL Database.`);
+      const res = await savePersonAction(person);
+      if (res.error) { triggerNotification('error', res.error); return; }
+      setSavedPeopleMap((prev) => ({ ...prev, [key]: person }));
+      triggerNotification('success', `Saved ${formatPersonName(person.personName)}.`);
     } catch {
       triggerNotification('error', `Failed to save ${formatPersonName(person.personName)}.`);
     } finally {
       setSavingPersonId(null);
     }
-  }, [getPersonKey, markContactAsViewed]);
+  }, [getPersonKey, triggerNotification]);
 
   const handleUnsavePerson = useCallback((person: ApolloPersonMatch) => {
     const key = getPersonKey(person);
@@ -253,14 +239,9 @@ export default function ApolloSearchPage() {
     setSavedPeopleMap(prev => {
       const next = { ...prev };
       delete next[key];
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('bdos_apollo_saved_people_map', JSON.stringify(next));
-      }
-      setTimeout(() => {
-        saveApolloPeopleMapToDb(JSON.stringify(next)).catch(() => { });
-      }, 0);
       return next;
     });
+    unsavePersonAction(key).then((res) => res.error && triggerNotification('error', res.error)).catch(() => triggerNotification('error', 'Could not remove the saved contact.'));
 
     setPeopleResults(prev => {
       const existingIdx = prev.findIndex(p => getPersonKey(p) === key);
@@ -276,15 +257,7 @@ export default function ApolloSearchPage() {
     });
 
     triggerNotification('success', `Moved ${formatPersonName(person.personName)} back to Fresh Data.`);
-  }, [getPersonKey, savedPeopleMap]);
-
-  // Toast Notification
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  const triggerNotification = (type: 'success' | 'error', message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 4000);
-  };
+  }, [getPersonKey, savedPeopleMap, triggerNotification]);
 
   const handleResearchInCompany360 = async (org: ApolloOrganizationMatch) => {
     try {
@@ -292,50 +265,30 @@ export default function ApolloSearchPage() {
         companyId: org.apolloOrganizationId || `comp_${Date.now()}`,
         companyName: org.name,
         domain: org.domain || '',
-        industry: org.industry || 'Technology',
-        country: org.location || 'Unknown',
+        // Only what Apollo returned; Company 360 scores the company when its profile is built.
+        industry: org.industry || '',
+        country: org.location || '',
         employeeCount: org.employeeCount || 0,
         fundingSummary: org.latestFundingStage || '',
-        buyingScore: 85,
-        icpScore: 90,
-        tier: 'HIGH',
-        primaryTechStack: org.technologies || ['React', 'Node.js'],
-        hiringSummary: `${org.openJobsCount || 0} open roles`,
+        buyingScore: 0,
+        icpScore: 0,
+        tier: 'MEDIUM',
+        primaryTechStack: org.technologies || [],
+        hiringSummary: org.openJobsCount ? `${org.openJobsCount} open roles` : '',
         matchedProviders: ['apollo'],
-        whyContactReason: org.whyThisCompanySummary || 'High ICP match',
-        recommendedContactName: 'Decision Maker',
-        recommendedContactTitle: 'Executive',
+        whyContactReason: org.whyThisCompanySummary || '',
+        recommendedContactName: '',
+        recommendedContactTitle: '',
         bestOutreachChannel: 'EMAIL',
-        estimatedBudgetInr: '₹50,00,000',
-        estimatedBudgetUsd: '$60,000',
-        conversionProbabilityPercent: 45,
-        recommendedServices: ['Web Development', 'AI Integration'],
+        estimatedBudgetInr: '',
+        estimatedBudgetUsd: '',
+        conversionProbabilityPercent: 0,
+        recommendedServices: [],
       };
 
-      // Ensure it is saved in DB
-      await saveMigratedCompanyAction(leadItem);
-
-      // Save locally to reflect immediately on Company 360 page
-      if (typeof window !== 'undefined') {
-        const key = (org.domain || leadItem.companyId).toLowerCase().trim();
-        const savedLeads = localStorage.getItem('bdos_company360_migrated_leads');
-        let currentMap: Record<string, DiscoveryLeadItem> = {};
-        if (savedLeads) {
-          try { currentMap = JSON.parse(savedLeads); } catch { }
-        }
-        currentMap[key] = leadItem;
-        localStorage.setItem('bdos_company360_migrated_leads', JSON.stringify(currentMap));
-
-        const savedIds = localStorage.getItem('bdos_company360_migrated_ids');
-        let currentIds: string[] = [];
-        if (savedIds) {
-          try { currentIds = JSON.parse(savedIds); } catch { }
-        }
-        if (!currentIds.includes(key)) {
-          currentIds.push(key);
-          localStorage.setItem('bdos_company360_migrated_ids', JSON.stringify(currentIds));
-        }
-      }
+      // Shortlist it for the team, then open its profile.
+      const res = await addToShortlistAction(leadItem);
+      if (res.error) { triggerNotification('error', res.error); return; }
 
       // Redirect to Company 360 Workspace
       router.push(`/company?query=${encodeURIComponent(org.domain || org.apolloOrganizationId)}`);
@@ -389,7 +342,7 @@ export default function ApolloSearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [hasPeopleFilters, jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity]);
+  }, [hasPeopleFilters, jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity, triggerNotification]);
 
   // Run Company Search
   const executeCompanySearch = useCallback(async (targetPage = 1, overrideHiringKeywords?: string) => {
@@ -429,7 +382,7 @@ export default function ApolloSearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [hasCompanyFilters, companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays, fundingStage]);
+  }, [hasCompanyFilters, companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays, fundingStage, triggerNotification]);
 
   // Load Providers List, Framework Statistics & Saved Search Presets on mount
   useEffect(() => {
@@ -486,7 +439,7 @@ export default function ApolloSearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchMode, executePeopleSearch, executeCompanySearch, keywords, companyKeywords, companyName, personLocation, companyLocation, employeeCountRange, techUsage, companyTechUsage, hiringActivity, companyHiringKeywords, jobTitle, seniority]);
+  }, [searchMode, executePeopleSearch, executeCompanySearch, keywords, companyKeywords, companyName, personLocation, companyLocation, employeeCountRange, techUsage, companyTechUsage, hiringActivity, companyHiringKeywords, jobTitle, seniority, triggerNotification]);
 
   // Latest search runner in a ref, so the effect below re-runs only when the mode or provider
   // changes. (Depending on the search callbacks made every keystroke in a filter fire a live Apollo call.)
@@ -604,6 +557,48 @@ export default function ApolloSearchPage() {
     triggerNotification('success', `Switched to Find People for ${org.name}. Pre-populated decision maker criteria.`);
   };
 
+  // Add one or many people to the signed-in user's CRM pipeline.
+  const handleAddPeopleToCrm = async (people: ApolloPersonMatch[], busyKey: string) => {
+    if (!people.length || crmBusyKey) return;
+    setCrmBusyKey(busyKey);
+    try {
+      const res = await addApolloPeopleToCrmAction(people.map((person) => ({ key: getPersonKey(person), person })));
+      if (res.error) return triggerNotification('error', res.error);
+      setCrmPeople((prev) => ({ ...prev, ...(res.matches || {}) }));
+      setSelectedKeys(new Set());
+      triggerNotification('success', res.message || 'Added to the CRM.');
+    } catch {
+      triggerNotification('error', 'Could not add to the CRM. Please try again.');
+    } finally {
+      setCrmBusyKey(null);
+    }
+  };
+
+  const handleAddCompanyToCrm = async (org: ApolloOrganizationMatch) => {
+    if (crmBusyKey) return;
+    const key = companyKey(org);
+    setCrmBusyKey(key);
+    try {
+      const res = await addApolloCompanyToCrmAction(org);
+      if (res.error) return triggerNotification('error', res.error);
+      if (res.match) setCrmCompanies((prev) => ({ ...prev, [key]: res.match! }));
+      triggerNotification('success', res.message || 'Added to the CRM.');
+    } catch {
+      triggerNotification('error', 'Could not add to the CRM. Please try again.');
+    } finally {
+      setCrmBusyKey(null);
+    }
+  };
+
+  const toggleSelectPerson = (person: ApolloPersonMatch) => {
+    const key = getPersonKey(person);
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
   // Trigger explicit enrichment approval
   const handleOpenEnrichModal = (person: ApolloPersonMatch) => {
     setPersonToEnrich(person);
@@ -648,19 +643,10 @@ export default function ApolloSearchPage() {
       setPeopleResults(prev => prev.map(p => getPersonKey(p) === key ? enrichedPersonObj : p));
 
       // If already in savedPeopleMap, update saved record too
-      setSavedPeopleMap(prev => {
-        if (prev[key]) {
-          const next = { ...prev, [key]: enrichedPersonObj };
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('bdos_apollo_saved_people_map', JSON.stringify(next));
-          }
-          setTimeout(() => {
-            saveApolloPeopleMapToDb(JSON.stringify(next)).catch(() => { });
-          }, 0);
-          return next;
-        }
-        return prev;
-      });
+      if (savedPeopleMap[key]) {
+        setSavedPeopleMap((prev) => ({ ...prev, [key]: enrichedPersonObj }));
+        savePersonAction(enrichedPersonObj).catch(() => { /* the revealed details stay on screen */ });
+      }
 
       checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
 
@@ -717,718 +703,427 @@ export default function ApolloSearchPage() {
     ? savedPeopleList.slice((savedPage - 1) * perPage, savedPage * perPage)
     : freshPeopleList;
 
+  // Mark results that are already in the CRM (and who owns them) whenever the visible rows change.
+  const visiblePeopleKey = displayPeopleList.map(getPersonKey).join('|');
+  useEffect(() => {
+    if (!visiblePeopleKey) return;
+    let active = true;
+    lookupCrmStatusAction({
+      people: displayPeopleList.map((p) => ({ key: getPersonKey(p), apolloPersonId: p.apolloPersonId, linkedinUrl: p.linkedinUrl, email: p.workEmail || p.personalEmail })),
+    }).then((res) => { if (active) setCrmPeople((prev) => ({ ...prev, ...res.people })); }).catch(() => { });
+    return () => { active = false; };
+  }, [visiblePeopleKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const visibleCompaniesKey = companyResults.map(companyKey).join('|');
+  useEffect(() => {
+    if (!visibleCompaniesKey) return;
+    let active = true;
+    lookupCrmStatusAction({
+      companies: companyResults.map((o) => ({ key: companyKey(o), domain: o.domain, name: o.name })),
+    }).then((res) => { if (active) setCrmCompanies((prev) => ({ ...prev, ...res.companies })); }).catch(() => { });
+    return () => { active = false; };
+  }, [visibleCompaniesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedPeople = displayPeopleList.filter((p) => selectedKeys.has(getPersonKey(p)));
+  const selectablePeople = displayPeopleList.filter((p) => !crmPeople[getPersonKey(p)]);
+  const allSelected = selectablePeople.length > 0 && selectablePeople.every((p) => selectedKeys.has(getPersonKey(p)));
+
   const activeProviderName = selectedProviderId === 'apollo'
     ? 'Apollo B2B'
     : (providersList.find(p => p.id === selectedProviderId)?.name || 'Provider');
 
+  const emptyState = (icon: React.ReactNode, title: string, text: React.ReactNode, action?: React.ReactNode) => (
+    <div className={s.empty} style={{ border: 'none', padding: '48px 20px' }}>
+      {icon}
+      <div className={s.emptyTitle}>{title}</div>
+      <div style={{ maxWidth: 460, margin: '0 auto' }}>{text}</div>
+      {action && <div style={{ marginTop: 14 }}>{action}</div>}
+    </div>
+  );
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      overflow: 'hidden',
-      backgroundColor: '#ffffff',
-      backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'top right',
-      backgroundRepeat: 'no-repeat',
-      backgroundAttachment: 'fixed'
-    }}>
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '24px',
-            right: '24px',
-            zIndex: 9999,
-            padding: '12px 20px',
-            borderRadius: '8px',
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            background: notification.type === 'success' ? 'rgba(6, 95, 70, 0.95)' : 'rgba(153, 27, 27, 0.95)',
-            backdropFilter: 'blur(12px)',
-            color: 'var(--bg-primary)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            border: notification.type === 'success' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
-          }}
-        >
-          {notification.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-          {notification.message}
+    <PageShell
+      icon={User}
+      title={`${activeProviderName} Search`}
+      subtitle="Find decision makers and target companies, then save them or add them to the CRM"
+      actions={
+        <div className={s.tabs} role="tablist" aria-label="Search for">
+          <button type="button" role="tab" aria-selected={searchMode === 'people'} className={`${s.tab} ${searchMode === 'people' ? s.tabActive : ''}`} onClick={() => { setSearchMode('people'); setPage(1); }}>
+            <Users size={14} /> People
+          </button>
+          <button type="button" role="tab" aria-selected={searchMode === 'companies'} className={`${s.tab} ${searchMode === 'companies' ? s.tabActive : ''}`} onClick={() => { setSearchMode('companies'); setPage(1); }}>
+            <Building2 size={14} /> Companies
+          </button>
         </div>
-      )}
+      }
+      beforeContent={<WorkflowGuide activeStep={2} />}
+      breadcrumb={<BreadcrumbHeader currentTitle={`${activeProviderName} Search`} stepNumber={2} totalSteps={7} badge="Executive Prospecting" />}
+    >
+      <div className={s.root}>
+        {toast}
 
-      {/* FIXED TOP HEADER */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        borderBottom: '1px solid var(--border-subtle)',
-        height: '65px',
-        flexShrink: 0,
-        padding: '0 28px',
-        background: 'var(--bg-primary)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '8px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)' }}>
-            <User size={20} style={{ color: '#ffffff' }} />
+        {(apolloError || (creditWarning && creditWarning.isWarning)) && (
+          <div className={`${s.notice} ${s.noticeWarn}`} role="alert">
+            <AlertTriangle size={16} className={s.noticeIcon} />
+            <span><strong>Apollo:</strong> {apolloError || creditWarning?.message || `${creditWarning?.remainingCredits} Apollo people searches left today.`}</span>
           </div>
-          <div>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
-              {activeProviderName} Lead Intelligence Hub
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
-              Universal Lead Intelligence: Target decision makers, companies, projects & buying signals.
-            </p>
-          </div>
-        </div>
+        )}
 
-        {/* Mode Switcher Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div className="apollo-toggle-bg" style={{ margin: 0 }}>
-            <div className="apollo-toggle-slider" data-mode={searchMode} />
-            <button
-              className={`apollo-toggle-btn ${searchMode === 'people' ? 'active' : ''}`}
-              onClick={() => { setSearchMode('people'); setPage(1); }}
-            >
-              <Users size={16} /> Find People
-            </button>
-            <button
-              className={`apollo-toggle-btn ${searchMode === 'companies' ? 'active' : ''}`}
-              onClick={() => { setSearchMode('companies'); setPage(1); }}
-            >
-              <Building2 size={16} /> Find Companies
-            </button>
+        {frameworkStats && (
+          <div className={s.kpiGrid}>
+            <StatTile label="Providers" value={frameworkStats.totalProviders} foot="Registered lead sources" />
+            <StatTile label="Connected" value={frameworkStats.connectedProviders} foot="Ready to search" tone="good" />
+            <StatTile label="Saved contacts" value={savedPeopleList.length} foot="Your saved list" />
+            <StatTile label="Apollo searches left" value={creditWarning && creditWarning.remainingCredits >= 0 ? creditWarning.remainingCredits : '—'} foot="Today, from Apollo" />
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* SCROLLABLE MAIN CONTENT */}
-      <div
-        className="dashboard-scrollable-content"
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative'
-        }}
-      >
-        <WorkflowGuide
-          activeStep={2}
-          stepOverrides={{
-            2: { name: `${activeProviderName} Search` }
-          }}
+        <SavedSearchPresetsPanel
+          savedPresets={savedPresets}
+          selectedPresetId={selectedPresetId}
+          setSelectedPresetId={setSelectedPresetId}
+          setSelectedProviderId={setSelectedProviderId}
+          setCompanyKeywords={setCompanyKeywords}
+          setCompanyTechUsage={setCompanyTechUsage}
+          setCompanyHiringKeywords={setCompanyHiringKeywords}
+          setCompanyLocation={setCompanyLocation}
+          setEmployeeCountRange={setEmployeeCountRange}
+          triggerNotification={triggerNotification}
         />
 
-        <div className="flex flex-col gap-5 max-w-full w-full box-border text-(--text-primary)" style={{ padding: '16px 28px 80px 28px', flex: 1, position: 'relative' }}>
+        <ProviderRegistryPanel
+          providersList={providersList}
+          selectedProviderId={selectedProviderId}
+          setSelectedProviderId={setSelectedProviderId}
+          setPage={setPage}
+          triggerNotification={triggerNotification}
+        />
 
-          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-            {/* Credit Warning Banner */}
-            {(apolloError || (creditWarning && creditWarning.isWarning)) && (
-              <div role="alert" style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '12px 18px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px', color: '#92400e', fontSize: '0.84rem', lineHeight: 1.5 }}>
-                <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
+        <BdeFastStartPresets
+          searchMode={searchMode}
+          activePresetKey={activePresetKey}
+          onApplyPreset={applyBdePreset}
+        />
+
+        <ActiveHiringFilterPanel
+          currentHiringValue={searchMode === 'people' ? hiringActivity : companyHiringKeywords}
+          onHiringChange={(val) => {
+            if (searchMode === 'people') {
+              setHiringActivity(val);
+            } else {
+              setCompanyHiringKeywords(val);
+            }
+          }}
+          onApplyHiringFilter={(keyword) => {
+            if (selectedProviderId !== 'apollo') {
+              triggerNotification('error', 'Switch to Apollo.io to run a live search.');
+              return;
+            }
+            setPage(1);
+            if (searchMode === 'people') {
+              executePeopleSearch(1);
+            } else {
+              executeCompanySearch(1, keyword);
+            }
+            triggerNotification('success', `Hiring filter applied: "${keyword || 'All openings'}"`);
+          }}
+          searchMode={searchMode}
+        />
+
+        <div className="apollo-grid-layout">
+          <ApolloSearchFilters
+            searchMode={searchMode}
+            handleResetFilters={handleResetFilters}
+            jobTitle={jobTitle} setJobTitle={setJobTitle}
+            seniority={seniority} setSeniority={setSeniority}
+            personLocation={personLocation} setPersonLocation={setPersonLocation}
+            personCompanyName={personCompanyName} setPersonCompanyName={setPersonCompanyName}
+            domain={domain} setDomain={setDomain}
+            keywords={keywords} setKeywords={setKeywords}
+            techUsage={techUsage} setTechUsage={setTechUsage}
+            executePeopleSearch={executePeopleSearch}
+            companyName={companyName} setCompanyName={setCompanyName}
+            companyDomain={companyDomain} setCompanyDomain={setCompanyDomain}
+            companyKeywords={companyKeywords} setCompanyKeywords={setCompanyKeywords}
+            companyLocation={companyLocation} setCompanyLocation={setCompanyLocation}
+            employeeCountRange={employeeCountRange} setEmployeeCountRange={setEmployeeCountRange}
+            companyTechUsage={companyTechUsage} setCompanyTechUsage={setCompanyTechUsage}
+            fundingStage={fundingStage} setFundingStage={setFundingStage}
+            companyHiringKeywords={companyHiringKeywords} setCompanyHiringKeywords={setCompanyHiringKeywords}
+            fundingPresetDays={fundingPresetDays} setFundingPresetDays={setFundingPresetDays}
+            executeCompanySearch={executeCompanySearch}
+            loading={loading}
+            selectedProviderId={selectedProviderId}
+          />
+
+          <section className="apollo-results-workspace" aria-label="Results">
+            <div className={s.card}>
+              <div className={s.cardHeader} style={{ flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <strong>Apollo notice:</strong> {apolloError || creditWarning?.message
-                    || `${creditWarning?.remainingCredits} Apollo people searches left today.`}
+                  <h3 className={s.cardTitle}>{searchMode === 'people' ? 'People found' : 'Companies found'}</h3>
+                  <p className={s.cardSubtitle}>
+                    <strong className={s.good}>{(selectedProviderId === 'apollo' ? totalCount : 0).toLocaleString()}</strong> {searchMode === 'people' ? 'people match these filters' : 'companies match these filters'}
+                  </p>
+                </div>
+                <div className={s.badgeRow}>
+                  <span className={`${s.badge} ${s.badgeGray}`} title="Apollo people searches left today (from Apollo usage API)">
+                    <Zap size={12} /> Search is free{creditWarning && creditWarning.remainingCredits >= 0 ? ` · ${creditWarning.remainingCredits} left today` : ''}
+                  </span>
+                  <span className={`${s.badge} ${s.badgeAmber}`}><ShieldCheck size={12} /> Contact reveal asks first</span>
                 </div>
               </div>
-            )}
 
-            {/* Top Navigation & Breadcrumb */}
-            <BreadcrumbHeader
-              currentTitle={`${activeProviderName} Search`}
-              stepNumber={2}
-              totalSteps={7}
-              badge="Executive Prospecting"
-            />
-
-            {/* PHASE 30: Framework Statistics Bar */}
-            {frameworkStats && (() => {
-              const Sparkline = ({ color, pattern = 1 }: { color: string, pattern?: number }) => {
-                const path1 = "M0 30 C 30 10, 50 35, 80 15 C 100 5, 110 20, 120 10";
-                const path2 = "M0 35 C 25 25, 45 5, 75 25 C 95 35, 110 15, 120 10";
-                const path3 = "M0 20 C 30 -5, 50 30, 80 15 C 100 5, 110 25, 120 5";
-                const p = pattern === 1 ? path1 : pattern === 2 ? path2 : path3;
-                const id = `grad-${color.replace(/[^\w\d]/g, '')}-${pattern}`;
-                return (
-                  <svg
-                    className="kpi-sparkline"
-                    width="45%"
-                    height="45"
-                    viewBox="0 0 120 40"
-                    preserveAspectRatio="none"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    style={{ position: 'absolute', bottom: 0, right: 0, zIndex: 0, opacity: 0.85, pointerEvents: 'none' }}
-                  >
-                    <path d={p} stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                    <path d={`${p} L 120 40 L 0 40 Z`} fill={`url(#${id})`} />
-                    <defs>
-                      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-                        <stop offset="100%" stopColor={color} stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                );
-              };
-
-              return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                  {[
-                    { label: "Total Registered", value: frameworkStats.totalProviders, color: "#3b82f6", pattern: 1, icon: Building2, footerText: "Providers" },
-                    { label: "Active Integrations", value: frameworkStats.connectedProviders, color: "#059669", pattern: 2, icon: CheckCircle, footerText: "Ready" },
-                    { label: "Search Avg Response", value: `${frameworkStats.avgResponseTimeMs}`, color: "#4f46e5", pattern: 2, icon: Zap, footerText: "ms" },
-                    { label: "Success Rate", value: `${frameworkStats.searchSuccessRate}%`, color: "#047857", pattern: 3, icon: CheckCircle, footerText: "" }
-                  ].map((card, idx) => {
-                    const Icon = card.icon;
-                    return (
-                      <div key={idx} className="metric-card-summary" style={{ '--glow-color': card.color } as React.CSSProperties}>
-                        <Sparkline color={card.color} pattern={card.pattern} />
-                        <span className="m-label">{card.label}</span>
-                        <span className="m-value" style={{ color: card.color }}>{card.value}</span>
-                        <span className="m-footer">
-                          {card.footerText ? (
-                            <>
-                              <Icon size={12} /> {card.footerText}
-                            </>
-                          ) : null}
-                        </span>
-                      </div>
-                    );
-                  })}
+              {searchMode === 'people' && (
+                <div className={s.tabs} role="tablist" aria-label="Which people" style={{ width: 'fit-content' }}>
+                  {([['fresh', 'New results', freshPeopleList.length], ['saved', 'Saved', savedPeopleList.length]] as const).map(([id, label, count]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeDataTab === id}
+                      className={`${s.tab} ${activeDataTab === id ? s.tabActive : ''}`}
+                      onClick={() => { setActiveDataTab(id); setPage(1); setSelectedKeys(new Set()); }}
+                    >
+                      {label} <span className={s.tabCount}>{count}</span>
+                    </button>
+                  ))}
                 </div>
-              );
-            })()}
-
-            {/* PHASE 30: Saved BDE Prospecting Search Presets */}
-            <SavedSearchPresetsPanel
-              savedPresets={savedPresets}
-              selectedPresetId={selectedPresetId}
-              setSelectedPresetId={setSelectedPresetId}
-              setSelectedProviderId={setSelectedProviderId}
-              setCompanyKeywords={setCompanyKeywords}
-              setCompanyTechUsage={setCompanyTechUsage}
-              setCompanyHiringKeywords={setCompanyHiringKeywords}
-              setCompanyLocation={setCompanyLocation}
-              setEmployeeCountRange={setEmployeeCountRange}
-              triggerNotification={triggerNotification}
-            />
-
-            {/* TOP SECTION: Lead Provider Framework Cards Bar */}
-            <ProviderRegistryPanel
-              providersList={providersList}
-              selectedProviderId={selectedProviderId}
-              setSelectedProviderId={setSelectedProviderId}
-              setPage={setPage}
-              triggerNotification={triggerNotification}
-            />
-
-            {/* BDE Fast-Start Presets */}
-            <BdeFastStartPresets
-              searchMode={searchMode}
-              activePresetKey={activePresetKey}
-              onApplyPreset={applyBdePreset}
-            />
-
-            {/* Active Hiring & Openings Intelligence Section */}
-            <ActiveHiringFilterPanel
-              currentHiringValue={searchMode === 'people' ? hiringActivity : companyHiringKeywords}
-              onHiringChange={(val) => {
-                if (searchMode === 'people') {
-                  setHiringActivity(val);
-                } else {
-                  setCompanyHiringKeywords(val);
-                }
-              }}
-              onApplyHiringFilter={(keyword) => {
-                if (selectedProviderId !== 'apollo') {
-                  triggerNotification('error', 'Switch to Apollo.io to run a live search.');
-                  return;
-                }
-                setPage(1);
-                if (searchMode === 'people') {
-                  executePeopleSearch(1);
-                } else {
-                  executeCompanySearch(1, keyword);
-                }
-                triggerNotification('success', `Applied active hiring filter: "${keyword || 'All Hiring Openings'}"`);
-              }}
-              searchMode={searchMode}
-            />
-
-            <div className="apollo-grid-layout">
-              {/* Left Side: Filter Form Panel */}
-              <ApolloSearchFilters
-                searchMode={searchMode}
-                handleResetFilters={handleResetFilters}
-                jobTitle={jobTitle} setJobTitle={setJobTitle}
-                seniority={seniority} setSeniority={setSeniority}
-                personLocation={personLocation} setPersonLocation={setPersonLocation}
-                personCompanyName={personCompanyName} setPersonCompanyName={setPersonCompanyName}
-                domain={domain} setDomain={setDomain}
-                keywords={keywords} setKeywords={setKeywords}
-                techUsage={techUsage} setTechUsage={setTechUsage}
-                executePeopleSearch={executePeopleSearch}
-                companyName={companyName} setCompanyName={setCompanyName}
-                companyDomain={companyDomain} setCompanyDomain={setCompanyDomain}
-                companyKeywords={companyKeywords} setCompanyKeywords={setCompanyKeywords}
-                companyLocation={companyLocation} setCompanyLocation={setCompanyLocation}
-                employeeCountRange={employeeCountRange} setEmployeeCountRange={setEmployeeCountRange}
-                companyTechUsage={companyTechUsage} setCompanyTechUsage={setCompanyTechUsage}
-                fundingStage={fundingStage} setFundingStage={setFundingStage}
-                companyHiringKeywords={companyHiringKeywords} setCompanyHiringKeywords={setCompanyHiringKeywords}
-                fundingPresetDays={fundingPresetDays} setFundingPresetDays={setFundingPresetDays}
-                executeCompanySearch={executeCompanySearch}
-                loading={loading}
-                selectedProviderId={selectedProviderId}
-              />
-              {/* Right Side: Results Workspace */}
-              <div className="apollo-results-workspace">
-                {/* Results Summary Header */}
-                <div className="apollo-results-header">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 900, background: 'linear-gradient(135deg, #0f172a, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
-                        {`${activeProviderName} ${searchMode === 'people' ? 'Decision Makers Found' : 'Target Accounts Found'}`}
-                      </h3>
-                      <p style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '4px', margin: 0 }}>
-                        <strong style={{ color: '#047857', fontSize: '1.15rem', fontWeight: 900 }}>
-                          {selectedProviderId === 'apollo' ? totalCount.toLocaleString() : 0}
-                        </strong> {searchMode === 'people' ? 'verified professionals matched' : 'target accounts matched'}
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span className="badge" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.74rem', padding: '6px 14px', borderRadius: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(15,23,42,0.02)' }}>
-                        <Zap size={13} style={{ color: '#6366f1' }} />
-                        <span>SEARCH: 0 CREDITS</span>
-                        {creditWarning && creditWarning.remainingCredits >= 0 && (
-                          <span style={{ color: '#94a3b8', fontWeight: 500 }} title="Apollo people searches left today (from Apollo usage API)">
-                            ({creditWarning.remainingCredits} left today)
-                          </span>
-                        )}
-                      </span>
-                      <span className="badge" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706', fontSize: '0.74rem', padding: '6px 14px', borderRadius: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(15,23,42,0.02)' }}>
-                        <ShieldCheck size={13} />
-                        ENRICHMENT: EXPLICIT CONSENT
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* TAB NAVIGATION: Saved Data (0) | Fresh Data (10) */}
-                  {searchMode === 'people' && (
-                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '5px', borderRadius: '12px', border: '1px solid #e2e8f0', width: 'fit-content' }}>
-                      <button
-                        type="button"
-                        onClick={() => { setActiveDataTab('saved'); setPage(1); }}
-                        style={{
-                          padding: '7px 20px',
-                          borderRadius: '8px',
-                          fontSize: '0.82rem',
-                          fontWeight: activeDataTab === 'saved' ? 800 : 600,
-                          background: activeDataTab === 'saved' ? '#ffffff' : 'transparent',
-                          color: activeDataTab === 'saved' ? '#0f172a' : '#64748b',
-                          border: 'none',
-                          boxShadow: activeDataTab === 'saved' ? '0 1px 3px rgba(15,23,42,0.1), 0 1px 2px rgba(15,23,42,0.06)' : 'none',
-                          cursor: 'pointer',
-                          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        <span>Saved Data</span>
-                        <span style={{ fontSize: '0.74rem', padding: '2px 8px', borderRadius: '10px', background: activeDataTab === 'saved' ? '#e0e7ff' : '#e2e8f0', color: activeDataTab === 'saved' ? '#4f46e5' : '#64748b', fontWeight: 800, transition: 'all 0.25s' }}>
-                          {savedPeopleList.length}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => { setActiveDataTab('fresh'); setPage(1); }}
-                        style={{
-                          padding: '7px 20px',
-                          borderRadius: '8px',
-                          fontSize: '0.82rem',
-                          fontWeight: activeDataTab === 'fresh' ? 800 : 600,
-                          background: activeDataTab === 'fresh' ? '#ffffff' : 'transparent',
-                          color: activeDataTab === 'fresh' ? '#0f172a' : '#64748b',
-                          border: 'none',
-                          boxShadow: activeDataTab === 'fresh' ? '0 1px 3px rgba(15,23,42,0.1), 0 1px 2px rgba(15,23,42,0.06)' : 'none',
-                          cursor: 'pointer',
-                          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        <span>Fresh Data</span>
-                        <span style={{ fontSize: '0.74rem', padding: '2px 8px', borderRadius: '10px', background: activeDataTab === 'fresh' ? '#e0e7ff' : '#e2e8f0', color: activeDataTab === 'fresh' ? '#4f46e5' : '#64748b', fontWeight: 800, transition: 'all 0.25s' }}>
-                          {freshPeopleList.length}
-                        </span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-
-
-
-
-                <div className="apollo-table-container">
-                  {selectedProviderId !== 'apollo' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', textAlign: 'center' }}>
-                      <div style={{ background: '#fef3c7', border: '1px solid #fde68a', padding: '14px', borderRadius: '50%', color: '#b45309', marginBottom: '14px' }}>
-                        <Sparkles size={32} />
-                      </div>
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
-                        {selectedProviderId === 'linkedin' ? 'LinkedIn has its own workspace' : `${providersList.find(p => p.id === selectedProviderId)?.name || selectedProviderId} Integration Coming Soon`}
-                      </h4>
-                      <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '6px', maxWidth: '460px', lineHeight: '1.5' }}>
-                        {selectedProviderId === 'linkedin'
-                          ? <>Search LinkedIn posts and people, scan your keywords and send leads to the Review Queue from the <a href="/linkedin" style={{ color: '#2563eb', fontWeight: 700 }}>LinkedIn page</a>.</>
-                          : <>Direct live API integration for <strong>{providersList.find(p => p.id === selectedProviderId)?.name}</strong> is currently under active development. Switch to <strong>Apollo.io</strong> for live verified executive lead discovery and enrichment.</>}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedProviderId('apollo')}
-                        className="btn-primary"
-                        style={{ marginTop: '16px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', padding: '8px 18px', fontSize: '0.8rem' }}
-                      >
-                        Switch to Apollo.io Live Search
-                      </button>
-                    </div>
-                  ) : loading ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '280px' }}>
-                      <div className="pulse-loader" style={{ borderColor: '#06b6d4' }} />
-                      <p style={{ fontSize: '0.82rem', marginTop: '14px', color: 'var(--text-muted)' }}>Querying Apollo Global Research Index...</p>
-                    </div>
-                  ) : searchMode === 'people' ? (
-                    /* PEOPLE RESULTS TABLE */
-                    (activeDataTab === 'saved' ? savedPeopleList.length === 0 : freshPeopleList.length === 0) ? (
-                      <div className="flex flex-col items-center justify-center py-12.5 px-5 text-(--text-muted) text-center">
-                        <User size={44} className="stroke-[1.5] text-(--text-muted)" />
-                        <h4 className="mt-3.5 text-[0.98rem] font-bold text-(--text-primary)">
-                          {activeDataTab === 'saved' ? 'No saved contacts yet' : apolloError ? 'Apollo could not run this search' : !hasPeopleFilters ? 'Set your filters to search Apollo' : 'No contacts matched these filters'}
-                        </h4>
-                        <p className="text-[0.8rem] mt-1 max-w-100">
-                          {activeDataTab === 'saved'
-                            ? 'Save contacts from Fresh Data to see them here.'
-                            : apolloError
-                              ? apolloError
-                              : !hasPeopleFilters
-                                ? 'Add a job title, company domain, location or keyword, then press Search. Empty searches are skipped to save your Apollo quota.'
-                                : (peopleResults.length > 0
-                                  ? `All ${peopleResults.length} contacts on this page are already in your Saved Data tab.`
-                                  : 'Try a broader job title, location or keyword.')}
-                        </p>
-                        {activeDataTab === 'fresh' && savedPeopleList.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveDataTab('saved')}
-                            style={{
-                              marginTop: '16px',
-                              padding: '9px 22px',
-                              borderRadius: '8px',
-                              fontSize: '0.82rem',
-                              fontWeight: 800,
-                              background: 'linear-gradient(135deg, #10b981, #059669)',
-                              color: '#ffffff',
-                              border: 'none',
-                              cursor: 'pointer',
-                              boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
-                            }}
-                          >
-                            <span>View {savedPeopleList.length} Saved Contacts</span> →
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <table className="w-full border-collapse text-[0.82rem] text-left table-fixed">
-                          <thead>
-                            <tr>
-                              <th style={{ width: '18%', textAlign: 'left', paddingLeft: '20px' }}>PERSON</th>
-                              <th style={{ width: '18%', textAlign: 'left' }}>COMPANY</th>
-                              <th style={{ width: '15%', textAlign: 'left' }}>GROWTH SIGNALS</th>
-                              <th style={{ width: '34%', textAlign: 'left' }}>CONTACT AVAILABILITY</th>
-                              <th style={{ width: '15%', textAlign: 'center' }}>ACTIONS</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {displayPeopleList.map((person) => {
-                              const key = getPersonKey(person);
-                              const isSaved = Boolean(savedPeopleMap[key]);
-                              const isSaving = savingPersonId === key;
-                              return (
-                                <UniversalResultRenderer
-                                  key={person.apolloPersonId || key}
-                                  person={person}
-                                  searchMode="people"
-                                  isSaved={isSaved}
-                                  isSaving={isSaving}
-                                  onSavePerson={handleSavePerson}
-                                  onUnsavePerson={handleUnsavePerson}
-                                  onEnrichPerson={handleOpenEnrichModal}
-                                  onLinkToPost={handleOpenLinkModal}
-                                  formatPersonName={formatPersonName}
-                                />
-                              );
-                            })}
-                          </tbody>
-                        </table>
-
-                        {/* Pagination Bar */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
-                          {activeDataTab === 'saved' ? (
-                            <>
-                              <span className="text-[0.78rem] text-slate-500">
-                                Showing <strong className="text-slate-900">{savedPeopleList.length > 0 ? (savedPage - 1) * perPage + 1 : 0}–{Math.min(savedPage * perPage, savedPeopleList.length)}</strong> of <strong className="text-slate-900">{savedPeopleList.length}</strong> saved prospects
-                              </span>
-
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => setSavedPage(p => Math.max(1, p - 1))}
-                                  disabled={savedPage <= 1}
-                                  className="btn-secondary"
-                                  style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-                                >
-                                  <ChevronLeft size={14} /> Previous
-                                </button>
-                                <button
-                                  onClick={() => setSavedPage(p => Math.min(savedTotalPages, p + 1))}
-                                  disabled={savedPage >= savedTotalPages}
-                                  className="btn-secondary"
-                                  style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-                                >
-                                  Next <ChevronRight size={14} />
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-[0.78rem] text-slate-500">
-                                Showing <strong className="text-slate-900">{freshPeopleList.length > 0 ? 1 : 0}–{freshPeopleList.length}</strong> of <strong className="text-slate-900">{freshPeopleList.length}</strong> fresh prospects on page <strong className="text-slate-900">{page}</strong> of <strong className="text-slate-900">{freshTotalPages}</strong> ({totalCount.toLocaleString()} matched decision-makers in Apollo)
-                              </span>
-
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => executePeopleSearch(page - 1)}
-                                  disabled={page <= 1 || loading}
-                                  className="btn-secondary"
-                                  style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-                                >
-                                  <ChevronLeft size={14} /> Previous
-                                </button>
-                                <button
-                                  onClick={() => executePeopleSearch(page + 1)}
-                                  disabled={page >= freshTotalPages || loading}
-                                  className="btn-secondary"
-                                  style={{ padding: '6px 12px', fontSize: '0.76rem' }}
-                                >
-                                  Next <ChevronRight size={14} />
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    )
-                  ) : (
-                    /* COMPANY RESULTS TABLE */
-                    companyResults.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12.5 px-5 text-(--text-muted) text-center">
-                        <Building2 size={44} style={{ strokeWidth: 1.5, color: 'var(--text-muted)' }} />
-                        <h4 className="mt-3.5 text-[0.98rem] font-bold text-(--text-primary)">
-                          {apolloError ? 'Apollo could not run this search' : !hasCompanyFilters ? 'Set your filters to search Apollo' : 'No target accounts matched your search criteria.'}
-                        </h4>
-                        <p className="text-[0.8rem] mt-1 max-w-100">
-                          {apolloError || (!hasCompanyFilters
-                            ? 'Add an industry keyword, location, size or technology, then press Search. Empty searches are skipped to save your Apollo quota.'
-                            : 'Try broadening employee count or technology filters.')}
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <table className="w-full border-collapse text-[0.82rem] text-left table-fixed">
-                          <thead>
-                            <tr>
-                              <th style={{ width: '22%', textAlign: 'left', paddingLeft: '20px' }}>COMPANY</th>
-                              <th style={{ width: '18%', textAlign: 'left' }}>SIZE & SCALE</th>
-                              <th style={{ width: '18%', textAlign: 'left' }}>TECHNOLOGY STACK</th>
-                              <th style={{ width: '26%', textAlign: 'left' }}>GROWTH SIGNALS & WHY THIS COMPANY?</th>
-                              <th style={{ width: '16%', textAlign: 'right', paddingRight: '20px' }}>ACTIONS</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {companyResults.map((org) => (
-                              <UniversalResultRenderer
-                                key={org.apolloOrganizationId}
-                                organization={org}
-                                searchMode="companies"
-                                onFindDecisionMakers={handleFindDecisionMakers}
-                                onResearchInCompany360={handleResearchInCompany360}
-                              />
-                            ))}
-                          </tbody>
-                        </table>
-
-                        {/* Pagination Bar */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
-                          <span className="text-[0.78rem] text-slate-500">
-                            Showing page <strong className="text-slate-900">{page}</strong> of <strong className="text-slate-900">{companyTotalPages}</strong> ({totalCount.toLocaleString()} total companies)
-                          </span>
-
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => executeCompanySearch(page - 1)}
-                              disabled={page <= 1 || loading}
-                              className="btn-secondary px-3 py-1.5 text-[0.76rem]"
-                            >
-                              <ChevronLeft size={14} /> Previous
-                            </button>
-                            <button
-                              onClick={() => executeCompanySearch(page + 1)}
-                              disabled={page >= companyTotalPages || loading}
-                              className="btn-secondary px-3 py-1.5 text-[0.76rem]"
-                            >
-                              Next <ChevronRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )
-                  )}
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Explicit Enrichment Approval Modal */}
-            {showEnrichModal && personToEnrich && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div className="card-glass" style={{ width: '100%', maxWidth: '460px', padding: '28px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(6,182,212,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ background: 'rgba(6, 182, 212, 0.15)', border: '1px solid rgba(6, 182, 212, 0.3)', padding: '10px', borderRadius: '10px' }}>
-                      <ShieldCheck size={24} style={{ color: 'var(--accent-indigo)' }} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>Confirm Apollo Credit Deduction</h3>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Explicit user consent required</p>
-                    </div>
-                  </div>
-
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                    Enriching <strong style={{ color: 'var(--text-primary)' }}>{formatPersonName(personToEnrich.personName)}</strong> ({personToEnrich.jobTitle || 'Executive'} at {personToEnrich.organizationName || 'Company'}) will reveal verified business work email address and phone number.
-                  </p>
-
-                  <div style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.25)', padding: '12px 16px', borderRadius: '8px', fontSize: '0.78rem', color: '#67e8f9' }}>
-                    <strong>Credit Cost:</strong> Exactly 1 Apollo Credit will be deducted from your organization credit balance.
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
-                    <button
-                      onClick={() => setShowEnrichModal(false)}
-                      disabled={enrichLoading}
-                      className="btn-secondary"
-                      style={{ padding: '8px 16px', fontSize: '0.8rem' }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleConfirmEnrichment}
-                      disabled={enrichLoading}
-                      className="btn-primary"
-                      style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', padding: '8px 18px', fontSize: '0.8rem' }}
-                    >
-                      {enrichLoading ? 'Enriching...' : 'Confirm Enrichment (1 Credit)'}
-                    </button>
-                  </div>
-                </div>
+            {searchMode === 'people' && selectedProviderId === 'apollo' && displayPeopleList.length > 0 && (
+              <div role="region" aria-label="Bulk actions" className={`${s.notice} ${selectedPeople.length ? s.noticeInfo : ''}`} style={{ alignItems: 'center', flexWrap: 'wrap', ...(selectedPeople.length ? {} : { background: 'var(--o-surface)', borderColor: 'var(--o-border)', color: 'var(--o-muted)' }) }}>
+                <span style={{ fontWeight: 600 }}>{selectedPeople.length ? `${selectedPeople.length} selected` : 'Select people to add them to the CRM together'}</span>
+                <button type="button" className={`${s.btn} ${s.btnSuccess} ${s.btnSm}`} disabled={!selectedPeople.length || crmBusyKey !== null} onClick={() => handleAddPeopleToCrm(selectedPeople, 'bulk')}>
+                  {crmBusyKey === 'bulk' ? <Loader2 size={13} className={s.spin} /> : <UserPlus size={13} />} {crmBusyKey === 'bulk' ? 'Adding…' : `Add ${selectedPeople.length || ''} to CRM`}
+                </button>
+                <button
+                  type="button"
+                  className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+                  onClick={() => downloadPeopleCsv(selectedPeople.length ? selectedPeople : activeDataTab === 'saved' ? savedPeopleList : displayPeopleList)}
+                  title="Download as a CSV file"
+                >
+                  <Download size={13} /> Export {selectedPeople.length ? `${selectedPeople.length} selected` : activeDataTab === 'saved' ? `all ${savedPeopleList.length} saved` : 'this page'}
+                </button>
+                {selectedPeople.length > 0 && (
+                  <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} style={{ marginLeft: 'auto' }} onClick={() => setSelectedKeys(new Set())}>Clear</button>
+                )}
               </div>
             )}
 
-            {/* Link to Review Queue Opportunity Modal */}
-            {showLinkModal && selectedPersonForLink && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setShowLinkModal(false)}>
-                <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', width: '100%', maxWidth: '540px', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #f1f5f9', paddingBottom: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ background: 'linear-gradient(135deg, #6366f1, #3b82f6)', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
-                        <LinkIcon size={20} style={{ color: '#ffffff' }} />
+            <div className="apollo-table-container">
+              {selectedProviderId !== 'apollo' ? (
+                emptyState(
+                  <Sparkles size={26} style={{ color: 'var(--o-warn)' }} />,
+                  selectedProviderId === 'linkedin' ? 'LinkedIn has its own workspace' : `${providersList.find((p) => p.id === selectedProviderId)?.name || selectedProviderId} is coming soon`,
+                  selectedProviderId === 'linkedin'
+                    ? <>Search LinkedIn posts and people, scan your keywords and send leads to the Review Queue from the <a href="/linkedin" className={s.link}>LinkedIn page</a>.</>
+                    : <>A live connection to <strong>{providersList.find((p) => p.id === selectedProviderId)?.name}</strong> is not ready yet. Use Apollo.io for live search and contact details.</>,
+                  <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setSelectedProviderId('apollo')}>Switch to Apollo.io</button>,
+                )
+              ) : loading ? (
+                emptyState(<Loader2 size={22} className={s.spin} style={{ color: 'var(--o-accent)' }} />, 'Searching Apollo…', 'This usually takes a few seconds.')
+              ) : searchMode === 'people' ? (
+                (activeDataTab === 'saved' ? savedPeopleList.length === 0 : freshPeopleList.length === 0) ? (
+                  emptyState(
+                    <User size={26} style={{ color: 'var(--o-accent)' }} />,
+                    activeDataTab === 'saved' ? 'No saved contacts yet' : apolloError ? 'Apollo could not run this search' : !hasPeopleFilters ? 'Set your filters to search Apollo' : 'No contacts matched these filters',
+                    activeDataTab === 'saved'
+                      ? 'Save contacts from New results to see them here.'
+                      : apolloError
+                        ? apolloError
+                        : !hasPeopleFilters
+                          ? 'Add a job title, company domain, location or keyword, then press Search. Empty searches are skipped to save your Apollo quota.'
+                          : (peopleResults.length > 0
+                            ? `All ${peopleResults.length} contacts on this page are already in Saved.`
+                            : 'Try a broader job title, location or keyword.'),
+                    activeDataTab === 'fresh' && savedPeopleList.length > 0
+                      ? <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setActiveDataTab('saved')}>View {savedPeopleList.length} saved contacts <ChevronRight size={14} /></button>
+                      : undefined,
+                  )
+                ) : (
+                  <>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="w-full border-collapse text-[0.82rem] text-left table-fixed" style={{ minWidth: 900 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '4%', paddingLeft: '16px' }}>
+                              <input
+                                type="checkbox"
+                                aria-label="Select everyone on this page who is not in the CRM yet"
+                                checked={allSelected}
+                                disabled={selectablePeople.length === 0}
+                                onChange={() => setSelectedKeys(allSelected ? new Set() : new Set(selectablePeople.map(getPersonKey)))}
+                                style={{ width: 15, height: 15, cursor: selectablePeople.length ? 'pointer' : 'not-allowed', accentColor: 'var(--o-accent)' }}
+                              />
+                            </th>
+                            <th style={{ width: '19%', textAlign: 'left', paddingLeft: '4px' }}>Person</th>
+                            <th style={{ width: '17%', textAlign: 'left' }}>Company</th>
+                            <th style={{ width: '13%', textAlign: 'left' }}>Growth signals</th>
+                            <th style={{ width: '32%', textAlign: 'left' }}>Contact details</th>
+                            <th style={{ width: '15%', textAlign: 'center' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayPeopleList.map((person) => {
+                            const key = getPersonKey(person);
+                            return (
+                              <UniversalResultRenderer
+                                key={person.apolloPersonId || key}
+                                person={person}
+                                searchMode="people"
+                                isSaved={Boolean(savedPeopleMap[key])}
+                                isSaving={savingPersonId === key}
+                                onSavePerson={handleSavePerson}
+                                onUnsavePerson={handleUnsavePerson}
+                                onEnrichPerson={handleOpenEnrichModal}
+                                onLinkToPost={handleOpenLinkModal}
+                                formatPersonName={formatPersonName}
+                                crmMatch={crmPeople[key]}
+                                isSelected={selectedKeys.has(key)}
+                                onToggleSelect={toggleSelectPerson}
+                                isAddingToCrm={crmBusyKey === key || (crmBusyKey === 'bulk' && selectedKeys.has(key))}
+                                onAddToCrm={(p) => handleAddPeopleToCrm([p], key)}
+                              />
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {activeDataTab === 'saved' ? (
+                      <div className={s.pager}>
+                        <span>
+                          Showing <strong>{savedPeopleList.length > 0 ? (savedPage - 1) * perPage + 1 : 0}–{Math.min(savedPage * perPage, savedPeopleList.length)}</strong> of <strong>{savedPeopleList.length}</strong> saved contacts
+                        </span>
+                        <div className={s.badgeRow}>
+                          <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={() => setSavedPage((p) => Math.max(1, p - 1))} disabled={savedPage <= 1}><ChevronLeft size={14} /> Previous</button>
+                          <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={() => setSavedPage((p) => Math.min(savedTotalPages, p + 1))} disabled={savedPage >= savedTotalPages}>Next <ChevronRight size={14} /></button>
+                        </div>
                       </div>
-                      <div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.01em' }}>Link Opportunity</h3>
-                        <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0', fontWeight: 500 }}>Attach research metadata to a candidate post</p>
+                    ) : (
+                      <div className={s.pager}>
+                        <span>
+                          Page <strong>{page}</strong> of <strong>{freshTotalPages}</strong> · {freshPeopleList.length} new on this page · {totalCount.toLocaleString()} matches in Apollo
+                        </span>
+                        <div className={s.badgeRow}>
+                          <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={() => executePeopleSearch(page - 1)} disabled={page <= 1 || loading}><ChevronLeft size={14} /> Previous</button>
+                          <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={() => executePeopleSearch(page + 1)} disabled={page >= freshTotalPages || loading}>Next <ChevronRight size={14} /></button>
+                        </div>
                       </div>
-                    </div>
-                    <button onClick={() => setShowLinkModal(false)} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', padding: 0 }} onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }} onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}>
-                      <span style={{ fontSize: '1.35rem', lineHeight: '1' }}>×</span>
-                    </button>
+                    )}
+                  </>
+                )
+              ) : companyResults.length === 0 ? (
+                emptyState(
+                  <Building2 size={26} style={{ color: 'var(--o-accent)' }} />,
+                  apolloError ? 'Apollo could not run this search' : !hasCompanyFilters ? 'Set your filters to search Apollo' : 'No companies matched these filters',
+                  apolloError || (!hasCompanyFilters
+                    ? 'Add an industry keyword, location, size or technology, then press Search. Empty searches are skipped to save your Apollo quota.'
+                    : 'Try a wider employee range or fewer technology filters.'),
+                )
+              ) : (
+                <>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="w-full border-collapse text-[0.82rem] text-left table-fixed" style={{ minWidth: 900 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '22%', textAlign: 'left', paddingLeft: '20px' }}>Company</th>
+                          <th style={{ width: '18%', textAlign: 'left' }}>Size</th>
+                          <th style={{ width: '18%', textAlign: 'left' }}>Technology</th>
+                          <th style={{ width: '26%', textAlign: 'left' }}>Growth signals</th>
+                          <th style={{ width: '16%', textAlign: 'right', paddingRight: '20px' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {companyResults.map((org) => (
+                          <UniversalResultRenderer
+                            key={org.apolloOrganizationId}
+                            organization={org}
+                            searchMode="companies"
+                            onFindDecisionMakers={handleFindDecisionMakers}
+                            onResearchInCompany360={handleResearchInCompany360}
+                            crmMatch={crmCompanies[companyKey(org)]}
+                            isAddingToCrm={crmBusyKey === companyKey(org)}
+                            onAddCompanyToCrm={handleAddCompanyToCrm}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-
-                  <div style={{ fontSize: '0.86rem', color: '#334155', lineHeight: '1.6', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
-                    Attach prospect <strong style={{ color: '#0f172a', fontWeight: 800 }}>{formatPersonName(selectedPersonForLink.personName)}</strong> ({selectedPersonForLink.organizationName || 'Company'}) to an active Review Queue candidate post:
-                  </div>
-
-                  {reviewPosts.length === 0 ? (
-                    <div style={{ padding: '24px', textAlign: 'center', background: '#fff1f2', borderRadius: '10px', border: '1px solid #ffe4e6' }}>
-                      <p style={{ fontSize: '0.85rem', color: '#e11d48', margin: 0, fontWeight: 600 }}>
-                        No active candidate posts found in Review Queue.
-                      </p>
-                      <p style={{ fontSize: '0.78rem', color: '#f43f5e', margin: '4px 0 0 0' }}>
-                        Scan keywords first in Post Discovery to populate the queue.
-                      </p>
+                  <div className={s.pager}>
+                    <span>Page <strong>{page}</strong> of <strong>{companyTotalPages}</strong> · {totalCount.toLocaleString()} companies</span>
+                    <div className={s.badgeRow}>
+                      <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={() => executeCompanySearch(page - 1)} disabled={page <= 1 || loading}><ChevronLeft size={14} /> Previous</button>
+                      <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} onClick={() => executeCompanySearch(page + 1)} disabled={page >= companyTotalPages || loading}>Next <ChevronRight size={14} /></button>
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
-                      <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#334155' }}>Select Review Queue Candidate Post</label>
-                      <CustomDropdown
-                        value={selectedPostIdForLink}
-                        onChange={setSelectedPostIdForLink}
-                        placeholder="Choose an active post..."
-                        options={reviewPosts.map((post) => ({
-                          value: post.id,
-                          label: `${post.authorName} (${post.companyName || 'Company'}) - ${(post.postContent || '').slice(0, 45)}...`
-                        }))}
-                      />
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px', paddingTop: '16px', borderTop: '1.5px solid #f1f5f9' }}>
-                    <button
-                      onClick={() => setShowLinkModal(false)}
-                      style={{ background: '#ffffff', color: '#0f172a', fontWeight: 700, fontSize: '0.85rem', border: '1.5px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.15s ease', padding: '10px 18px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleConfirmLink}
-                      disabled={reviewPosts.length === 0}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 20px', borderRadius: '8px', background: reviewPosts.length === 0 ? '#cbd5e1' : 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#ffffff', fontWeight: 800, fontSize: '0.85rem', border: 'none', cursor: reviewPosts.length === 0 ? 'not-allowed' : 'pointer', boxShadow: reviewPosts.length === 0 ? 'none' : '0 4px 12px rgba(37, 99, 235, 0.3)', transition: 'all 0.15s ease' }}
-                      onMouseEnter={(e) => { if (reviewPosts.length > 0) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.4)'; } }}
-                      onMouseLeave={(e) => { if (reviewPosts.length > 0) { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)'; } }}
-                    >
-                      Link to Opportunity
-                    </button>
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          </section>
         </div>
       </div>
-    </div>
+
+      {showEnrichModal && personToEnrich && (
+        <Modal
+          title="Reveal contact details?"
+          icon={<ShieldCheck size={18} />}
+          onClose={() => setShowEnrichModal(false)}
+          busy={enrichLoading}
+          actions={
+            <>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setShowEnrichModal(false)} disabled={enrichLoading}>Cancel</button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleConfirmEnrichment} disabled={enrichLoading}>
+                {enrichLoading && <Loader2 size={14} className={s.spin} />} {enrichLoading ? 'Revealing…' : 'Reveal (1 credit)'}
+              </button>
+            </>
+          }
+        >
+          <p className={s.modalText}>
+            This reveals the verified work email and phone number of <strong>{formatPersonName(personToEnrich.personName)}</strong> ({personToEnrich.jobTitle || 'Executive'} at {personToEnrich.organizationName || 'Company'}).
+          </p>
+          <div className={`${s.notice} ${s.noticeWarn}`}>
+            <AlertTriangle size={15} className={s.noticeIcon} />
+            <span>1 Apollo credit is taken from your organisation&apos;s balance.</span>
+          </div>
+        </Modal>
+      )}
+
+      {showLinkModal && selectedPersonForLink && (
+        <Modal
+          title="Link to a Review Queue post"
+          icon={<LinkIcon size={18} />}
+          onClose={() => setShowLinkModal(false)}
+          wide
+          actions={
+            <>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setShowLinkModal(false)}>Cancel</button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleConfirmLink} disabled={reviewPosts.length === 0 || !selectedPostIdForLink}>Link</button>
+            </>
+          }
+        >
+          <p className={s.modalText}>
+            Attach <strong>{formatPersonName(selectedPersonForLink.personName)}</strong> ({selectedPersonForLink.organizationName || 'Company'}) to a post waiting in the Review Queue.
+          </p>
+          {reviewPosts.length === 0 ? (
+            <div className={`${s.notice} ${s.noticeWarn}`}>
+              <AlertTriangle size={15} className={s.noticeIcon} />
+              <span>The Review Queue is empty. Scan your keywords on the LinkedIn page first.</span>
+            </div>
+          ) : (
+            <label className={s.field}>
+              <span className={s.label}>Post</span>
+              <select className={s.select} value={selectedPostIdForLink} onChange={(e) => setSelectedPostIdForLink(e.target.value)}>
+                <option value="">Choose a post…</option>
+                {reviewPosts.map((post) => (
+                  <option key={post.id} value={post.id}>{`${post.authorName} (${post.companyName || 'Company'}) – ${(post.postContent || '').slice(0, 45)}…`}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </Modal>
+      )}
+    </PageShell>
   );
 }

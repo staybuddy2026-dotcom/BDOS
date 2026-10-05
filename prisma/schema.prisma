@@ -44,6 +44,8 @@ enum FollowUpStatus {
   PENDING
   SENT
   CANCELLED
+  SENDING // claimed by the automation job; guards against sending the same stage twice
+  FAILED
 }
 
 enum ApprovalStatus {
@@ -71,24 +73,24 @@ model Keyword {
 }
 
 model LinkedInPost {
-  id               String        @id @default(uuid())
-  postUrl          String        @unique
+  id               String     @id @default(uuid())
+  postUrl          String     @unique
   authorName       String
   authorHeadline   String?
   companyName      String?
-  postPreview      String        @db.Text
-  postContent      String?       @db.Text
+  postPreview      String     @db.Text
+  postContent      String?    @db.Text
   postedAt         DateTime?
-  discoveredAt     DateTime      @default(now())
+  discoveredAt     DateTime   @default(now())
   matchedKeyword   String
   keywordCategory  String?
-  engagementCount  Int           @default(0)
+  engagementCount  Int        @default(0)
   opportunityScore Int?
-  status           PostStatus    @default(DISCOVERED)
-  isFavorite       Boolean       @default(false)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  
+  status           PostStatus @default(DISCOVERED)
+  isFavorite       Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
   // Relations
   analysis         PostAnalysis?
   drafts           OutreachDraft[]
@@ -134,7 +136,7 @@ model PostAnalysis {
   postId                 String       @unique
   post                   LinkedInPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   summary                String       @db.Text
-  buyingSignals          String[]     // Array of text labels
+  buyingSignals          String[] // Array of text labels
   opportunityScore       Int
   suggestedOutreachAngle String?      @db.Text
   valueReason            String?      @db.Text
@@ -146,18 +148,18 @@ model PostAnalysis {
 }
 
 model OutreachPlaybook {
-  id          String         @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
-  description String?        @db.Text
-  status      String         @default("ACTIVE") // "ACTIVE" or "INACTIVE"
+  description String?  @db.Text
+  status      String   @default("ACTIVE") // "ACTIVE" or "INACTIVE"
   defaultTone String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   // Relations
-  steps       OutreachStep[]
-  drafts      OutreachDraft[]
-  learning    AILearningData[]
+  steps    OutreachStep[]
+  drafts   OutreachDraft[]
+  learning AILearningData[]
 }
 
 model OutreachStep {
@@ -173,47 +175,60 @@ model OutreachStep {
   order          Int
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
-  
+
   // Relations
-  drafts         OutreachDraft[]
+  drafts OutreachDraft[]
 
   @@index([playbookId, order])
 }
 
 model OutreachDraft {
-  id             String            @id @default(uuid())
-  postId         String
-  post           LinkedInPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  playbookId     String?
-  playbook       OutreachPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
-  stepId         String?
-  step           OutreachStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull)
-  originalAiDraft String           @db.Text
-  editedDraft    String?           @db.Text
-  status         DraftStatus       @default(DRAFT)
-  generatedAt    DateTime          @default(now())
-  approvedAt     DateTime?
-  sentAt         DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  
+  id              String            @id @default(uuid())
+  postId          String
+  post            LinkedInPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  playbookId      String?
+  playbook        OutreachPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
+  stepId          String?
+  step            OutreachStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  originalAiDraft String            @db.Text
+  editedDraft     String?           @db.Text
+  status          DraftStatus       @default(DRAFT)
+  generatedAt     DateTime          @default(now())
+  approvedAt      DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Sequence delivery: who sends it, to whom, and whether follow-ups go out automatically
+  ownerId       String?
+  owner         User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  dealId        String?
+  deal          Deal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  channel       String? // EMAIL | LINKEDIN | ...
+  toEmail       String?
+  toName        String?
+  autoSend      Boolean @default(false)
+  stoppedReason String? // set when the sequence was stopped (reply, meeting booked, deal closed)
+
   // Relations
-  history        OutreachHistory[]
-  followUps      FollowUp[]
-  reEngagements  ReEngagementEvent[]
+  history       OutreachHistory[]
+  followUps     FollowUp[]
+  reEngagements ReEngagementEvent[]
 
   @@index([status])
   @@index([postId])
   @@index([playbookId])
+  @@index([ownerId])
+  @@index([dealId])
 }
 
 model OutreachHistory {
-  id         String        @id @default(uuid())
-  draftId    String
-  draft      OutreachDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  status     DraftStatus
-  notes      String?       @db.Text
-  timestamp  DateTime      @default(now())
+  id        String        @id @default(uuid())
+  draftId   String
+  draft     OutreachDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  status    DraftStatus
+  notes     String?       @db.Text
+  timestamp DateTime      @default(now())
 
   @@index([draftId])
 }
@@ -225,6 +240,8 @@ model FollowUp {
   dueDate   DateTime
   status    FollowUpStatus @default(PENDING)
   content   String?        @db.Text
+  sentAt    DateTime?
+  error     String?        @db.Text
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -254,7 +271,7 @@ model AILearningData {
   playbook          OutreachPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
   originalDraft     String            @db.Text
   userEditedVersion String?           @db.Text
-  selectedTones     String[]          // List of tones
+  selectedTones     String[] // List of tones
   outcome           String?
   createdAt         DateTime          @default(now())
 }
@@ -288,11 +305,18 @@ model Task {
   linkedOpportunity String?
   assignedOwner     String       @default("BDE Team")
   status            TaskStatus   @default(PENDING)
+  dealId            String?
+  deal              Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  assigneeId        String?
+  assignee          User?        @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  completedAt       DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
   @@index([status])
   @@index([dueDate])
+  @@index([dealId])
+  @@index([assigneeId])
 }
 
 enum MeetingType {
@@ -318,14 +342,18 @@ model Meeting {
   clientName  String
   clientEmail String?
   companyName String
-  meetingUrl  String?       // Google Meet / Teams / Zoom URL
+  meetingUrl  String? // Google Meet / Teams / Zoom URL
   status      MeetingStatus @default(SCHEDULED)
   notes       String?       @db.Text
+  attendees   String[]      @default([])
+  dealId      String?
+  deal        Deal?         @relation(fields: [dealId], references: [id], onDelete: Cascade)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@index([startTime])
   @@index([status])
+  @@index([dealId])
 }
 
 enum ProposalStage {
@@ -347,10 +375,15 @@ model Proposal {
   probability Int           @default(50)
   scope       String?       @db.Text
   validUntil  DateTime?
+  version     String?
+  amount      Int? // Whole USD
+  dealId      String?
+  deal        Deal?         @relation(fields: [dealId], references: [id], onDelete: Cascade)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@index([stage])
+  @@index([dealId])
 }
 
 enum ActivityType {
@@ -375,4 +408,313 @@ model ActivityLog {
 
   @@index([createdAt])
   @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// Team & CRM
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  BDE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(BDE)
+  isActive     Boolean  @default(true)
+
+  // Personal mailbox used to send outreach (falls back to the team SMTP_* settings when empty)
+  smtpHost    String?
+  smtpPort    Int?
+  smtpSecure  Boolean @default(true)
+  smtpUser    String?
+  smtpPassEnc String? @db.Text
+  fromName    String?
+  signature   String? @db.Text
+
+  // Morning summary email of what is due today
+  digestEnabled Boolean   @default(true)
+  lastDigestAt  DateTime?
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  deals                    Deal[]
+  activities               CrmActivity[]
+  tasks                    Task[]
+  outreachDrafts           OutreachDraft[]
+  shortlisted              ShortlistedCompany[]
+  savedProspects           SavedProspect[]
+  watchedCompanies         WatchedCompany[]
+  researchNotes            CompanyResearchNote[]
+  marketplaceSearches      MarketplaceSearch[]
+  marketplaceSavedSearches MarketplaceSavedSearch[]
+  workingDraft             OutreachWorkingDraft?
+}
+
+model Company {
+  id            String   @id @default(uuid())
+  name          String
+  domain        String?  @unique
+  linkedinUrl   String?
+  industry      String?
+  location      String?
+  employeeCount Int?
+  revenue       String?
+  technologies  String[] @default([])
+  tags          String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contacts Contact[]
+  deals    Deal[]
+
+  @@index([name])
+}
+
+model Contact {
+  id             String   @id @default(uuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name           String
+  title          String?
+  email          String?
+  phone          String?
+  linkedinUrl    String?
+  sourcePostUrl  String?
+  apolloPersonId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  primaryDeals Deal[]
+  activities   CrmActivity[]
+
+  @@index([companyId])
+  @@index([email])
+}
+
+enum DealStage {
+  LEAD
+  CONTACTED
+  MEETING_SCHEDULED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadSource {
+  MANUAL
+  APOLLO
+  LINKEDIN_POST
+  LINKEDIN_PEOPLE
+  MARKETPLACE
+  DISCOVERY
+  COMPANY360
+}
+
+model Deal {
+  id                String     @id @default(uuid())
+  title             String
+  companyId         String
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  primaryContactId  String?
+  primaryContact    Contact?   @relation(fields: [primaryContactId], references: [id], onDelete: SetNull)
+  ownerId           String? // null = unassigned pool, any BDE can claim it
+  owner             User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  stage             DealStage  @default(LEAD)
+  value             Int? // Whole USD; null until someone estimates it
+  probability       Int        @default(10)
+  source            LeadSource @default(MANUAL)
+  sourceRef         String? // e.g. LinkedInPost id or marketplace URL the deal came from
+  nextAction        String?
+  nextActionDate    DateTime?
+  expectedCloseDate DateTime?
+  lostReason        String?
+  stageChangedAt    DateTime   @default(now())
+  // The furthest open stage the deal has been moved to (never WON/LOST). Lets reports count a
+  // lost or won deal only for the stages it really went through.
+  furthestStage     DealStage  @default(LEAD)
+  lastActivityAt    DateTime   @default(now())
+  closedAt          DateTime?
+  legacyId          String?    @unique // id in the old JSON CRM store, set by the one-time migration
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  activities     CrmActivity[]
+  tasks          Task[]
+  meetings       Meeting[]
+  proposals      Proposal[]
+  outreachDrafts OutreachDraft[]
+
+  @@unique([source, sourceRef])
+  @@index([stage])
+  @@index([ownerId])
+  @@index([companyId])
+  @@index([nextActionDate])
+}
+
+enum CrmActivityType {
+  NOTE
+  EMAIL
+  CALL
+  MEETING
+  PROPOSAL
+  TASK
+  STAGE_CHANGE
+  LINKEDIN
+  SYSTEM
+}
+
+model CrmActivity {
+  id        String          @id @default(uuid())
+  dealId    String
+  deal      Deal            @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contactId String?
+  contact   Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      CrmActivityType @default(NOTE)
+  title     String
+  details   String?         @db.Text
+  createdAt DateTime        @default(now())
+
+  @@index([dealId, createdAt])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Prospecting lists (kept in the database so the team shares them across devices)
+// ---------------------------------------------------------------------------
+
+/// Companies the team picked for research in Company 360 (from Universal Search, Apollo or Company 360 itself).
+model ShortlistedCompany {
+  id        String   @id @default(uuid())
+  key       String   @unique // normalised domain, or the provider's company id when there is no domain
+  name      String
+  domain    String?
+  companyId String? // the provider's id (Apollo organization id, discovery id)
+  data      Json // the lead as it was shortlisted (DiscoveryLeadItem)
+  addedById String?
+  addedBy   User?    @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+/// People a team member saved from Apollo search results (their personal prospect list).
+model SavedProspect {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personKey String // Apollo person id, or name + company domain
+  data      Json // the ApolloPersonMatch as saved, including any revealed email or phone
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, personKey])
+  @@index([userId, createdAt])
+}
+
+/// Companies a team member is watching on Universal Search.
+model WatchedCompany {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String // the lead's company id
+  data      Json // DiscoveryLeadItem
+  createdAt DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([userId, createdAt])
+}
+
+/// Research notes for a company (LinkedIn About, a recent post, news), shared by the team on the Outreach page.
+model CompanyResearchNote {
+  domain      String   @id
+  notes       String   @db.Text
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace, Company 360 cache and Outreach drafts (were kept in server memory)
+// ---------------------------------------------------------------------------
+
+/// A project listing collected for the team: from a CSV import, the inbound webhook, or added by hand.
+model MarketplaceOpportunity {
+  id             String   @id @default(uuid())
+  providerId     String // manual | webhook | upwork | ...
+  title          String
+  projectUrl     String
+  duplicateHash  String   @unique // same title + country + budget (+ real URL) is the same listing
+  status         String   @default("QUALIFIED") // COLLECTED | QUALIFIED | SENT_TO_REVIEW | ARCHIVED
+  estimatedValue Int? // whole USD, parsed from the budget when possible
+  data           Json // the full UniversalOpportunity
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([providerId])
+}
+
+/// A Marketplace collection run, kept so a BDE can see and repeat what they searched.
+model MarketplaceSearch {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId      String
+  keywords        String
+  technology      String
+  country         String
+  budget          String
+  resultsCount    Int
+  executionTimeMs Int
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// A named Marketplace filter preset. Shared presets are visible to the whole team.
+model MarketplaceSavedSearch {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  providerId String
+  keywords   String
+  technology String
+  country    String
+  budget     String
+  category   String
+  isShared   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Built Company 360 profiles, reused for a few days so reopening a company costs no Apollo quota.
+model CompanyProfileCache {
+  key       String   @id // normalised domain, or the provider's company id
+  companyId String
+  data      Json // Company360Profile
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+/// The outreach draft a BDE is working on, so it survives a reload until they generate another one.
+model OutreachWorkingDraft {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json // OutreachMessageDraft
+  updatedAt DateTime @updatedAt
 }

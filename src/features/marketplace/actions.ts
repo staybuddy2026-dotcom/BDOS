@@ -6,6 +6,8 @@ import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { PostStatus } from '@prisma/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
+import { scoreListing } from './store';
+import { getSenderIdentity } from '@/lib/sender';
 
 export type ProjectAiAnalysis = {
   opportunityScore: number;
@@ -39,10 +41,9 @@ export async function analyzeProjectOpportunity(
 
     const value = context?.estimatedValueNumber || 0;
     const techStack = context?.technologyStack || [];
-    const isHighValue = value >= 25000;
     const isUrgent = context?.urgency === 'Immediate';
 
-    const opportunityScore = Math.min(98, 70 + (isHighValue ? 15 : 5) + (techStack.length > 0 ? 10 : 0) + (isUrgent ? 5 : 0));
+    const opportunityScore = scoreListing(value, techStack, context?.urgency);
     const qualification: ProjectAiAnalysis['qualification'] = opportunityScore >= 90 ? 'Perfect Match' : opportunityScore >= 75 ? 'Good Match' : opportunityScore >= 60 ? 'Stretch Project' : 'Not Recommended';
     const complexity: ProjectAiAnalysis['complexity'] = value >= 35000 ? 'Enterprise' : value >= 20000 ? 'High' : value >= 10000 ? 'Medium' : 'Low';
 
@@ -82,8 +83,9 @@ export async function generateMarketplaceProposal(params: {
 }): Promise<{ proposalText: string; title: string }> {
   try {
     await AuthService.verifySession();
+    const sender = await getSenderIdentity();
 
-    const techString = params.techStack.join(', ') || 'React.js, Node.js, and TypeScript';
+    const techString = params.techStack.join(', ') || 'the stack you need';
     
     let proposalText = '';
 
@@ -93,7 +95,7 @@ export async function generateMarketplaceProposal(params: {
         `We have delivered similar enterprise web applications and can deploy a dedicated squad immediately with clean TypeScript architecture and robust test coverage.\n\n` +
         `Are you open for a quick 10-minute discovery call to review our past case studies and architecture proposal?\n\n` +
         `Best regards,\n` +
-        `Akash — Tiny Script Soft Tech`;
+        `${sender.name} — ${sender.company}`;
     } else if (params.type === 'technical') {
       proposalText = `Technical Proposal: ${params.projectTitle}\n` +
         `Prepared by: Tiny Script Soft Tech\n\n` +

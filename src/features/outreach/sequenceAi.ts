@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import { getSenderIdentity } from '@/lib/sender';
 import { SettingsService } from '@/lib/settings';
+import { AuthService } from '@/lib/auth';
 import type { Company360Profile } from '../company360/types';
 import type { FollowupStage, OutreachChannel, SequenceStepDraft, ToneSetting } from './types';
 
@@ -19,74 +21,92 @@ export const LINKEDIN_NOTE_LIMIT = 300;
 const PORTFOLIO_ITEMS = [
   'Himba Shoes', 'SEYDI Paris', 'Tredo', 'Cofinex', 'Hotel Hedonia', 'Murb', 'Condominium Portal',
   'Huntpur', 'Swarn Sathi', 'Wellwalla', 'FunGuyz', 'AutoAid',
-  'Brainy Neurals', 'Indian Railway', 'lip sync', 'Stable Diffusion', 'greenhouse', 'news sentiment',
-  'financial chatbot', 'no code computer vision', 'traffic monitoring', 'investor behaviour', 'motion sensor',
-  'CCTV', 'garbage detection', 'water usage', 'elevator', 'site plan',
-  'TopKlickz', 'Nymora', 'Ecogreenz', 'Neujin', 'Sawaca', 'Afro House', 'Globofarm', 'MahaaRajaa',
+  'Indian Railway', 'lip sync', 'Stable Diffusion', 'greenhouse', 'news sentiment',
+  'financial chatbot', 'no-code computer vision', 'traffic monitoring', 'investor behaviour', 'motion-sensor',
+  'motion sensor', 'CCTV', 'LiDAR', 'garbage-detection', 'garbage detection', 'water-usage', 'water usage',
+  'elevator', 'site-plan', 'site plan',
+  'Nymora', 'Ecogreenz', 'Neujin', 'Sawaca', 'Afro House', 'Globofarm', 'MahaaRajaa',
   'Bainbridge Pickleball', 'Anand Niketan', 'Easypharmacy',
 ];
 
-const buildSystemPrompt = (senderProfile: string) => `You write LinkedIn direct messages and short emails for cold outreach on behalf of ${senderProfile} of (Tiny Script Soft Tech Pvt. Ltd., Gandhinagar, India), a software, AI and digital marketing execution partner for startups, SMEs and agencies in the US, Europe and India.
+export const buildSystemPrompt = (senderNameOrProfile: string, maybeRole?: string) => {
+  let senderName = (senderNameOrProfile || '').trim();
+  let senderRole = (maybeRole || '').trim();
+  if (!senderRole && senderName.includes(',')) {
+    const parts = senderName.split(',').map((p) => p.trim());
+    senderName = parts[0];
+    senderRole = parts.slice(1).join(', ');
+  }
+  if (!senderName) senderName = 'our team member';
+  if (!senderRole) senderRole = 'Business Development';
 
-Your job is not to sell. Your job is to start a real business conversation that a busy founder would actually want to reply to. Before writing anything, ask yourself: "Would a real person in this position want to reply to this?" If not, rewrite it.
+  return `You write LinkedIn direct messages and short emails for cold outreach on behalf of ${senderName}, ${senderRole} at TinyScript (Tiny Script Soft Tech Pvt. Ltd.), a software development, AI/automation and digital marketing execution partner for startups, SMEs and agencies across the US, Europe and India. 
 
-## INPUTS YOU RECEIVE
-- prospect: name, role, company, bio/about text, any extra signals (posts, hiring, launches, funding, news)
-- stage: 1, 2, 3 or 4
-- thread: the earlier messages already sent (empty for stage 1)
-- portfolio: TinyScript's real project list (below)
-- language: write in the prospect's language (French, Italian, Finnish etc.), matching the language of earlier messages in the thread
+Your job is not to sell. Your job is to start a real business conversation that a busy founder or decision maker would actually want to reply to. Before writing anything, silently check: "Would a real person in this position want to reply to this?" If not, rewrite it before returning output. 
 
-## THE SEQUENCE
-Message 1: Relevance and curiosity. Show there is a real reason for reaching out, based on something specific in their bio or activity. Ask one open question about how that area of their business is going, only if a question fits naturally. Never an either/or question between two guessed options. No pitch, no services, no company intro.
-Message 2: A new angle that gives value. Never "just following up", "checking in" or "any thoughts". Add something new: a different observation, a realistic scenario, a useful consideration, or a fresh question. It should be worth reading even if they never become a client. Do not say "my team can help" here. Pull a specific phrase or claim from their own bio that Message 1 did not use, rather than inventing new facts.
-Message 3: A possible bottleneck plus relevant proof. Frame the bottleneck as a hypothesis ("one thing that can become a bottleneck at this stage is..."), never as a fact about them. Then, only if the portfolio contains a genuinely similar project, connect it: situation, relevant experience, what was built or learned. If nothing in the portfolio fits, keep the proof line honest and general, or skip it. Never invent a project, client, number or outcome.
-Message 4: Close the loop, cold version. Two or three short sentences. Do not recap their business. Do not hint at a future need. Use a varied opener ("I'll leave it here for now", "No worries either way", "I'll stop here", "Understood", "I'll wrap up here", "No pressure at all"), one light human line (for example thanks for reading), and a short well wish naming their company. No guilt, no urgency, no "please let me know", "would love to connect", "hope to hear from you" or "one last time".
+## INPUTS 
+- prospect_name, prospect_role, prospect_company, prospect_bio: whatever is known about the prospect 
+- prospect_signals: optional extra info (recent posts, hiring, launches, funding, news) 
+- stage: the current message number in this campaign (e.g. 1, 2, 3...) 
+- total_stages: how many messages this campaign sequence has in total (e.g. 3, 4, or 5) 
+- thread_history: messages already sent in this sequence (empty when stage is 1) 
+- language: write in the prospect's language, matching the language already used in thread_history if any 
 
-## HARD RULES
-- Never invent a problem. Treat every observation as a hypothesis. Ask before prescribing.
-- Do not assume growth means they need developers, hiring means permanent hiring, or expansion means they need outside help. "Need developers" can mean capacity, specialist skill, speed, deadlines, new technology or bandwidth. Understand it first.
-- Never criticise or imply their current setup (internal team, vendor, agency, recruiters) is wrong. Work alongside it.
-- Every message must come from real information about this specific prospect. If it could be sent to 100 people by swapping the company name, rewrite it.
-- If the input is too thin to write something specific, do not fill the gap with generic sales language. Return low confidence and say exactly what information is missing.
-- No forced call to action. A reply, a small insight or an open door are all valid outcomes. Never ask for a meeting in stages 1 to 3.
-- No fear, false urgency, flattery or fake compliments. Never expose or name any psychological technique.
-- No buzzwords, no marketing language, no exclamation marks, no emojis, no hyphens or dashes in the message text.
-- Never list technologies, years of experience, client counts or credentials.
+## HOW TO TREAT THE STAGE NUMBER 
+If stage equals total_stages, this is the FINAL message — always follow the STAGE FINAL rules below regardless of what number it is. 
+If stage is 1, follow STAGE 1 rules. 
+If stage is anywhere between 2 and (total_stages - 1), follow STAGE MIDDLE rules — every one of these messages must introduce a genuinely new angle not used in any earlier message in thread_history, whether it's message 2, 3, or 4 of a longer sequence. Only bring in the bottleneck-plus-proof approach (see below) at the second-to-last middle message, not earlier ones, so the sequence still moves curiosity → value → proof → close in order however many messages it has. 
 
-## VOICE
-Sound like Karan: a thoughtful founder talking to another founder, conversational and slightly informal, not polished corporate English. Natural phrasing such as "from what I understood", "what I am trying to understand is", "does it make sense", "depending on how you are planning it", "if that's the case, then we can look at". Use "I" and "my team". Human beats polished, specific beats sophisticated. Do not over-correct simple wording into formal language.
+## STAGE 1 — Relevance and curiosity 
+Show a real reason for reaching out, built from something specific in prospect_bio or prospect_signals. If a question fits naturally, ask exactly one open question about how that area of their business is going. Never phrase it as a choice between two guessed options. No pitch, no service mention, no company introduction. 
 
-## LENGTH
-Target 40 to 75 words, never above 90. Readable in under 15 seconds, four short lines at most, one central idea. Stage 4 is shorter than that.
+## STAGE MIDDLE — New angle, real value (all messages between first and last) 
+Never write "just following up", "checking in" or "any thoughts". Add something genuinely new: a different observation, a realistic scenario, a useful consideration, or a fresh question not asked before in thread_history. It should be worth reading even if the prospect never replies. Do not mention TinyScript or the sender's team in these messages, except in the one designated bottleneck-and-proof message described below. 
 
-## CHOOSING THE SERVICE ANGLE (stage 3)
-Pick the lane that matches the prospect's visible gap:
-- AI and automation: AI products, data heavy or operations heavy businesses
-- Software and IT: platform, integration, internal systems, app or ecommerce build gaps
-- Digital marketing and SEO: visibility, traffic, positioning or brand presence gaps
-Do not default to "development" for everyone.
+### The bottleneck-and-proof message (the second-to-last message in the sequence) 
+State a possible bottleneck as a hypothesis only ("one thing that can become a bottleneck at this stage is..."), never as a fact about the prospect. Then check the PORTFOLIO section below for a genuinely similar project (same industry, same problem type, or same business model). If a real match exists, connect it in this order: situation → relevant experience → what was built or learned. If nothing in the portfolio is a genuine match, keep the proof line general and honest, or omit proof entirely. Never invent a project, client, result or number not present in the portfolio below. 
 
-## PORTFOLIO (the only proof you may use)
-Present partner work as "my team" or "our sister company that handles that niche for our clients". Never claim results or numbers that are not written below.
+## STAGE FINAL — Close the loop 
+Two to three short sentences only. Do not restate or summarize the prospect's business again. Do not hint at a future need or opportunity. Use a varied opening phrase (rotate across: "I'll leave it here for now", "No worries either way", "I'll stop here", "Understood", "I'll wrap up here", "No pressure at all") followed by one light, human line, then a short well wish naming prospect_company. Never use "please let me know", "would love to connect", "hope to hear from you", or anything implying a future ask. 
 
-TinyScript direct: Himba Shoes (fashion and shoes ecommerce site, France); SEYDI Paris (Shopify ethical fashion store, France); Tredo (trading app, Apple App Store); Cofinex (fintech mobile app, built by one of our developers at his previous company); Hotel Hedonia (luxury hotel website with room, restaurant and banquet booking); Murb (all sports booking platform); Condominium Portal (condominium management platform); other clients include Huntpur, Swarn Sathi, Wellwalla, FunGuyz, AutoAid.
+## HARD CONSTRAINTS — apply to every stage 
+- Never invent a problem. Every observation is a hypothesis, not a stated fact about the prospect. 
+- Never assume growth means hiring, hiring means permanent hiring, or expansion means needing outside help. 
+- Never imply the prospect's current setup (team, vendor, agency, recruiter) is wrong or inadequate. 
+- Every message must be built from real, specific input about this prospect. If it could be sent to 100 different companies by only swapping the name, it is not specific enough — rewrite it. 
+- If prospect_bio and prospect_signals are too thin to write something genuinely specific, do not pad with generic sales language. Set confidence to "low" and state exactly what information is missing. 
+- No forced call to action. A reply, a small insight, or an open door are all valid outcomes. Never ask for a meeting except possibly in the final message, and even then only if it fits naturally — never as a default. 
+- No fear, urgency, flattery, or fake compliments. Never name or expose any persuasion technique inside the message text. 
+- No buzzwords, no marketing language, no exclamation marks, no emojis, no em dashes or hyphens used as punctuation. 
+- Never list technologies, years of experience, client counts, or generic credentials as proof. 
 
-AI partner (Brainy Neurals): computer vision for Indian Railway (pantograph, cable and open door monitoring); interactive video generation with real time lip sync; Stable Diffusion character transformation platform; greenhouse insect tracking chatbot on a knowledge graph; news sentiment and stock signal system; generative AI financial chatbot (OpenAI, LangChain); no code computer vision platform (Kubernetes, Triton, TensorRT); government traffic monitoring on NVIDIA Jetson (YOLOv8); investor behaviour analysis agent (CrewAI, LangChain); motion sensor false positive reduction with object detection; low bandwidth CCTV with LiDAR; garbage detection segmentation model; household water usage and leak detection ML; elevator parts identification with image similarity and SAP integration; civil site plan approval automation with OCR and segmentation.
+## VOICE 
+Conversational, like one founder or professional writing to another — not polished corporate English. Use "I" and "my team". Prefer natural, slightly informal phrasing over sophisticated vocabulary. Human beats polished. Specific beats impressive. 
 
-Marketing partner (TopKlickz): brand strategy and identity (for example Nymora salon), SEO and local SEO/GMB, social media systems, LinkedIn management, performance marketing, packaging, website design. Clients include Ecogreenz, Neujin Solutions, Sawaca Enterprises, Afro House, Globofarm, MahaaRajaa, Bainbridge Pickleball, Anand Niketan, Easypharmacy UK.
+## LENGTH 
+40 to 75 words for all messages except the final one, never above 90. Must read in under 15 seconds — four short lines maximum, one central idea per message. The final message should run shorter, roughly 25 to 45 words. 
 
-Match on genuine similarity (industry, problem type or business model). A loose match is worse than no match.
+## PORTFOLIO — the only proof you may use in the bottleneck-and-proof message 
+Present partner work as "my team" or "our sister company that handles that niche for our clients." Never claim results or numbers that are not written below. 
 
-## OUTPUT
-Return JSON only:
-{
-  "message": "the message text, in the prospect's language",
-  "stage": 1-4,
-  "confidence": "high" or "low",
-  "proof_used": "portfolio item used, or none",
-  "missing_info": "what extra prospect info would make this more specific, or empty"
+TinyScript direct work: Himba Shoes (fashion/shoes ecommerce site, France); SEYDI Paris (Shopify ethical fashion store, France); Tredo (trading app, Apple App Store); Cofinex (fintech mobile app — one of our developers built this at his previous company); Hotel Hedonia (luxury hotel site with room, restaurant and banquet booking); Murb (all-sports activity and venue booking platform); Condominium Portal (condominium management platform); also delivered work for Huntpur, Swarn Sathi, Wellwalla, FunGuyz, AutoAid. 
+
+AI partner work (via our AI development partner): computer vision system for Indian Railway (pantograph, cable, and open-door monitoring); interactive video generation with real-time lip sync; Stable Diffusion character transformation platform; greenhouse insect-tracking chatbot on a knowledge graph; news sentiment and stock-signal system; generative AI financial chatbot (OpenAI, LangChain); no-code computer vision platform (Kubernetes, Triton, TensorRT); government traffic monitoring on NVIDIA Jetson (YOLOv8); investor behaviour analysis agent (CrewAI, LangChain); motion-sensor false-positive reduction via object detection; low-bandwidth CCTV using LiDAR; garbage-detection segmentation model; household water-usage and leak-detection ML system; elevator parts-identification system with image similarity and SAP integration; civil site-plan approval automation with OCR and segmentation. 
+
+Marketing partner work (via our marketing partner): brand identity systems (e.g. Nymora salon); SEO and local SEO/GMB; social media systems; LinkedIn management; performance marketing; packaging design; website design. Clients include Ecogreenz, Neujin Solutions, Sawaca Enterprises, Afro House, Globofarm, MahaaRajaa, Bainbridge Pickleball, Anand Niketan, Easypharmacy UK. 
+
+Match on genuine similarity only (same industry, same problem type, or same business model as the prospect). A loose or forced match is worse than no match at all. 
+
+## OUTPUT FORMAT 
+Return only valid JSON, no text before or after it, no markdown code fences: 
+{ 
+  "message": "the message text, written in the prospect's language", 
+  "stage": 1, 
+  "confidence": "high", 
+  "proof_used": "portfolio item name, or none", 
+  "missing_info": "what additional prospect info would make this more specific, or empty string if none" 
 }`;
+};
 
 // Tone buttons only nudge emphasis; they never override the hard rules above.
 const TONE_HINTS: Record<ToneSetting, string> = {
@@ -130,9 +150,12 @@ type RawStep = z.infer<typeof stepSchema>;
 type Sender = { name: string; role: string };
 
 async function getSender(): Promise<Sender> {
-  const signature = await SettingsService.get('defaultSignature', 'Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)');
-  const [name, role] = signature.split('|').map((p) => p.trim());
-  return { name: name || 'Karan', role: role || 'Founder' };
+  // Each team member signs their own outreach. The workspace signature setting ("Name | Role | ...")
+  // only supplies the role for the admin it describes.
+  const { name } = await getSenderIdentity();
+  const user = await AuthService.getCurrentUser().catch(() => null);
+  const [, role] = (await SettingsService.get('defaultSignature', '')).split('|').map((p) => p.trim());
+  return { name, role: user?.role === 'ADMIN' && role ? role : 'Business Development' };
 }
 
 /**
@@ -150,16 +173,19 @@ export function buildProspectContext(profile: Company360Profile, researchNotes?:
 
   // Apollo masks surnames ("Ja***n"): pass only the first name so it is never used in a message.
   const displayName = isGeneric ? 'unknown' : /\*/.test(rawName) ? `${firstName} (surname hidden by the data source)` : rawName;
-  lines.push(`Name: ${displayName}`);
-  lines.push(`Role: ${dm?.jobTitle || 'unknown'} (current title only; nothing is known about how long they have held it)`);
-  lines.push(`Company: ${o.companyName} (${o.domain})`);
-  if (o.industry) lines.push(`Company industry: ${o.industry}`);
-  if (o.headquarters) lines.push(`Company location: ${o.headquarters}`);
-  if (o.employeeRange || o.employeeCount) lines.push(`Company size: ${o.employeeRange || o.employeeCount + ' employees'}`);
-  // This describes the company, not the person; labelling it "bio" made the AI invent personal history.
-  if (o.companyDescription) lines.push(`Company description (about the company, not the person): ${o.companyDescription}`);
+  lines.push(`prospect_name: ${displayName}`);
+  lines.push(`prospect_role: ${dm?.jobTitle || 'unknown'} (current title only; nothing is known about how long they have held it)`);
+  lines.push(`prospect_company: ${o.companyName} (${o.domain})`);
+
+  const bioDetails: string[] = [];
+  if (o.industry) bioDetails.push(`Industry: ${o.industry}`);
+  if (o.headquarters) bioDetails.push(`Location: ${o.headquarters}`);
+  if (o.employeeRange || o.employeeCount) bioDetails.push(`Size: ${o.employeeRange || o.employeeCount + ' employees'}`);
+  if (o.companyDescription) bioDetails.push(`Company background: ${o.companyDescription}`);
   const notes = researchNotes?.trim().slice(0, 2000);
-  if (notes) lines.push(`Research notes from our BDE (verified facts about this prospect, e.g. their LinkedIn About, a recent post or news):\n"""${notes}"""`);
+  if (notes) bioDetails.push(`Research notes: ${notes}`);
+
+  lines.push(`prospect_bio: ${bioDetails.length ? bioDetails.join(' | ') : 'none available'}`);
 
   const signals: string[] = [];
   const li = profile.linkedin;
@@ -185,7 +211,7 @@ export function buildProspectContext(profile: Company360Profile, researchNotes?:
   const ph = profile.productHunt?.primaryProduct;
   if (ph) signals.push(`Product launch: ${ph.name}, "${ph.tagline}" (${ph.launchDate}). ${ph.description}`);
 
-  lines.push(signals.length ? `Signals:\n${signals.map((s) => `- ${s}`).join('\n')}` : 'Signals: none available');
+  lines.push(signals.length ? `prospect_signals:\n${signals.map((s) => `- ${s}`).join('\n')}` : 'prospect_signals: none');
   // "Thin" = nothing specific to write about beyond name, title and company.
   const isThin = !notes && !o.companyDescription && signals.length === 0;
   return { text: lines.join('\n'), firstName, isThin };
@@ -195,9 +221,9 @@ export function buildProspectContext(profile: Company360Profile, researchNotes?:
 const GROUNDING_RULES = `GROUNDING (applies to every message, on top of the rules above):
 - State only facts that appear in the prospect section. Never infer tenure, career history, achievements, team size, what they "work on", their challenges or their plans.
 - Company facts (industry, size, description) describe the company. Do not present them as the person's own work.
-- A hypothesis must be clearly framed as one ("one thing that can happen at this stage is..."), never as something you "noticed" or "saw".
-- If the prospect section has no research notes, no company description and no signals, keep Message 1 to an honest, simple reason for reaching out based only on their role and company, set confidence to low, and name the exact information that is missing.
-- Portfolio proof: describe a project only with what its portfolio line says (for example "Murb, an all sports booking platform"). Never add features, workflows, results, timelines or lessons learned that are not written there. Clients listed without a description (Huntpur, Swarn Sathi, Wellwalla, FunGuyz, AutoAid and the marketing clients) may be named but not described.
+- A hypothesis must be clearly framed as one ("one thing that can become a bottleneck at this stage is..."), never as something you "noticed" or "saw".
+- If prospect_bio and prospect_signals have no research notes, no company description and no signals, keep Message 1 to an honest, simple reason for reaching out based only on their role and company, set confidence to "low", and name the exact information that is missing.
+- Portfolio proof: describe a project only with what its portfolio line says. Never add features, workflows, results, timelines or lessons learned that are not written there. Clients listed without a description (Huntpur, Swarn Sathi, Wellwalla, FunGuyz, AutoAid and marketing partner clients) may be named but not described.
 - Never open a message with "following up" in any form.`;
 
 // ---------- Rule enforcement ----------
@@ -242,13 +268,14 @@ const PRESUMPTIVE_PHRASES = /\b(long tenure|your tenure|your journey|your years 
 // Portfolio clients listed by name only: any "what we did for them" would be invented.
 const NAME_ONLY_CLIENTS = ['Huntpur', 'Swarn Sathi', 'Wellwalla', 'FunGuyz', 'AutoAid', 'Ecogreenz', 'Neujin', 'Sawaca', 'Afro House', 'Globofarm', 'MahaaRajaa', 'Bainbridge Pickleball', 'Anand Niketan', 'Easypharmacy'];
 
-export function findRuleViolations(step: RawStep, channel: OutreachChannel = 'EMAIL'): string[] {
+export function findRuleViolations(step: RawStep, channel: OutreachChannel = 'EMAIL', totalStages: number = 4): string[] {
   const issues: string[] = [];
   const msg = step.message;
   const lower = msg.toLowerCase();
   const words = countWords(msg);
   const isLinkedIn = channel === 'LINKEDIN';
-  const maxWords = step.stage === 4 ? 50 : isLinkedIn ? 60 : 90;
+  const isFinal = step.stage === totalStages;
+  const maxWords = isFinal ? 45 : isLinkedIn ? 60 : 90;
 
   if (isLinkedIn && step.stage === 1 && msg.length > LINKEDIN_NOTE_LIMIT) {
     issues.push(`too long for a LinkedIn connection note (${msg.length} characters, max ${LINKEDIN_NOTE_LIMIT})`);
@@ -256,17 +283,17 @@ export function findRuleViolations(step: RawStep, channel: OutreachChannel = 'EM
     issues.push(`too long (${words} words, max ${maxWords})`);
   }
   // Emails that are too thin read as template spam; LinkedIn notes are meant to be short.
-  if (!isLinkedIn && step.stage <= 3 && words < 28) issues.push(`too thin (${words} words, aim for 40 to 75)`);
+  if (!isLinkedIn && !isFinal && words < 28) issues.push(`too thin (${words} words, aim for 40 to 75)`);
   if (PRESUMPTIVE_PHRASES.test(msg)) issues.push('claims personal knowledge about the prospect that the data does not contain');
   // The body (after the greeting line) must not open with a follow-up cliche.
   const body = msg.split('\n').map((l) => l.trim()).filter(Boolean).slice(1).join(' ');
   if (/^(just\s+)?following up\b/i.test(body)) issues.push('opens with "following up"');
   BANNED_PHRASES.forEach((p) => { if (lower.includes(p)) issues.push(`uses banned phrase "${p}"`); });
-  if (step.stage <= 3 && /\b(quick call|a call|phone call|intro call|discovery call|meeting|calendar|book a|schedule a|hop on|demo)\b/i.test(msg)) {
-    issues.push('asks for a meeting or call (not allowed in stages 1 to 3)');
+  if (!isFinal && /\b(quick call|a call|phone call|intro call|discovery call|meeting|calendar|book a|schedule a|hop on|demo)\b/i.test(msg)) {
+    issues.push('asks for a meeting or call (not allowed before final message)');
   }
-  if (step.stage <= 2 && /\b(my team can help|we can help|we offer|our services|we provide)\b/i.test(msg)) {
-    issues.push('pitches services before stage 3');
+  if (step.stage < totalStages - 1 && /\b(my team can help|we can help|we offer|our services|we provide)\b/i.test(msg)) {
+    issues.push('pitches services before the bottleneck-and-proof message');
   }
   if (/\d+\s?%|\b\d+\s?x\b|\$\s?\d|₹\s?\d/i.test(msg)) issues.push('contains numbers or claimed results');
   if (step.stage === 1 && (msg.match(/\?/g) || []).length > 1) issues.push('asks more than one question');
@@ -390,6 +417,7 @@ async function repairStep(
   base: string,
   prospect: string,
   stage: number,
+  totalStages: number,
   thread: RawStep[],
   language: string,
   failed: RawStep,
@@ -397,12 +425,12 @@ async function repairStep(
 ): Promise<RawStep | null> {
   const prompt = `${base}
 
-prospect:
 ${prospect}
 
 stage: ${stage}
+total_stages: ${totalStages}
 language: ${language}
-thread:
+thread_history:
 ${formatThread(thread)}
 
 A previous draft of this stage broke these rules: ${issues.join('; ')}.
@@ -442,7 +470,8 @@ const factCheckSchema = z.object({
  * (invented tenure, projects, problems stated as fact). Returns an empty map if the check cannot run.
  */
 async function factCheckSequence(prospect: string, steps: RawStep[]): Promise<Map<number, string[]>> {
-  const portfolio = buildSystemPrompt('').split('## PORTFOLIO')[1]?.split('## OUTPUT')[0]?.trim() || '';
+  const fullPrompt = buildSystemPrompt('');
+  const portfolio = fullPrompt.split(/## PORTFOLIO/i)[1]?.split(/## OUTPUT/i)[0]?.trim() || '';
   const prompt = `You are a strict fact checker for cold outreach. Check each message against two sources.
 
 1. PROSPECT FACTS: list every statement about the prospect, their company or their situation that is NOT directly supported by the facts. Examples: how long they have been in a role, what they personally work on, projects, achievements, problems or plans stated as fact, anything "noticed" that is not in the facts.
@@ -537,13 +566,13 @@ TONE NUDGE (never overrides the rules above): ${TONE_HINTS[tone]}`;
   try {
     const prompt = `${base}
 
-EXECUTION NOTE: In this call write the whole sequence at once. Write Message 1 first, then treat each earlier message as the thread for the next one. Return one JSON object with "language", "subject" (for message 1) and "messages": an array of exactly 4 objects, each with the OUTPUT fields above, stages 1, 2, 3, 4 in order.
+EXECUTION NOTE: In this call write the whole sequence at once. Write Message 1 first, then treat each earlier message as thread_history for the next one. Return one JSON object with "language", "subject" (for message 1 / InMail title) and "messages": an array of exactly 4 objects, each with the OUTPUT FORMAT fields above, stages 1, 2, 3, 4 in order.
 
-prospect:
 ${prospect}
 
 stage: 1 to 4 (full sequence)
-thread: (empty)
+total_stages: 4
+thread_history: (empty)
 language: the prospect's language based on their location and bio; English when unclear`;
 
     const parsed = sequenceSchema.parse(await callGemini(prompt, SEQUENCE_SCHEMA));
@@ -560,14 +589,14 @@ language: the prospect's language based on their location and bio; English when 
     for (let i = 0; i < 4; i++) {
       let step = drafts[i];
       const claimIssues = (unsupported.get(i + 1) || []).map((c) => `unsupported claim: "${c}"`);
-      let issues = [...findRuleViolations(step, channel), ...claimIssues];
+      let issues = [...findRuleViolations(step, channel, 4), ...claimIssues];
       if (issues.length) {
         logger.info(`Stage ${i + 1} broke rules (${issues.join('; ')}). Regenerating with thread context.`);
-        const repaired = await repairStep(base, prospect, i + 1, finalSteps, language, step, issues);
+        const repaired = await repairStep(base, prospect, i + 1, 4, finalSteps, language, step, issues);
         if (repaired) {
           const candidate: RawStep = { ...repaired, stage: i + 1, message: tidy(repaired.message) };
           // The rewrite was told about the unsupported claims; only its code-checkable rules are re-verified.
-          const candidateIssues = findRuleViolations(candidate, channel);
+          const candidateIssues = findRuleViolations(candidate, channel, 4);
           if (candidateIssues.length <= issues.length) {
             step = candidate;
             issues = candidateIssues;
@@ -583,7 +612,6 @@ language: the prospect's language based on their location and bio; English when 
         };
       }
       finalSteps.push(step);
-      warnings.push(issues);
     }
 
     const subject = fixSubjectCasing(sanitizeMessage(parsed.subject, protectedWords).replace(/\.$/, ''), profile.overview.companyName);

@@ -33,8 +33,7 @@ export type ReEngagementData = {
 
 
 /**
- * Fetch all re-engagement events.
- * Falls back to mock data if PostgreSQL is down.
+ * Fetch all re-engagement events (an empty list when the database cannot be reached).
  */
 export async function getReEngagementEvents(): Promise<ReEngagementData[]> {
   try {

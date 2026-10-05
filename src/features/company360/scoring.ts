@@ -1,189 +1,135 @@
-import { 
-  CompanyOverviewData, 
-  EngineeringIntelligenceData, 
-  DecisionMakerContact, 
-  AiOpportunityScoreDetails, 
-  RecommendedServiceItem, 
-  ExecutiveAiBriefing 
+import {
+  CompanyOverviewData,
+  EngineeringIntelligenceData,
+  DecisionMakerContact,
+  AiOpportunityScoreDetails,
+  RecommendedServiceItem,
+  ExecutiveAiBriefing
 } from './types';
 import { GrowthIntelligenceData } from '../crunchbase/types';
 import { ProductHuntIntelligenceData } from '../producthunt/types';
 import { RedditIntelligenceData } from '../reddit/types';
 import { LinkedInIntelligenceData } from '../linkedin/types';
 import { logger } from '@/lib/logger';
+import { sameTech } from '@/lib/techMatch';
+
+/** A service from the team's catalog (Settings > Service catalog). */
+export type CatalogService = { id: string; name: string; minUsd: string; minInr: string; stack: string; model: string };
 
 /**
- * Calculate AI Company Opportunity Score (0-100) & Win Probability.
- * Multi-Provider Weights: Apollo (15%), GitHub (15%), Crunchbase (18%), Product Hunt (14%), Reddit (10%), LinkedIn (10%), CRM (8%), Marketplace (10%).
+ * Company fit score (0-100) from evidence that was actually found. Each factor is listed with what it is
+ * based on; a source with no data adds nothing. `confidenceScorePercent` is how much of the evidence was
+ * available, not a guess at the outcome.
  */
 export function calculateAiOpportunityScore(
   overview: CompanyOverviewData,
   engineering: EngineeringIntelligenceData,
   decisionMakers: DecisionMakerContact[],
   growth?: GrowthIntelligenceData,
-  productHunt?: ProductHuntIntelligenceData,
-  reddit?: RedditIntelligenceData,
+  _productHunt?: ProductHuntIntelligenceData,
+  _reddit?: RedditIntelligenceData,
   linkedin?: LinkedInIntelligenceData
 ): AiOpportunityScoreDetails {
-  logger.info(`Calculating AI Opportunity Score for '${overview.companyName}'...`);
+  logger.info(`Calculating fit score for '${overview.companyName}'...`);
 
-  const crunchbaseWeight = growth ? Math.round(growth.growthOpportunityScore * 0.18) : 18;
-  const productHuntWeight = productHunt ? Math.round(productHunt.postMvpBuyingIntentScore * 0.14) : 13;
-  const redditWeight = reddit ? Math.round(reddit.averageIntentScore * 0.10) : 9;
-  const linkedinWeight = linkedin ? Math.round(linkedin.engineeringExpansionIndex * 0.10) : 9;
-  const githubWeight = Math.min(15, Math.round(engineering.engineeringMaturityScore * 0.15));
-  const apolloWeight = decisionMakers.length > 0 ? 15 : 11;
-  const crmWeight = 8;
-  const marketplaceWeight = 10;
+  const factors: AiOpportunityScoreDetails['scoringFactors'] = [];
+  const add = (factorName: string, impactScore: number, description: string) => factors.push({ factorName, impactScore, description });
+  let evidence = 0;
+  const POSSIBLE = 5;
 
-  const factors = [
-    {
-      factorName: 'Crunchbase Growth Intelligence (18% Weight)',
-      impactScore: crunchbaseWeight,
-      description: growth 
-        ? `${growth.latestRoundName} (${growth.latestRoundAmountUsd}) announced. Growth score ${growth.growthOpportunityScore}/100.` 
-        : `${overview.fundingStage} stage with revenue ${overview.estimatedRevenue}.`,
-    },
-    {
-      factorName: 'GitHub Engineering Velocity & Stack (15% Weight)',
-      impactScore: githubWeight,
-      description: `${engineering.publicReposCount} repos, ${engineering.totalStarsCount.toLocaleString()} stars. Engineering maturity ${engineering.engineeringMaturityScore}/100.`,
-    },
-    {
-      factorName: 'Apollo Executive Decision Makers (15% Weight)',
-      impactScore: apolloWeight,
-      description: `Identified ${decisionMakers.length} decision makers including CTO & VP Engineering.`,
-    },
-    {
-      factorName: 'Product Hunt Startup Launch Intelligence (14% Weight)',
-      impactScore: productHuntWeight,
-      description: productHunt 
-        ? `${productHunt.primaryProduct.name} launched with ${productHunt.totalUpvotes.toLocaleString()} upvotes. Post-MVP intent ${productHunt.postMvpBuyingIntentScore}/100.` 
-        : 'Active Product Hunt launch momentum.',
-    },
-    {
-      factorName: 'Reddit Real-Time Buying Intent (10% Weight)',
-      impactScore: redditWeight,
-      description: reddit 
-        ? `${reddit.totalDiscussionsCount} buying discussions across ${reddit.activeSubreddits.slice(0, 3).join(', ')}. Intent score ${reddit.averageIntentScore}/100.` 
-        : 'Active Reddit developer community discussion intent.',
-    },
-    {
-      factorName: 'LinkedIn Organic Social & Hiring Signals (10% Weight)',
-      impactScore: linkedinWeight,
-      description: linkedin 
-        ? `${linkedin.activeJobOpeningsCount} engineering job openings, ${linkedin.executivePostsCount} executive posts. Expansion index ${linkedin.engineeringExpansionIndex}/100.` 
-        : 'Active LinkedIn hiring announcements and executive posts.',
-    },
-    {
-      factorName: 'Marketplace Universal Opportunities (10% Weight)',
-      impactScore: marketplaceWeight,
-      description: 'Active software development RFP / opportunity match in universal marketplace pipeline.',
-    },
-    {
-      factorName: 'CRM Active Engagement & Deal Pipeline (8% Weight)',
-      impactScore: crmWeight,
-      description: 'Qualified lead status with active BDE outreach history.',
-    },
-  ];
+  if (overview.industry || overview.employeeCount) {
+    evidence++;
+    const size = overview.employeeCount;
+    // Companies big enough to buy a team but not so big they only use large vendors fit best.
+    const sizePoints = !size ? 5 : size >= 20 && size <= 2000 ? 20 : size < 20 ? 8 : 12;
+    add('Company profile', sizePoints, `${overview.industry || 'Industry unknown'}${size ? `, about ${size.toLocaleString('en-US')} employees` : ''} (Apollo)`);
+  }
+  const named = decisionMakers.filter((d) => d.name);
+  if (named.length) {
+    evidence++;
+    add('Decision makers found', Math.min(20, 8 + named.length * 3), `${named.length} senior contact${named.length === 1 ? '' : 's'} in Apollo, e.g. ${named[0].name} (${named[0].jobTitle})`);
+  }
+  const stack = engineering.primaryLanguages;
+  if (stack.length) {
+    evidence++;
+    add('Known tech stack', Math.min(20, 6 + stack.length * 2), `Detected: ${stack.slice(0, 6).join(', ')}`);
+  }
+  if (growth && (growth.latestRoundName || growth.latestRoundDate)) {
+    evidence++;
+    const recent = growth.latestRoundDate && Date.now() - new Date(growth.latestRoundDate).getTime() < 365 * 86400000;
+    add('Funding', recent ? 20 : 10, `${growth.latestRoundName || 'Funding round'}${growth.latestRoundDate ? ` (${growth.latestRoundDate})` : ''}${growth.latestRoundAmountUsd ? `, ${growth.latestRoundAmountUsd}` : ''}`);
+  }
+  if (linkedin?.activeJobOpeningsCount) {
+    evidence++;
+    add('Hiring', Math.min(20, 8 + linkedin.activeJobOpeningsCount), `${linkedin.activeJobOpeningsCount} open job${linkedin.activeJobOpeningsCount === 1 ? '' : 's'} (Apollo)`);
+  }
 
-  const overallScore = Math.min(
-    99,
-    factors.reduce((sum, f) => sum + f.impactScore, 0)
-  );
-
+  const overallScore = Math.min(100, factors.reduce((sum, f) => sum + f.impactScore, 0));
   return {
     overallScore,
-    winProbabilityPercent: Math.round(overallScore * 0.88),
-    estimatedDealSizeInr: '₹25,00,000 – ₹45,00,000',
-    estimatedDealSizeUsd: '$30,000 – $55,000',
-    salesPriority: overallScore >= 85 ? 'HIGH' : overallScore >= 65 ? 'MEDIUM' : 'LOW',
-    confidenceScorePercent: 94,
+    // The score is the best available estimate; there is no separate win model behind it.
+    winProbabilityPercent: overallScore,
+    estimatedDealSizeInr: '',
+    estimatedDealSizeUsd: '',
+    salesPriority: overallScore >= 70 ? 'HIGH' : overallScore >= 40 ? 'MEDIUM' : 'LOW',
+    confidenceScorePercent: Math.round((evidence / POSSIBLE) * 100),
     scoringFactors: factors,
   };
 }
 
 /**
- * AI Service Recommendations Engine for Tiny Script Soft Tech Pvt Ltd.
+ * Services from the team's catalog that match technology the company is known to use. A service is only
+ * recommended when there is an overlap; the price is the catalog's starting price.
  */
 export function generateRecommendedServices(
-  engineering: EngineeringIntelligenceData
+  engineering: EngineeringIntelligenceData,
+  catalog: CatalogService[] = []
 ): RecommendedServiceItem[] {
-  const recommendations: RecommendedServiceItem[] = [
-    {
-      id: 'rec_ts_1',
-      serviceName: 'Dedicated React 19 & Next.js Senior Squad',
-      category: 'Frontend Engineering',
-      reasoning: 'Company codebase heavily uses React & TypeScript. High demand for sprint velocity acceleration.',
-      detectedTechTrigger: ['React 19', 'Next.js', 'TypeScript', 'TailwindCSS'],
-      estimatedEngagementInr: '₹18,00,000 – ₹32,00,000',
-      estimatedEngagementUsd: '$22,000 – $38,00,000',
-      suggestedSquad: '1 Tech Lead / Architect, 2 Senior Frontend Engineers, 1 QA Engineer',
-      fitScore: 98,
-    },
-    {
-      id: 'rec_ts_2',
-      serviceName: 'Node.js Microservices Modernization & SOC2 Audit',
-      category: 'Backend Architecture',
-      reasoning: 'Active API endpoints require refactoring into scalable microservices & HIPAA compliance sign-off.',
-      detectedTechTrigger: ['Node.js', 'Express', 'PostgreSQL', 'Docker'],
-      estimatedEngagementInr: '₹14,00,000 – ₹24,00,000',
-      estimatedEngagementUsd: '$17,000 – $29,00,000',
-      suggestedSquad: '1 Lead Backend Architect, 2 Node.js Microservice Engineers',
-      fitScore: 94,
-    },
-    {
-      id: 'rec_ts_3',
-      serviceName: 'DevOps, Kubernetes & AWS Cloud Optimization',
-      category: 'Cloud Infrastructure',
-      reasoning: 'High repository star count indicates scaling user traffic requiring automated CI/CD pipelines & AWS cost reduction.',
-      detectedTechTrigger: ['Docker', 'Kubernetes', 'AWS', 'Vercel'],
-      estimatedEngagementInr: '₹8,00,000 – ₹15,00,000',
-      estimatedEngagementUsd: '$10,000 – $18,00,000',
-      suggestedSquad: '1 Senior DevOps & AWS Cloud Architect',
-      fitScore: 90,
-    },
-  ];
-
-  if (engineering.categorizedTechStack.aiMl.length > 0 || engineering.categorizedTechStack.backend.includes('Python')) {
-    recommendations.unshift({
-      id: 'rec_ts_4',
-      serviceName: 'FastAPI & Open Source LLM AI Fine-Tuning Integration',
-      category: 'AI / Machine Learning',
-      reasoning: 'Active Python & AI repository activity detected. High opportunity to integrate custom Llama 3 models.',
-      detectedTechTrigger: ['Python', 'FastAPI', 'Llama 3', 'PyTorch'],
-      estimatedEngagementInr: '₹15,00,000 – ₹28,00,000',
-      estimatedEngagementUsd: '$18,000 – $34,00,000',
-      suggestedSquad: '1 AI/ML Engineer, 1 FastAPI Backend Engineer',
-      fitScore: 96,
-    });
-  }
-
-  return recommendations;
+  const detected = engineering.primaryLanguages;
+  if (!detected.length) return [];
+  return catalog
+    .map((svc) => {
+      const stack = svc.stack.split(',').map((t) => t.trim()).filter(Boolean);
+      const matches = stack.filter((t) => detected.some((d) => sameTech(d, t)));
+      return { svc, matches };
+    })
+    .filter((x) => x.matches.length)
+    .sort((a, b) => b.matches.length - a.matches.length)
+    .slice(0, 4)
+    .map(({ svc, matches }) => ({
+      id: `svc_${svc.id}`,
+      serviceName: svc.name,
+      category: svc.model,
+      reasoning: `They use ${matches.slice(0, 4).join(', ')}, which this service covers.`,
+      detectedTechTrigger: matches,
+      estimatedEngagementInr: svc.minInr ? `From ${svc.minInr}` : '',
+      estimatedEngagementUsd: svc.minUsd ? `From ${svc.minUsd}` : '',
+      suggestedSquad: svc.model,
+      fitScore: Math.min(95, 50 + matches.length * 10),
+    }));
 }
 
-/**
- * Generate Executive AI Briefing Summary.
- */
+/** Short briefing built from what the profile actually contains. */
 export function generateExecutiveBriefing(
   overview: CompanyOverviewData,
   engineering: EngineeringIntelligenceData,
   decisionMakers: DecisionMakerContact[],
   opportunityScore: AiOpportunityScoreDetails
 ): ExecutiveAiBriefing {
-  const cto = decisionMakers.find(dm => dm.jobTitle.toLowerCase().includes('cto')) || decisionMakers[0];
+  const cto = decisionMakers.find((dm) => /\bcto\b|chief technology/i.test(dm.jobTitle)) || decisionMakers[0];
+  const highlights = [
+    overview.employeeCount ? `About ${overview.employeeCount.toLocaleString('en-US')} employees${overview.headquarters ? `, based in ${overview.headquarters}` : ''}.` : '',
+    engineering.primaryLanguages.length ? `Tech stack: ${engineering.primaryLanguages.slice(0, 6).join(', ')}.` : '',
+    overview.fundingStage && overview.fundingStage !== 'Undisclosed' ? `Funding: ${overview.fundingStage}${overview.fundingTotal && overview.fundingTotal !== 'Undisclosed' ? ` (${overview.fundingTotal} raised)` : ''}.` : '',
+    cto ? `Contact: ${cto.name} (${cto.jobTitle}).` : 'No senior contact found yet.',
+  ].filter(Boolean);
 
   return {
-    summary: `${overview.companyName} is a high-growth ${overview.industry || 'technology'} organization (${overview.employeeRange}) scaling operations and infrastructure.`,
-    keyHighlights: [
-      `🚀 Engineering team growing rapidly (${engineering.publicReposCount} public repos, ${engineering.totalStarsCount.toLocaleString()} stars).`,
-      '⚡ Active migration to React 19, Next.js & Python FastAPI backend APIs.',
-      `🏛️ Engineering maturity score evaluated at ${engineering.engineeringMaturityScore}/100.`,
-      `💼 Identified verified executive contacts: ${cto ? cto.name + ' (' + cto.jobTitle + ')' : 'No verified executive contacts identified yet.'}`,
-    ],
-    engineeringStatus: 'Enterprise Scaleup — High outsourcing probability for dedicated software squad augmentation.',
-    recommendedNextAction: cto ? `Schedule technical discovery call with ${cto.name}` : 'Identify and schedule discovery call with technical leadership',
-    recommendedFirstEngagement: 'React 19 & Microservices Technical Assessment (Fixed-Price 2-Week Architecture Review)',
+    summary: [overview.companyName, overview.industry ? `works in ${overview.industry}` : '', overview.companyDescription ? `— ${overview.companyDescription.slice(0, 220)}` : ''].filter(Boolean).join(' '),
+    keyHighlights: highlights,
+    engineeringStatus: engineering.primaryLanguages.length ? 'Tech stack known' : 'Tech stack not known yet',
+    recommendedNextAction: cto ? `Reach out to ${cto.name} (${cto.jobTitle})` : 'Find a technical decision maker in Apollo Search',
+    recommendedFirstEngagement: 'Discovery call to confirm their plans and needs',
     estimatedProjectPotentialInr: opportunityScore.estimatedDealSizeInr,
     confidencePercent: opportunityScore.confidenceScorePercent,
   };

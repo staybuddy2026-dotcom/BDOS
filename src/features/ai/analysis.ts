@@ -42,13 +42,11 @@ export function getAiProvider(name?: string): IAiAnalysisProvider {
   const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
   const configuredProvider = name || process.env.AI_PROVIDER || 'gemini';
   
-  // Rule: Fallback to mock if API key is missing
+  // Without an API key there is no real analysis. The keyword-based stand-in is only used when it is asked for
+  // explicitly (AI_MOCK_MODE=true, e.g. for tests); otherwise say so instead of showing made-up scores.
   if (configuredProvider.toLowerCase() === 'gemini' && !apiKey) {
-    if (process.env.NODE_ENV === 'production' && process.env.AI_MOCK_MODE !== 'true') {
-      throw new AppError('Production Error: GEMINI_API_KEY environment variable is missing in production environment.', 500);
-    }
-    logger.warn('GEMINI_API_KEY is not defined. Falling back to "mock" AI provider.');
-    return providersRegistry['mock'];
+    if (process.env.AI_MOCK_MODE === 'true') return providersRegistry['mock'];
+    throw new AppError('AI analysis is not set up: add GEMINI_API_KEY to the server settings.', 503);
   }
 
   const provider = providersRegistry[configuredProvider.toLowerCase()];

@@ -101,6 +101,14 @@ h4 {
   @apply flex-1 p-0 h-screen flex flex-col overflow-hidden w-full mx-auto box-border;
 }
 
+/* Phones: the sidebar becomes a top bar (Sidebar.tsx). Pages sit below it; their own 100vh roots are capped to the space left. */
+:root { --mobile-bar-h: 52px; }
+@media (max-width: 768px) {
+  .main-content { padding-top: var(--mobile-bar-h); }
+  .page-container { height: calc(100dvh - var(--mobile-bar-h)); }
+  .page-container > * { max-height: 100%; }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

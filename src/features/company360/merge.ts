@@ -83,7 +83,7 @@ export function categorizeTechStack(techList: string[]): CategorizedTechStack {
  * Fuses Apollo Company Data with GitHub, Crunchbase, Product Hunt, Reddit, and LinkedIn Organic Intelligence Data.
  */
 export function fuseCompanyProfiles(
-  apolloData: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[] },
+  apolloData: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[]; technologies?: string[] },
   githubData?: Partial<EngineeringIntelligenceData>,
   growthData?: GrowthIntelligenceData,
   productHuntData?: ProductHuntIntelligenceData,
@@ -124,12 +124,8 @@ export function fuseCompanyProfiles(
          : apolloData.employeeCount > 50 ? '51 - 200' 
          : '1 - 50')
       : 'Unknown'),
-    estimatedRevenue: apolloData.estimatedRevenue || (apolloData.employeeCount 
-      ? (apolloData.employeeCount > 1000 ? '$100M+' 
-         : apolloData.employeeCount > 200 ? '$50M - $100M' 
-         : apolloData.employeeCount > 50 ? '$10M - $50M' 
-         : '$1M - $10M')
-      : 'Undisclosed'),
+    // Revenue is only shown when Apollo reports it; it is not guessed from headcount.
+    estimatedRevenue: apolloData.estimatedRevenue || 'Undisclosed',
     fundingStage: apolloData.fundingStage || 'Undisclosed',
     fundingTotal: apolloData.fundingTotal || 'Undisclosed',
     companyDescription: apolloData.companyDescription || '',
@@ -145,8 +141,10 @@ export function fuseCompanyProfiles(
 
   // Fuse Engineering Intelligence (From GitHub)
   const githubOrgLogin = githubData?.githubOrgLogin || domain.split('.')[0];
+  // GitHub is not connected yet, so the stack Apollo detected on the company's site is the main source.
   const allTech = Array.from(new Set([
-    ...(githubData?.primaryLanguages || [])
+    ...(githubData?.primaryLanguages || []),
+    ...(apolloData.technologies || []),
   ]));
 
   const engineering: EngineeringIntelligenceData = {
@@ -157,7 +155,7 @@ export function fuseCompanyProfiles(
     totalStarsCount: githubData?.totalStarsCount || 0,
     totalForksCount: githubData?.totalForksCount || 0,
     totalContributorsCount: githubData?.totalContributorsCount || 0,
-    primaryLanguages: githubData?.primaryLanguages || [],
+    primaryLanguages: githubData?.primaryLanguages?.length ? githubData.primaryLanguages : allTech.slice(0, 12),
     categorizedTechStack: categorizeTechStack(allTech),
     engineeringMaturityScore: githubData?.engineeringMaturityScore || 0,
     hiringSignalScore: githubData?.hiringSignalScore || 0,

@@ -68,8 +68,6 @@ export type EngagementTelemetry = {
   responseRatePercent: number;
   meetingsBookedCount: number;
   proposalRequestsCount: number;
-  pipelineInfluencedInr: string;
-  estimatedRevenueInr: string;
   activeSequences?: number;
   sentCount?: number;
 };

@@ -13,7 +13,7 @@ export function AICopilotPanel({ profile }: { profile: Company360Profile }) {
   const [history, setHistory] = useState<CopilotQuestionAnswer[]>([
     {
       question: 'Should I contact this company today?',
-      answer: `${companyName} has an ICP opportunity score of ${profile.opportunityScoring.overallScore}/100 (${profile.opportunityScoring.salesPriority} priority) — ${profile.opportunityScoring.salesPriority === 'HIGH' ? 'a strong target to reach out to today.' : 'worth a closer look before prioritizing outreach.'}`,
+      answer: `${companyName} has a fit score of ${profile.opportunityScoring.overallScore}/100 (${profile.opportunityScoring.salesPriority} priority) — ${profile.opportunityScoring.salesPriority === 'HIGH' ? 'a strong target to reach out to today.' : 'worth a closer look before prioritizing outreach.'}`,
       confidencePercent: profile.opportunityScoring.confidenceScorePercent,
       reasoningSources: ['Company 360 Profile', 'Apollo Executive Lookup'],
     },
@@ -84,7 +84,7 @@ export function AICopilotPanel({ profile }: { profile: Company360Profile }) {
             <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--accent-indigo)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Q: &quot;{item.question}&quot;</span>
               <span style={{ fontSize: '0.68rem', color: 'var(--color-success)', background: 'var(--color-success-bg)', padding: '2px 6px', borderRadius: '4px' }}>
-                {item.confidencePercent}% Confidence
+                {item.confidencePercent}% of data found
               </span>
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)', lineHeight: 1.45 }}>{item.answer}</div>

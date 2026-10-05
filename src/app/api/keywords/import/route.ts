@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { errorResponse } from '@/lib/errors';
+import { AuthService } from '@/lib/auth';
 import { validateBooleanQuery } from '@/features/keywords/validation';
 import { Priority, KeywordStatus } from '@prisma/client';
 
 export async function POST(req: NextRequest) {
   try {
+    await AuthService.verifySession();
     const formData = await req.formData();
     const file = formData.get('file') as File;
 

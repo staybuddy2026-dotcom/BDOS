@@ -70,9 +70,10 @@ export function generateOutreachMessage(
     tone,
     subjectLine: subject,
     bodyContent: body,
-    personalizationScore: 96,
-    technicalRelevanceScore: 98,
-    readabilityScore: 92,
+    // Not measured; kept at 0 so nothing shows an invented quality score.
+    personalizationScore: 0,
+    technicalRelevanceScore: 0,
+    readabilityScore: 0,
     spamRiskIndicator: 'LOW',
     status: 'DRAFT',
     followupStage: 'STAGE_1_INITIAL',

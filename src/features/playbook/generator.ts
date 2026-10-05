@@ -1,178 +1,134 @@
-import { 
-  OpportunityPlaybookModel, 
-  DecisionMakerRanking, 
-  RecommendedCaseStudy,
-  OutreachChannelRecommendation,
-  WhyTinyScriptFit,
-  DiscoveryMeetingPrep
-} from './types';
-import { generatePlaybookServiceRecommendations } from './recommendations';
-import { generatePlaybookConversationStrategy } from './conversation';
-import { generatePlaybookObjections } from './objections';
-import { logger } from '@/lib/logger';
-import { Company360Profile } from '../company360/types';
+import type { Company360Profile } from '../company360/types';
+import type { OpportunityPlaybookModel, PlaybookContact, PlaybookFitArea, PlaybookObjection } from './types';
+
+const isSet = (v?: string | null) => !!v && v !== 'Undisclosed' && v !== 'Unknown';
+
+/** Buyers first: founders and CEOs, then technology leaders, then other senior roles; recruiters last. */
+const titleRank = (t = '') =>
+  /talent|recruit|people|\bhr\b|human resources/i.test(t) ? 9
+    : /founder|\bceo\b|chief executive|owner/i.test(t) ? 0
+      : /\bcto\b|chief technology|chief product|\bcpo\b/i.test(t) ? 1
+        : /chief|president|\bcoo\b|\bcio\b/i.test(t) ? 2
+          : /\bvp\b|vice president/i.test(t) ? 3
+            : /head of/i.test(t) ? 4
+              : /director/i.test(t) ? 5 : 6;
 
 /**
- * AI Opportunity Playbook Generation Engine (Dynamic).
+ * Builds the sales playbook for a company from its Company 360 profile. Only facts in the profile are
+ * used; generic sales guidance (questions, objections) is worded so it never states things about the
+ * company that are not known.
  */
-export function generateOpportunityPlaybook(
-  profile?: Company360Profile
-): OpportunityPlaybookModel {
-  const companyId = profile?.companyId || 'comp_unknown';
-  const companyName = profile?.overview?.companyName || 'Unknown Company';
-  const domain = profile?.overview?.domain || 'unknown.com';
-  
-  logger.info(`AI Opportunity Playbook Engine: Generating dynamic playbook for '${companyName}' (${domain})...`);
+export function generateOpportunityPlaybook(profile: Company360Profile): OpportunityPlaybookModel {
+  const o = profile.overview;
+  const companyName = o.companyName || 'this company';
+  const stack = profile.engineering.primaryLanguages || [];
+  const jobs = profile.linkedin?.activeJobOpeningsCount || 0;
+  const funded = isSet(o.fundingStage);
+  const scoring = profile.opportunityScoring;
 
-  // Map actual decision makers to rankings
-  const dms = profile?.decisionMakers || [];
-  const topDM = dms.length > 0 ? dms[0] : null;
+  const contacts: PlaybookContact[] = [...(profile.decisionMakers || [])]
+    .filter((d) => d.name)
+    .sort((a, b) => titleRank(a.jobTitle) - titleRank(b.jobTitle))
+    .slice(0, 5)
+    .map((d) => ({
+      name: d.name,
+      title: d.jobTitle,
+      channel: d.email && d.emailStatus === 'Verified' ? 'Email' : 'LinkedIn',
+      email: d.email,
+      linkedinUrl: d.linkedinUrl,
+    }));
 
-  const decisionMakerRankings: DecisionMakerRanking[] = dms.length > 0 
-    ? dms.map((dm, idx) => ({
-        rank: idx + 1,
-        role: dm.jobTitle,
-        starRating: Math.max(1, 5 - idx),
-        reasoning: 'Identified as a key stakeholder based on role.',
-        expectedResponsibilities: 'Evaluates architecture and capability.',
-        responseProbabilityPercent: Math.max(50, 88 - (idx * 10)),
-        recommendedChannel: dm.linkedinUrl ? 'LINKEDIN' : 'EMAIL',
-      }))
-    : [
-        {
-          rank: 1,
-          role: 'Chief Technology Officer (CTO)',
-          starRating: 5,
-          reasoning: 'Predicted primary economic buyer for engineering services.',
-          expectedResponsibilities: 'Approves technical budgets and architecture.',
-          responseProbabilityPercent: 65,
-          recommendedChannel: 'EMAIL'
-        },
-        {
-          rank: 2,
-          role: 'VP of Engineering',
-          starRating: 4,
-          reasoning: 'Predicted operational buyer facing delivery pressures.',
-          expectedResponsibilities: 'Evaluates sprint velocity and squad integration.',
-          responseProbabilityPercent: 78,
-          recommendedChannel: 'LINKEDIN'
-        }
-      ];
-
-  const outreachChannelTable: OutreachChannelRecommendation[] = decisionMakerRankings.map(dm => ({
-    decisionMakerRole: dm.role,
-    bestChannel: dm.recommendedChannel === 'LINKEDIN' ? 'LinkedIn InMail' : 'Cold Email',
-    confidencePercent: dm.responseProbabilityPercent + 5,
-    reasoning: 'Identified as the optimal outreach channel based on activity.',
-    firstTouchStrategy: `Send personalized message offering engineering squad extension tailored for their role.`,
-  }));
-
-  const whyTinyScript: WhyTinyScriptFit = {
-    technicalFit: {
-      scorePercent: 98,
-      explanation: `${companyName} utilizes modern web technologies; Tiny Script has deep expertise in scaling similar architectures.`,
-      signals: profile?.engineering?.categorizedTechStack?.frontend.length 
-        ? [`Detected Tech: ${profile.engineering.categorizedTechStack.frontend.join(', ')}`] 
-        : ['Technical alignment detected'],
-    },
-    businessFit: {
-      scorePercent: 96,
-      explanation: `${companyName} is scaling operations; Tiny Script specializes in helping SaaS startups scale engineering capacity fast.`,
-      signals: ['Growth Signals Detected'],
-    },
-    deliveryFit: {
-      scorePercent: 94,
-      explanation: 'Dedicated 2-to-6 engineer squad outstaffing model eliminates local hiring delays with immediate 48-hour onboarding.',
-      signals: ['Hiring Lag Mitigation'],
-    },
-    growthFit: {
-      scorePercent: 95,
-      explanation: `${companyName} is expanding features; Tiny Script delivers ready-to-deploy integrations to accelerate roadmap.`,
-      signals: ['Feature Expansion'],
-    },
-  };
-
-  const discoveryMeetingPrep: DiscoveryMeetingPrep = {
-    primaryObjective: 'Understand engineering bottlenecks and determine whether a dedicated development team can accelerate product delivery.',
-    secondaryObjectives: [
-      'Understand current feature roadmap deadlines',
-      'Identify local hiring bottlenecks & recruitment lag',
-      'Review internal engineering capacity vs. backlog',
-      'Identify outsourcing & squad extension opportunities',
-    ],
-    expectedMeetingOutcomes: [
-      'Schedule Technical Architecture Workshop',
-      'Share formal squad proposal',
-      'Move opportunity to Formal Proposal Stage',
-    ],
-  };
-
-  const caseStudyRecommendations: RecommendedCaseStudy[] = [
+  const fitAreas: PlaybookFitArea[] = [
     {
-      title: 'SaaS Platform Engagement & Scaling',
-      industry: profile?.overview?.industry || 'SaaS',
-      techStack: profile?.engineering?.primaryLanguages || ['React', 'Node.js', 'AWS'],
-      description: 'Delivered 2-engineer squad extension scaling active users rapidly with 99.9% uptime.',
-      relevanceScorePercent: 96,
+      area: 'Technical fit',
+      found: stack.length ? [`Uses ${stack.slice(0, 8).join(', ')}`] : [],
+      note: stack.length ? 'Lead with the services below that match this stack.' : 'Their stack is not known yet. Ask what they build with on the first call.',
     },
     {
-      title: 'Microservices Architecture Modernization',
-      industry: profile?.overview?.industry || 'Technology',
-      techStack: ['Node.js', 'AWS', 'Kubernetes'],
-      description: 'Refactored monolithic API into AWS serverless microservices, reducing server latency.',
-      relevanceScorePercent: 91,
+      area: 'Company fit',
+      found: [
+        o.industry ? `Industry: ${o.industry}` : '',
+        o.employeeCount ? `About ${o.employeeCount.toLocaleString('en-US')} employees` : '',
+        o.headquarters ? `Based in ${o.headquarters}` : '',
+      ].filter(Boolean),
+      note: o.employeeCount ? 'Check this size matches the teams you usually work with.' : 'Company size is not known yet.',
+    },
+    {
+      area: 'Growth',
+      found: [
+        funded ? `Funding: ${o.fundingStage}${isSet(o.fundingTotal) ? ` (${o.fundingTotal} raised)` : ''}` : '',
+        jobs ? `${jobs} open job${jobs === 1 ? '' : 's'}` : '',
+      ].filter(Boolean),
+      note: funded || jobs ? 'Growth usually means delivery pressure: ask how they plan to meet it.' : 'No funding or hiring signal found. Ask about their roadmap for the next two quarters.',
+    },
+    {
+      area: 'Reachability',
+      found: contacts.length ? [`${contacts.length} senior contact${contacts.length === 1 ? '' : 's'} found`] : [],
+      note: contacts.length ? `Start with ${contacts[0].name} (${contacts[0].title}).` : 'No decision maker found yet. Search this domain in Apollo.',
     },
   ];
 
-  const nextBestAction = topDM 
-    ? `Send 1-Click Personalized LinkedIn InMail to ${topDM.jobTitle} ${topDM.name} using AI Outreach Generator for ${companyName}.`
-    : `Identify technical leadership for ${companyName} and execute initial outreach.`;
+  const services = (profile.recommendedServices || []).map((s) => ({
+    name: s.serviceName,
+    reason: s.reasoning,
+    startingPrice: s.estimatedEngagementUsd || s.estimatedEngagementInr || '',
+    matchedTech: s.detectedTechTrigger || [],
+  }));
 
-  const hiringScore = profile?.engineering?.hiringSignalScore || 0;
-  const isAi = (profile?.engineering?.categorizedTechStack?.aiMl?.length || 0) > 0;
-  
-  const dynamicChallenges = [];
-  
-  if (hiringScore > 50) {
-    dynamicChallenges.push({ challenge: 'Engineering Capacity Constraints', description: `High hiring signals suggest ${companyName} needs faster sprint cycles to meet product roadmaps.`, confidencePercent: 85 + (hiringScore % 10) });
-  } else {
-    dynamicChallenges.push({ challenge: 'Delivery Optimization', description: `Potential need to optimize current engineering workflows and reduce maintenance overhead.`, confidencePercent: 70 + (companyName.length % 15) });
-  }
-  
-  if (isAi) {
-    dynamicChallenges.push({ challenge: 'Specialized AI/ML Integration', description: `Scaling AI features requires specialized talent that is hard to source locally.`, confidencePercent: 88 });
-  } else {
-    dynamicChallenges.push({ challenge: 'Specialized Skill Gaps', description: `Sourcing top-tier engineers for ${companyName}'s architecture in the ${profile?.overview?.industry || 'tech'} sector.`, confidencePercent: 75 + (companyName.length % 20) });
-  }
-  
-  dynamicChallenges.push({ challenge: 'Scalability & Cloud DevOps', description: 'Transitioning infrastructure to a highly available auto-scaling architecture.', confidencePercent: 70 + (companyName.length % 25) });
+  // Open with the strongest thing actually known about them.
+  const openingLine = funded
+    ? `Saw that ${companyName} has raised ${o.fundingStage}${isSet(o.fundingTotal) ? ` (${o.fundingTotal})` : ''}. Teams at that stage often need to ship faster than they can hire, so I wanted to ask how you are planning for it.`
+    : jobs
+      ? `Noticed ${companyName} has ${jobs} open role${jobs === 1 ? '' : 's'}. While those are being filled, we help teams keep delivery on track.`
+      : stack.length
+        ? `We work a lot with ${stack.slice(0, 2).join(' and ')}, which I understand ${companyName} uses. Happy to share how we have helped similar teams.`
+        : `I would like to learn what ${companyName} is building this year and whether an extra engineering team could help.`;
+
+  const discoveryQuestions = [
+    'What are the main things you need to ship in the next two quarters?',
+    jobs ? `You have ${jobs} open role${jobs === 1 ? '' : 's'}: how long does hiring usually take, and what happens to the roadmap meanwhile?` : 'How is your engineering team staffed today, and where is it stretched?',
+    stack.length ? `What is hardest about your ${stack[0]} work right now?` : 'What do you build with, and what would you change about it?',
+    'Have you worked with an outside development team before? What worked and what did not?',
+    'Who else is involved in choosing a development partner, and how is budget approved?',
+  ];
+
+  // General guidance for common objections; it makes no claims about this company.
+  const objections: PlaybookObjection[] = [
+    {
+      objection: 'We have an in-house team.',
+      response: 'We work alongside in-house teams: taking a defined piece of the backlog so the core team can stay on what matters most.',
+      followUp: 'Is there a part of the roadmap the team will not get to this quarter?',
+    },
+    {
+      objection: 'We already have a vendor.',
+      response: 'Many teams use more than one partner. A small, well-defined piece of work is an easy way to compare.',
+      followUp: 'Is there a module or project you could use to see how we work?',
+    },
+    {
+      objection: 'There is no budget right now.',
+      response: 'We can start small, with a short engagement tied to a clear result, so it fits an existing budget line.',
+      followUp: 'When is budget for next quarter decided, and who decides it?',
+    },
+  ];
+
+  const nextBestAction = contacts.length
+    ? `Write to ${contacts[0].name} (${contacts[0].title}) by ${contacts[0].channel === 'Email' ? 'email' : 'LinkedIn'}, opening with the line below.`
+    : `Find a technical decision maker at ${companyName} in Apollo Search.`;
 
   return {
-    companyId,
+    companyId: profile.companyId,
     companyName,
-    overview: {
-      summary: profile?.executiveBriefing?.summary || `${companyName} is a growing platform in the ${profile?.overview?.industry || 'Technology'} space.`,
-      industry: profile?.overview?.industry || 'Technology',
-      employeeCount: profile?.overview?.employeeCount || 0,
-      headquarters: profile?.overview?.headquarters || 'Global',
-      fundingStage: profile?.overview?.fundingStage || 'Unknown',
-      growthStatus: 'Scaling Operations',
-      technologyMaturity: 'Advanced',
-    },
-    businessChallenges: dynamicChallenges,
-    whyTinyScript,
-    serviceRecommendations: generatePlaybookServiceRecommendations(companyName),
-    decisionMakerRankings,
-    outreachChannelTable,
-    discoveryMeetingPrep,
-    painPointPredictions: [
-      { painPoint: 'Local senior developer recruitment bottlenecks.', signals: ['Open Jobs Analysis'] },
-      { painPoint: 'Internal engineering capacity constrained by maintenance.', signals: ['Activity Analysis'] },
-    ],
-    conversationStrategy: generatePlaybookConversationStrategy(companyName),
-    predictedObjections: generatePlaybookObjections(companyName),
-    caseStudyRecommendations,
-    overallWinProbabilityPercent: profile?.opportunityScoring?.winProbabilityPercent || 85,
+    domain: profile.domain,
+    summary: profile.executiveBriefing?.summary || companyName,
+    fitScore: scoring.overallScore,
+    evidence: scoring.scoringFactors.map((f) => ({ label: f.factorName, detail: f.description, points: f.impactScore })),
+    dataCompleteness: scoring.confidenceScorePercent,
     nextBestAction,
+    fitAreas,
+    services,
+    contacts,
+    openingLine,
+    discoveryQuestions,
+    objections,
   };
 }

@@ -5,6 +5,7 @@ import { isLinkedInEnabledSetting, saveLinkedInEnabledSetting } from '@/features
 import { AILearningService, StylePatternsReport } from './service';
 import { safeRevalidatePath } from '@/lib/revalidate';
 import { logger } from '@/lib/logger';
+import { AuthService } from '@/lib/auth';
 
 export type AppConfigData = {
   primaryTone: string;
@@ -27,6 +28,8 @@ export type AppConfigData = {
   githubApiKey?: string;
   immediateActionThreshold?: string;
   defaultSignature?: string;
+  /** The team's sales target for the year, in rupees; empty when none is set. */
+  annualSalesTargetInr?: string;
 };
 
 /**
@@ -76,6 +79,7 @@ export async function getServiceCatalog(): Promise<ServiceCatalogItem[]> {
  */
 export async function updateServiceCatalog(catalog: ServiceCatalogItem[]) {
   try {
+    await AuthService.requireRole('ADMIN');
     await SettingsService.set('serviceCatalog', JSON.stringify(catalog));
     safeRevalidatePath('/settings');
     return { success: true };
@@ -90,6 +94,8 @@ export async function updateServiceCatalog(catalog: ServiceCatalogItem[]) {
  */
 export async function getAppSettings(): Promise<AppConfigData> {
   try {
+    // Workspace settings include the provider API keys, so only admins may read them.
+    await AuthService.requireRole('ADMIN');
     const primaryTone = await SettingsService.get('primaryTone', 'Insightful');
     const secondaryTone = await SettingsService.get('secondaryTone', 'Casual');
     const tertiaryTone = await SettingsService.get('tertiaryTone', 'Professional');
@@ -113,7 +119,8 @@ export async function getAppSettings(): Promise<AppConfigData> {
     const githubApiKey = await SettingsService.get('githubApiKey', '');
     
     const immediateActionThreshold = await SettingsService.get('immediateActionThreshold', '90');
-    const defaultSignature = await SettingsService.get('defaultSignature', 'Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)');
+    const defaultSignature = await SettingsService.get('defaultSignature', '');
+    const annualSalesTargetInr = await SettingsService.get('annualSalesTargetInr', '');
 
     return {
       primaryTone,
@@ -136,6 +143,7 @@ export async function getAppSettings(): Promise<AppConfigData> {
       githubApiKey,
       immediateActionThreshold,
       defaultSignature,
+      annualSalesTargetInr,
     };
   } catch {
     logger.warn('Failed to query database for App Settings. Returning default configurations.');
@@ -151,7 +159,7 @@ export async function getAppSettings(): Promise<AppConfigData> {
       apolloAllowPersonalEmail: 'false',
       apolloAllowPhone: 'false',
       apolloCreditWarningThreshold: '20',
-      apolloApiKey: 'ap_live_98a7f432194b2',
+      apolloApiKey: '',
       linkedinEnabled: 'false',
       linkedinApiKey: '',
       crunchbaseEnabled: 'false',
@@ -159,7 +167,8 @@ export async function getAppSettings(): Promise<AppConfigData> {
       githubEnabled: 'false',
       githubApiKey: '',
       immediateActionThreshold: '90',
-      defaultSignature: 'Akash | BD Owner | Tiny Script Soft Tech Pvt. Ltd. (akash@tinyscript.com)',
+      defaultSignature: '',
+      annualSalesTargetInr: '',
     };
   }
 }
@@ -169,6 +178,7 @@ export async function getAppSettings(): Promise<AppConfigData> {
  */
 export async function updateAppSettings(config: AppConfigData) {
   try {
+    await AuthService.requireRole('ADMIN');
     await SettingsService.set('primaryTone', config.primaryTone);
     await SettingsService.set('secondaryTone', config.secondaryTone);
     await SettingsService.set('tertiaryTone', config.tertiaryTone);
@@ -191,6 +201,7 @@ export async function updateAppSettings(config: AppConfigData) {
     if (config.githubApiKey !== undefined) await SettingsService.set('githubApiKey', config.githubApiKey);
     if (config.immediateActionThreshold !== undefined) await SettingsService.set('immediateActionThreshold', config.immediateActionThreshold);
     if (config.defaultSignature !== undefined) await SettingsService.set('defaultSignature', config.defaultSignature);
+    if (config.annualSalesTargetInr !== undefined) await SettingsService.set('annualSalesTargetInr', config.annualSalesTargetInr.replace(/[^0-9]/g, ''));
 
     logger.info('App Settings updated successfully.');
     safeRevalidatePath('/settings');

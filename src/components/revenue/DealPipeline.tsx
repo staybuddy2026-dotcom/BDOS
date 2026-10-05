@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { RevenueDeal, RevenueStage } from '@/features/revenue/types';
-import { ChevronRight, Trash2, Check, CheckSquare } from 'lucide-react';
+import { ChevronRight, Trash2, CheckSquare } from 'lucide-react';
 
 export function DealPipeline({ 
   deals: initialDeals, 
@@ -15,7 +14,6 @@ export function DealPipeline({
   onDeleteDeal?: (dealId: string) => void;
 }) {
   const deals = initialDeals;
-  const [completedTaskDealIds, setCompletedTaskDealIds] = useState<Record<string, boolean>>({});
 
   const stages: { id: RevenueStage; label: string }[] = [
     { id: 'NEW_LEAD', label: 'New Lead' },
@@ -29,13 +27,7 @@ export function DealPipeline({
     { id: 'WON', label: 'Won Deal' },
   ];
 
-  const handleToggleCardTask = (e: React.MouseEvent, dealId: string) => {
-    e.stopPropagation();
-    setCompletedTaskDealIds(prev => ({
-      ...prev,
-      [dealId]: !prev[dealId]
-    }));
-  };
+
 
   return (
     <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '16px' }}>
@@ -67,8 +59,6 @@ export function DealPipeline({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {stageDeals.map((deal) => {
-                const isTaskDone = Boolean(completedTaskDealIds[deal.id]);
-                const firstTask = deal.tasks?.[0] || { title: `Stage Task for ${deal.companyName}` };
 
                 return (
                   <div
@@ -126,39 +116,18 @@ export function DealPipeline({
                       <span style={{ fontWeight: 600 }}>🌐 {deal.domain}</span>
                     </div>
 
-                    {/* Quick Stage Task Control on Kanban Card */}
-                    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: isTaskDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isTaskDone ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <CheckSquare size={11} style={{ color: isTaskDone ? '#10b981' : 'var(--accent-indigo)', marginRight: '4px' }} />
-                        {firstTask.title}
+                    {/* What happens next on this deal (worked in the CRM) */}
+                    {deal.tasks?.[0]?.title && (
+                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '8px 10px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <CheckSquare size={11} style={{ color: 'var(--accent-indigo)', marginRight: '4px' }} />
+                        {deal.tasks[0].title}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleCardTask(e, deal.id)}
-                        style={{
-                          padding: '3px 8px',
-                          borderRadius: '5px',
-                          fontSize: '0.66rem',
-                          fontWeight: 800,
-                          background: isTaskDone ? '#064e3b' : 'var(--color-success)',
-                          color: '#ffffff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '2px',
-                        }}
-                      >
-                        <Check size={10} /> {isTaskDone ? 'Completed' : 'Mark Done'}
-                      </button>
-                    </div>
+                    )}
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px', fontSize: '0.76rem' }}>
                       <span style={{ color: 'var(--color-warning)', fontWeight: 800 }}>{deal.dealValueInr}</span>
                       <span style={{ color: 'var(--accent-indigo)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                        Workspace <ChevronRight size={13} />
+                        Open in CRM <ChevronRight size={13} />
                       </span>
                     </div>
                   </div>

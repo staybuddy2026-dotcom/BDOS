@@ -7,9 +7,28 @@ import { db } from '@/lib/db';
 import { LeadDiscoveryData, DiscoveryLeadItem, SavedSearch, WatchlistItem, ProviderSelection } from './types';
 import { apolloProvider, getLastApolloErrors } from '@/features/apollo/provider';
 import { getPostMetaMap } from '@/features/linkedin/store';
-import { PostStatus } from '@prisma/client';
+import { getShortlist } from '@/features/prospecting/service';
 
-const DEFAULT_SERVER_MIGRATED_LEADS: Record<string, DiscoveryLeadItem> = {};
+
+/**
+ * Fit score from what is actually known about a lead. Each point comes with the reason, which the
+ * "Why this score?" view lists. Nothing is assumed: a lead with no signals scores low.
+ */
+function scoreLead(evidence: { title?: string; hasEmail?: boolean; hiring?: string; stack?: string[]; aiScore?: number | null }) {
+  const reasons: { label: string; points: number }[] = [];
+  if (evidence.aiScore) {
+    reasons.push({ label: 'AI analysis of their LinkedIn post', points: Math.round(evidence.aiScore) });
+    return { score: Math.round(evidence.aiScore), reasons };
+  }
+  reasons.push({ label: 'Base score for a matching search result', points: 50 });
+  const title = evidence.title || '';
+  if (/founder|owner|\bceo\b|\bcto\b|chief|president/i.test(title)) reasons.push({ label: `Decision maker: ${title}`, points: 20 });
+  else if (/\bvp\b|vice president|head of|director/i.test(title)) reasons.push({ label: `Senior role: ${title}`, points: 12 });
+  if (evidence.hiring) reasons.push({ label: `Hiring signal: ${evidence.hiring}`, points: 15 });
+  if (evidence.hasEmail) reasons.push({ label: 'Email available in Apollo', points: 10 });
+  if (evidence.stack?.length) reasons.push({ label: `Known tech stack: ${evidence.stack.slice(0, 3).join(', ')}`, points: 5 });
+  return { score: Math.min(100, reasons.reduce((n, r) => n + r.points, 0)), reasons };
+}
 
 /**
  * Sanitizes and guarantees verified, clean, non-generic contact info for any lead.
@@ -79,10 +98,11 @@ export async function getUniversalLeadDiscoveryDataAction(
       const orgName = enrichment?.organizationName || post.companyName || 'Target Account';
       // A real LinkedIn post has no known company domain: leave it empty rather than guess one.
       const isLinkedInPost = !enrichment && /linkedin\.com\/(posts|feed)\//i.test(post.postUrl || '');
-      const domain = enrichment?.organizationDomain || (isLinkedInPost ? '' : `${orgName.toLowerCase().replace(/[^a-z0-9]/g, '')}.io`);
+      // Only a domain we actually know: guessing "<name>.io" would point outreach at the wrong company.
+      const domain = enrichment?.organizationDomain || '';
       const contactName = enrichment?.personName || post.authorName;
       const contactTitle = enrichment?.jobTitle || post.authorHeadline || 'Technology Executive';
-      const score = post.opportunityScore || post.analysis?.opportunityScore || 85;
+      const { score, reasons } = scoreLead({ aiScore: post.opportunityScore || post.analysis?.opportunityScore, title: contactTitle, hasEmail: !!enrichment?.workEmail });
 
       const actualSources: ("apollo" | "github" | "crunchbase" | "linkedin")[] = [];
       const postObj = post as unknown as Record<string, unknown>;
@@ -103,11 +123,12 @@ export async function getUniversalLeadDiscoveryDataAction(
         companyId: `comp_${post.id}`,
         companyName: orgName,
         domain,
-        industry: 'Enterprise Software & SaaS',
+        industry: '',
         country: '',
         employeeCount: 0,
         buyingScore: score,
-        icpScore: Math.min(100, score + 4),
+        icpScore: score,
+        scoreReasons: reasons,
         tier: score >= 90 ? 'IMMEDIATE' : score >= 75 ? 'HIGH' : 'MEDIUM',
         primaryTechStack: post.analysis?.buyingSignals || [],
         fundingSummary: '',
@@ -118,9 +139,9 @@ export async function getUniversalLeadDiscoveryDataAction(
         recommendedContactTitle: contactTitle,
         bestOutreachChannel: isLinkedInPost ? ('LINKEDIN' as const) : ('EMAIL' as const),
         contactLinkedinUrl: isLinkedInPost ? linkedinPostMeta[post.postUrl]?.authorProfileUrl : undefined,
-        estimatedBudgetInr: 'N/A',
-        estimatedBudgetUsd: 'N/A',
-        conversionProbabilityPercent: Math.min(95, Math.max(20, Math.floor(score * 0.45))),
+        estimatedBudgetInr: '',
+        estimatedBudgetUsd: '',
+        conversionProbabilityPercent: 0,
         recommendedServices: [],
       };
     });
@@ -147,7 +168,8 @@ export async function getUniversalLeadDiscoveryDataAction(
             const rawOrg = (p.organizationName || 'Target Account').trim();
             const rawDomain = (p.organizationDomain || '').trim().toLowerCase();
 
-            const score = 88 + (idx % 10);
+            const hiring = p.searchMatches?.find(m => m.type === 'hiring')?.label || '';
+            const { score, reasons } = scoreLead({ title: cleanTitle, hasEmail: !!(p.workEmail || p.hasEmailAvailable), hiring, stack: p.technologies });
             const locationStr = (p.location || '').trim();
             const countryVal = p.country || locationStr || '';
             const empVal = p.employeeCount || (p.employeeRange ? parseInt(p.employeeRange.replace(/[^0-9]/g, ''), 10) : 0);
@@ -156,15 +178,16 @@ export async function getUniversalLeadDiscoveryDataAction(
               companyId: `apollo_live_${p.apolloPersonId || (page * 100 + idx)}`,
               companyName: rawOrg,
               domain: rawDomain,
-              industry: p.organizationIndustry || 'Technology & B2B Software',
+              industry: p.organizationIndustry || '',
               country: countryVal,
               employeeCount: empVal,
               buyingScore: score,
-              icpScore: Math.min(100, score + 3),
-              tier: (score >= 90 ? 'IMMEDIATE' : 'HIGH') as DiscoveryLeadItem['tier'],
+              icpScore: score,
+              scoreReasons: reasons,
+              tier: (score >= 90 ? 'IMMEDIATE' : score >= 75 ? 'HIGH' : 'MEDIUM') as DiscoveryLeadItem['tier'],
               primaryTechStack: p.technologies?.length ? p.technologies : [],
-              fundingSummary: p.searchMatches?.find(m => m.type === 'hiring')?.label || '',
-              hiringSummary: p.searchMatches?.find(m => m.type === 'hiring')?.label || '',
+              fundingSummary: '',
+              hiringSummary: hiring,
               matchedProviders: ['apollo'] as DiscoveryLeadItem['matchedProviders'],
               whyContactReason: `Apollo contact: ${cleanName} (${cleanTitle}) at ${rawOrg}. Email ${p.workEmail ? 'revealed' : p.hasEmailAvailable ? 'on file in Apollo (enrich to reveal)' : 'not on file'}.`,
               recommendedContactName: cleanName,
@@ -175,8 +198,8 @@ export async function getUniversalLeadDiscoveryDataAction(
               contactLinkedinUrl: p.linkedinUrl || undefined,
               estimatedBudgetInr: '',
               estimatedBudgetUsd: '',
-              conversionProbabilityPercent: 85,
-              recommendedServices: ['Enterprise Web Architecture', 'Node.js Microservices', 'Cloud Security Audit'],
+              conversionProbabilityPercent: 0,
+              recommendedServices: [],
             };
           }).filter(p => !isDummyLead(p.companyName, p.recommendedContactName)); // Filter live Apollo results too
 
@@ -271,47 +294,8 @@ export async function getUniversalLeadDiscoveryDataAction(
     const finalLeads = results.slice(0, effectivePerPage);
     const paginatedLeads = finalLeads.map(sanitizeDiscoveryLead);
 
-    // Read DB persisted migrated data from ApplicationSettings
-    let dbMigratedLeads: Record<string, DiscoveryLeadItem> = {};
-    let dbRemovedIds: string[] = [];
-
-    const dbRemovedSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_removed_ids' } }).catch(() => null);
-    if (dbRemovedSetting?.value) {
-      try {
-        dbRemovedIds = (JSON.parse(dbRemovedSetting.value) as string[]).map((x) => String(x).toLowerCase().trim());
-      } catch {}
-    }
-
-    const dbLeadsSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_migrated_leads' } }).catch(() => null);
-    if (dbLeadsSetting?.value) {
-      try { dbMigratedLeads = JSON.parse(dbLeadsSetting.value); } catch {}
-    }
-
-    // Combine default seed leads with DB migrated leads
-    const combinedServerLeads: Record<string, DiscoveryLeadItem> = {
-      ...DEFAULT_SERVER_MIGRATED_LEADS,
-      ...dbMigratedLeads,
-    };
-
-    const finalServerLeads: Record<string, DiscoveryLeadItem> = {};
-    const finalServerIds = new Set<string>();
-
-    Object.entries(combinedServerLeads).forEach(([k, lead]) => {
-      if (lead && typeof lead === 'object') {
-        const key = k.toLowerCase().trim();
-        const dom = (lead.domain || '').toLowerCase().trim();
-        const id = (lead.companyId || '').toLowerCase().trim();
-        const isRemoved = dbRemovedIds.includes(key) || dbRemovedIds.includes(dom) || dbRemovedIds.includes(id);
-
-        if (!isRemoved) {
-          const sanitized = sanitizeDiscoveryLead(lead);
-          finalServerLeads[dom || key] = sanitized;
-          if (dom) finalServerIds.add(dom);
-          if (id) finalServerIds.add(id);
-          if (key) finalServerIds.add(key);
-        }
-      }
-    });
+    // Companies the team shortlisted for Company 360
+    const shortlist = await getShortlist().catch(() => ({ leads: {} as Record<string, DiscoveryLeadItem>, ids: [] as string[] }));
 
     return {
       leads: paginatedLeads,
@@ -325,9 +309,8 @@ export async function getUniversalLeadDiscoveryDataAction(
       perPage: effectivePerPage,
       totalContactsCount,
       totalCompaniesCount,
-      migratedLeadsMap: finalServerLeads,
-      migratedCompanyIds: Array.from(finalServerIds),
-      removedCompanyIds: dbRemovedIds,
+      migratedLeadsMap: shortlist.leads,
+      migratedCompanyIds: shortlist.ids,
       apiError: apolloApiError,
     };
   } catch (err: unknown) {
@@ -388,213 +371,15 @@ export async function runDiscoveryScan(provider: string = 'all', timeframe: stri
 }
 
 /**
- * Server Action: Fetch ground truth migrated leads from PostgreSQL Database ApplicationSettings.
+ * The team's Company 360 shortlist (see features/prospecting), in the shape the discovery pages use.
  */
 export async function getMigratedCompaniesFromDbAction(): Promise<{
   migratedLeadsMap: Record<string, DiscoveryLeadItem>;
   migratedCompanyIds: string[];
-  removedCompanyIds: string[];
 }> {
-  try {
-    await AuthService.verifySession();
-
-    let dbRemovedIds: string[] = [];
-    const dbRemovedSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_removed_ids' } }).catch(() => null);
-    if (dbRemovedSetting?.value) {
-      try {
-        dbRemovedIds = (JSON.parse(dbRemovedSetting.value) as string[]).map((x) => String(x).toLowerCase().trim());
-      } catch {}
-    }
-
-    let dbMigratedLeads: Record<string, DiscoveryLeadItem> = {};
-    const dbLeadsSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_migrated_leads' } }).catch(() => null);
-    if (dbLeadsSetting?.value) {
-      try {
-        dbMigratedLeads = JSON.parse(dbLeadsSetting.value);
-      } catch {}
-    }
-
-    const combinedMap: Record<string, DiscoveryLeadItem> = {
-      ...DEFAULT_SERVER_MIGRATED_LEADS,
-      ...dbMigratedLeads,
-    };
-
-    const finalMap: Record<string, DiscoveryLeadItem> = {};
-    const finalIds = new Set<string>();
-
-    Object.entries(combinedMap).forEach(([k, lead]) => {
-      if (lead && typeof lead === 'object') {
-        const key = k.toLowerCase().trim();
-        const dom = (lead.domain || '').toLowerCase().trim();
-        const id = (lead.companyId || '').toLowerCase().trim();
-        const isRemoved = dbRemovedIds.includes(key) || dbRemovedIds.includes(dom) || dbRemovedIds.includes(id);
-
-        if (!isRemoved) {
-          finalMap[dom || key] = lead;
-          if (dom) finalIds.add(dom);
-          if (id) finalIds.add(id);
-          if (key) finalIds.add(key);
-        }
-      }
-    });
-
-    return {
-      migratedLeadsMap: finalMap,
-      migratedCompanyIds: Array.from(finalIds),
-      removedCompanyIds: dbRemovedIds,
-    };
-  } catch (err) {
-    logger.error('Failed to get migrated companies from DB', { error: String(err) });
-    return {
-      migratedLeadsMap: DEFAULT_SERVER_MIGRATED_LEADS,
-      migratedCompanyIds: Object.keys(DEFAULT_SERVER_MIGRATED_LEADS),
-      removedCompanyIds: [],
-    };
-  }
-}
-
-/**
- * Server Action: Persist migrated lead into PostgreSQL Database ApplicationSettings.
- */
-export async function saveMigratedCompanyAction(company: DiscoveryLeadItem) {
-  try {
-    await AuthService.verifySession();
-    const domainKey = (company.domain || '').toLowerCase().trim();
-    const idKey = (company.companyId || '').toLowerCase().trim();
-    if (!domainKey && !idKey) return { success: false };
-
-    const mainKey = domainKey || idKey;
-    logger.info(`Persisting migrated company '${company.companyName}' (${mainKey}) to PostgreSQL database ApplicationSettings...`);
-
-    // 1. Read existing migrated leads map from DB
-    const leadsSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_migrated_leads' } }).catch(() => null);
-    let leadsMap: Record<string, DiscoveryLeadItem> = {};
-    if (leadsSetting?.value) {
-      try { leadsMap = JSON.parse(leadsSetting.value); } catch {}
-    }
-
-    leadsMap = {
-      ...DEFAULT_SERVER_MIGRATED_LEADS,
-      ...leadsMap,
-      [mainKey]: company,
-    };
-
-    // 2. Clean from removed list in DB
-    const removedSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_removed_ids' } }).catch(() => null);
-    let removedList: string[] = [];
-    if (removedSetting?.value) {
-      try { removedList = JSON.parse(removedSetting.value); } catch {}
-    }
-    const cleanRemoved = removedList.filter(x => x !== domainKey && x !== idKey && x !== `comp_${domainKey.replace(/[^a-z0-9]/g, '_')}`);
-    cleanRemoved.forEach(rk => delete leadsMap[rk]);
-
-    // 3. Upsert to ApplicationSettings in PostgreSQL
-    await db.applicationSettings.upsert({
-      where: { key: 'bdos_company360_removed_ids' },
-      update: { value: JSON.stringify(cleanRemoved) },
-      create: { key: 'bdos_company360_removed_ids', value: JSON.stringify(cleanRemoved) },
-    });
-
-    const nextIdsSet = new Set<string>();
-    Object.entries(leadsMap).forEach(([k, l]) => {
-      const dom = (l.domain || '').toLowerCase().trim();
-      const id = (l.companyId || '').toLowerCase().trim();
-      if (dom) nextIdsSet.add(dom);
-      if (id) nextIdsSet.add(id);
-      if (k) nextIdsSet.add(k.toLowerCase().trim());
-    });
-    const nextIds = Array.from(nextIdsSet);
-
-    await db.applicationSettings.upsert({
-      where: { key: 'bdos_company360_migrated_ids' },
-      update: { value: JSON.stringify(nextIds) },
-      create: { key: 'bdos_company360_migrated_ids', value: JSON.stringify(nextIds) },
-    });
-
-    await db.applicationSettings.upsert({
-      where: { key: 'bdos_company360_migrated_leads' },
-      update: { value: JSON.stringify(leadsMap) },
-      create: { key: 'bdos_company360_migrated_leads', value: JSON.stringify(leadsMap) },
-    });
-
-    logger.info(`Successfully saved '${company.companyName}' to PostgreSQL database ApplicationSettings.`);
-    return { success: true, migratedLeadsMap: leadsMap, migratedCompanyIds: nextIds, removedCompanyIds: cleanRemoved };
-  } catch (err) {
-    logger.error('Failed to save migrated company to DB', { error: String(err) });
-    return { success: false };
-  }
-}
-
-/**
- * Server Action: Remove migrated lead from PostgreSQL Database ApplicationSettings.
- */
-export async function removeMigratedCompanyAction(domain: string, companyId: string) {
-  try {
-    await AuthService.verifySession();
-    const domKey = (domain || '').toLowerCase().trim();
-    const idKey = (companyId || '').toLowerCase().trim();
-    const removeKeys = [domKey, idKey, `comp_${domKey.replace(/[^a-z0-9]/g, '_')}`].filter(Boolean);
-
-    // 1. Add to removed IDs list in DB
-    const removedSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_removed_ids' } }).catch(() => null);
-    let removedList: string[] = [];
-    if (removedSetting?.value) {
-      try { removedList = JSON.parse(removedSetting.value); } catch {}
-    }
-    const nextRemoved = Array.from(new Set([...removedList, ...removeKeys]));
-    await db.applicationSettings.upsert({
-      where: { key: 'bdos_company360_removed_ids' },
-      update: { value: JSON.stringify(nextRemoved) },
-      create: { key: 'bdos_company360_removed_ids', value: JSON.stringify(nextRemoved) },
-    }).catch(() => null);
-
-    // Archive matching LinkedInPost records in PostgreSQL DB so deleted items never reappear on refresh
-    if (domKey || idKey) {
-      await db.linkedInPost.updateMany({
-        where: {
-          OR: [
-            domKey ? { postUrl: { contains: domKey } } : undefined,
-            domKey ? { companyName: { equals: domKey, mode: 'insensitive' } } : undefined,
-            idKey ? { companyName: { equals: idKey, mode: 'insensitive' } } : undefined,
-          ].filter(Boolean) as Record<string, unknown>[]
-        },
-        data: { status: PostStatus.DISMISSED }
-      }).catch(() => null);
-    }
-
-    // 2. Remove from migrated IDs in DB
-    const idsSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_migrated_ids' } }).catch(() => null);
-    if (idsSetting?.value) {
-      try {
-        const idsList: string[] = JSON.parse(idsSetting.value);
-        const cleanIds = idsList.filter(x => !removeKeys.includes(x.toLowerCase().trim()));
-        await db.applicationSettings.upsert({
-          where: { key: 'bdos_company360_migrated_ids' },
-          update: { value: JSON.stringify(cleanIds) },
-          create: { key: 'bdos_company360_migrated_ids', value: JSON.stringify(cleanIds) },
-        }).catch(() => null);
-      } catch {}
-    }
-
-    // 3. Remove from migrated leads map in DB
-    const leadsSetting = await db.applicationSettings.findUnique({ where: { key: 'bdos_company360_migrated_leads' } }).catch(() => null);
-    if (leadsSetting?.value) {
-      try {
-        const leadsMap: Record<string, unknown> = JSON.parse(leadsSetting.value);
-        removeKeys.forEach(k => delete leadsMap[k]);
-        await db.applicationSettings.upsert({
-          where: { key: 'bdos_company360_migrated_leads' },
-          update: { value: JSON.stringify(leadsMap) },
-          create: { key: 'bdos_company360_migrated_leads', value: JSON.stringify(leadsMap) },
-        }).catch(() => null);
-      } catch {}
-    }
-
-    return { success: true };
-  } catch (err) {
-    logger.error('Failed to remove migrated company from DB', { error: String(err) });
-    return { success: false };
-  }
+  await AuthService.verifySession();
+  const { leads, ids } = await getShortlist();
+  return { migratedLeadsMap: leads, migratedCompanyIds: ids };
 }
 
 /**

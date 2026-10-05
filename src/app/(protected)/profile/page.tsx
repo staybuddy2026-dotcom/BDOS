@@ -1,25 +1,24 @@
 import { 
-  User, Mail, MapPin, Briefcase, Calendar, 
+  User, Mail, Briefcase, Calendar, 
   Shield, Activity, Link2, CheckCircle, AlertTriangle, 
-  Settings, Target, Send, Zap, Award
+  Target, Send, Zap, Award
 } from 'lucide-react';
 import blob from '@/assets/blob.png';
 import '@/styles/globals.css';
-import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/jwt';
+import { getMyAccountAction } from '@/features/team/actions';
+import { AccountSettings } from '@/components/team/AccountSettings';
+import { ROLE_LABELS } from '@/lib/roles';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('session')?.value;
-  let user = null;
-  if (session) {
-    user = await decrypt(session);
-  }
+  const account = await getMyAccountAction();
 
-  const name = user?.name || user?.email?.split('@')[0] || 'User';
+  const name = account.name;
   const initial = name.charAt(0).toUpperCase();
-  const email = user?.email || 'email@company.com';
-  const roleTitle = user?.role === 'bde' ? 'Business Development Executive' : 'User';
+  const email = account.email;
+  const roleTitle = ROLE_LABELS[account.role];
+  const joined = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(new Date(account.createdAt));
   
   return (
     <div className="dashboard-page" style={{ 
@@ -54,9 +53,6 @@ export default async function ProfilePage() {
           </div>
         </div>
         
-        <button className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-          <Settings size={16} /> Edit Profile
-        </button>
       </div>
 
       {/* SCROLLABLE MAIN CONTENT */}
@@ -95,7 +91,7 @@ export default async function ProfilePage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
                   <h2 style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--font-kpi)', color: '#0f172a', margin: 0 }}>{name}</h2>
                   <span className="badge-indigo" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px' }}>
-                    <Shield size={12} /> Pro Member
+                    <Shield size={12} /> {account.role === 'BDE' ? 'Team member' : ROLE_LABELS[account.role]}
                   </span>
                 </div>
                 <h3 style={{ fontSize: '1.1rem', color: '#475569', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -108,14 +104,14 @@ export default async function ProfilePage() {
                   <Mail size={16} /> {email}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '0.9rem', fontWeight: 500 }}>
-                  <MapPin size={16} /> San Francisco, CA (PST)
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '0.9rem', fontWeight: 500 }}>
-                  <Calendar size={16} /> Joined August 2025
+                  <Calendar size={16} /> Joined {joined}
                 </div>
               </div>
             </div>
           </div>
+
+          {/* ACCOUNT: mailbox, details, password */}
+          <AccountSettings initialAccount={account} />
 
           {/* TWO COLUMN LAYOUT */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px' }}>

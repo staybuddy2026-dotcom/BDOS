@@ -1,5 +1,5 @@
 import { AuthService } from '@/lib/auth';
-import { generateOutreachDraftAction, getEngagementTelemetryAction } from '@/features/outreach/actions';
+import { generateOutreachDraftAction, getEngagementTelemetryAction, getWorkingDraftAction } from '@/features/outreach/actions';
 import { EngagementWorkspace } from '@/components/outreach/EngagementWorkspace';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { Send } from 'lucide-react';
@@ -14,7 +14,9 @@ export default async function SalesEngagementPage({ searchParams }: { searchPara
   const targetDomain = resolvedParams?.domain || '';
 
   const telemetry = await getEngagementTelemetryAction();
-  const initialDraft = await generateOutreachDraftAction(targetDomain, 'EMAIL', 'COLD_OUTREACH', 'EXECUTIVE', false, false);
+  // Without a company in the link, reopen the draft this person was working on.
+  const saved = targetDomain ? null : await getWorkingDraftAction();
+  const initialDraft = saved || (await generateOutreachDraftAction(targetDomain, 'EMAIL', 'COLD_OUTREACH', 'EXECUTIVE', false));
 
   return (
     <div className="dashboard-page" style={{ 

@@ -13,6 +13,9 @@ export type LinkedInPostMeta = {
   likes?: number;
   comments?: number;
   shares?: number;
+  /** Buying-intent score given when the post was saved (see features/linkedin/intent.ts). */
+  intentScore?: number;
+  intentReason?: string;
   savedAt: string;
 };
 
@@ -39,7 +42,8 @@ export async function savePostMeta(entries: Record<string, Omit<LinkedInPostMeta
   try {
     const all = await readAll();
     const now = new Date().toISOString();
-    for (const url of urls) all[url] = { ...entries[url], savedAt: now };
+    // Merge, so adding an intent score later keeps the author link saved earlier.
+    for (const url of urls) all[url] = { ...all[url], ...entries[url], savedAt: now };
     // Keep the newest entries only.
     const trimmed = Object.entries(all)
       .sort((a, b) => b[1].savedAt.localeCompare(a[1].savedAt))

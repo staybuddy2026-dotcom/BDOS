@@ -14,10 +14,14 @@ import {
   Star,
   Loader2,
   Copy,
-  Check
+  Check,
+  UserPlus,
+  Kanban
 } from 'lucide-react';
 import { LeadItem } from '@/features/providers/types';
 import type { ApolloPersonMatch, ApolloOrganizationMatch } from '@/features/apollo/provider';
+import { STAGE_LABELS } from '@/features/crm/types';
+import type { CrmMatch } from '@/features/crm/types';
 
 interface UniversalResultRendererProps {
   item?: LeadItem;
@@ -34,6 +38,27 @@ interface UniversalResultRendererProps {
   onResearchInCompany360?: (org: ApolloOrganizationMatch) => void;
   onLinkToPost?: (person: ApolloPersonMatch) => void;
   formatPersonName?: (name: string) => string;
+  /** Set when this person or company already has a deal in the CRM. */
+  crmMatch?: CrmMatch;
+  /** Row checkbox for bulk actions (people only). */
+  isSelected?: boolean;
+  onToggleSelect?: (person: ApolloPersonMatch) => void;
+  isAddingToCrm?: boolean;
+  onAddToCrm?: (person: ApolloPersonMatch) => void;
+  onAddCompanyToCrm?: (org: ApolloOrganizationMatch) => void;
+}
+
+/** "In CRM" marker: who owns the deal and how far it is, so nobody works the same lead twice. */
+function CrmBadge({ match }: { match: CrmMatch }) {
+  const label = `In CRM · ${STAGE_LABELS[match.stage]} · ${match.mine ? 'yours' : match.ownerName || 'unassigned'}`;
+  const style: React.CSSProperties = {
+    fontSize: '0.68rem', padding: '2px 7px', borderRadius: '999px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '4px',
+    marginTop: '4px', width: 'fit-content', textDecoration: 'none',
+    background: match.mine ? '#eef2ff' : '#fffbeb', color: match.mine ? '#4338ca' : '#92400e', border: `1px solid ${match.mine ? '#c7d2fe' : '#fde68a'}`,
+  };
+  return match.dealId
+    ? <a href={`/crm?deal=${match.dealId}`} style={style} title="Open this deal in the CRM"><Kanban size={10} /> {label}</a>
+    : <span style={style} title="This deal belongs to a teammate"><Kanban size={10} /> {label}</span>;
 }
 
 export function UniversalResultRenderer({
@@ -51,6 +76,12 @@ export function UniversalResultRenderer({
   onResearchInCompany360,
   onLinkToPost,
   formatPersonName = (n) => n || 'Lead Contact',
+  crmMatch,
+  isSelected = false,
+  onToggleSelect,
+  isAddingToCrm = false,
+  onAddToCrm,
+  onAddCompanyToCrm,
 }: UniversalResultRendererProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -79,8 +110,21 @@ export function UniversalResultRenderer({
         onMouseEnter={(e) => { if(!isSaved && !isEnriched) e.currentTarget.style.background = '#f8fafc'; }}
         onMouseLeave={(e) => { if(!isSaved && !isEnriched) e.currentTarget.style.background = '#ffffff'; }}
       >
+        {/* SELECT Column */}
+        {onToggleSelect && (
+          <td style={{ paddingLeft: '16px', verticalAlign: 'top', paddingTop: '14px' }}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(person)}
+              aria-label={`Select ${formatPersonName(person.personName)}`}
+              style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#4f46e5' }}
+            />
+          </td>
+        )}
+
         {/* PERSON Column */}
-        <td style={{ paddingLeft: '20px' }}>
+        <td style={{ paddingLeft: onToggleSelect ? '4px' : '20px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontWeight: 800, fontSize: '0.86rem', color: isSaved ? '#374151' : '#0f172a' }}>
@@ -100,6 +144,7 @@ export function UniversalResultRenderer({
                 <MapPin size={11} /> {person.location}
               </div>
             )}
+            {crmMatch && <CrmBadge match={crmMatch} />}
           </div>
         </td>
 
@@ -456,7 +501,37 @@ export function UniversalResultRenderer({
               </button>
             )}
 
-            {/* 3. Link Action */}
+            {/* 3. Add to CRM */}
+            {onAddToCrm && !crmMatch && (
+              <button
+                type="button"
+                onClick={() => onAddToCrm(person)}
+                disabled={isAddingToCrm}
+                title="Create a deal in your CRM pipeline with this person as the contact"
+                style={{
+                  width: '100%',
+                  padding: '5px 8px',
+                  fontSize: '0.72rem',
+                  whiteSpace: 'nowrap',
+                  background: '#ecfdf5',
+                  color: '#047857',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  cursor: isAddingToCrm ? 'not-allowed' : 'pointer',
+                  opacity: isAddingToCrm ? 0.7 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              >
+                {isAddingToCrm ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} /> : <UserPlus size={12} style={{ flexShrink: 0 }} />} Add to CRM
+              </button>
+            )}
+
+            {/* 4. Link Action */}
             {onLinkToPost && (
               <button 
                 type="button"
@@ -517,6 +592,7 @@ export function UniversalResultRenderer({
                   <MapPin size={11} /> {organization.location}
                 </div>
               )}
+              {crmMatch && <CrmBadge match={crmMatch} />}
             </div>
           </div>
         </td>
@@ -575,6 +651,18 @@ export function UniversalResultRenderer({
               </button>
             )}
             
+            {onAddCompanyToCrm && !crmMatch && (
+              <button
+                onClick={() => onAddCompanyToCrm(organization)}
+                disabled={isAddingToCrm}
+                className="btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.78rem', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '8px', whiteSpace: 'nowrap', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: isAddingToCrm ? 'not-allowed' : 'pointer', opacity: isAddingToCrm ? 0.7 : 1, transition: 'all 0.2s ease' }}
+                title="Create a deal for this company in your CRM pipeline"
+              >
+                {isAddingToCrm ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <UserPlus size={14} />} Add to CRM
+              </button>
+            )}
+
             {onResearchInCompany360 && (
               <button
                 onClick={() => onResearchInCompany360(organization)}

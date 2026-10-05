@@ -1,15 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { getActiveOutreachCampaignsAction, setSequencePausedAction } from '@/features/outreach/actions';
+import { getActiveOutreachCampaignsAction, sendFollowUpNowAction, setSequencePausedAction } from '@/features/outreach/actions';
 import type { OutreachCampaignRow } from '@/features/outreach/actions';
-import { BarChart3, Loader2, Mail, PauseCircle, PlayCircle, RefreshCw } from 'lucide-react';
-import s from './outreach.module.css';
+import { AlertTriangle, BarChart3, Loader2, Mail, PauseCircle, PlayCircle, RefreshCw, RotateCcw, Zap } from 'lucide-react';
+import s from '@/components/ui/ui.module.css';
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
 function StatusBadge({ row }: { row: OutreachCampaignRow }) {
+  if (row.failedStage) return <span className={`${s.badge} ${s.badgeRed}`} title={row.failedStage.error || undefined}><AlertTriangle size={11} /> Stage {row.failedStage.stage} failed</span>;
+  if (row.stoppedReason) return <span className={`${s.badge} ${s.badgeGray}`} title={row.stoppedReason}>Stopped</span>;
   if (row.paused) return <span className={`${s.badge} ${s.badgeAmber}`}>Paused</span>;
   if (row.stagesTotal > 0 && row.stagesSent >= row.stagesTotal) return <span className={`${s.badge} ${s.badgeGreen}`}>Completed</span>;
   if (row.stagesSent > 0) return <span className={`${s.badge} ${s.badgeIndigo}`}>Running</span>;
@@ -51,6 +53,20 @@ export function OutreachCampaignDashboard({
       notify?.(row.paused ? `Resumed sequence for ${row.companyName}` : `Paused sequence for ${row.companyName}`);
     } catch {
       notify?.('Could not update the sequence. Please try again.', true);
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const retry = async (row: OutreachCampaignRow) => {
+    if (!row.failedStage) return;
+    setPendingId(row.id);
+    try {
+      const res = await sendFollowUpNowAction(row.failedStage.id);
+      notify?.(res.error || res.message || 'Sent.', !!res.error);
+      await load();
+    } catch {
+      notify?.('Could not send this stage. Please try again.', true);
     } finally {
       setPendingId(null);
     }
@@ -119,14 +135,25 @@ export function OutreachCampaignDashboard({
                     {row.nextStage && row.nextDueDate ? (
                       <>
                         <div className={s.cellStrong}>Stage {row.nextStage}</div>
-                        <div className={s.cellSub}>{row.paused ? 'On hold' : `Due ${formatDate(row.nextDueDate)}`}</div>
+                        <div className={s.cellSub}>{row.stoppedReason || (row.paused ? 'On hold' : `Due ${formatDate(row.nextDueDate)}`)}</div>
+                        {!row.paused && (
+                          <div className={s.cellSub}>{row.autoSend && row.channel === 'EMAIL' ? <><Zap size={11} style={{ verticalAlign: -1 }} /> Sent automatically</> : 'You send it (reminder in Today)'}</div>
+                        )}
                       </>
                     ) : (
                       <span className={s.cellSub}>—</span>
                     )}
                   </td>
-                  <td><StatusBadge row={row} /></td>
+                  <td>
+                    <StatusBadge row={row} />
+                    {row.failedStage?.error && <div className={s.cellSub} style={{ maxWidth: 260, whiteSpace: 'normal', color: 'var(--o-danger)' }}>{row.failedStage.error}</div>}
+                  </td>
                   <td style={{ textAlign: 'right' }}>
+                    {row.failedStage && (
+                      <button type="button" className={`${s.btn} ${s.btnSm} ${s.btnPrimary}`} style={{ marginRight: 6 }} onClick={() => retry(row)} disabled={pendingId === row.id} title="Send this stage now from your mailbox">
+                        {pendingId === row.id ? <Loader2 size={13} className={s.spin} /> : <RotateCcw size={13} />} Retry
+                      </button>
+                    )}
                     {!isDone(row) && (
                       <button
                         type="button"

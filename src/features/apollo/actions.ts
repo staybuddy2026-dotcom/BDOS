@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { SettingsService } from '@/lib/settings';
 import { apolloProvider, ApolloPersonMatch, ApolloSearchParams, ApolloOrgSearchParams, ApolloUsageEndpoint, ApolloErrorInfo, getLastApolloErrors, normalizeDomain, isApolloConfigured } from './provider';
+import { getSavedPeople } from '@/features/prospecting/service';
 import { AuthService } from '@/lib/auth';
 import { EnrichmentStatus } from '@prisma/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
@@ -376,7 +377,7 @@ export async function linkApolloEnrichmentToPost(
 export async function enrichApolloPersonDirect(
   person: string | { apolloPersonId: string; personName?: string; organizationDomain?: string; organizationName?: string }
 ): Promise<{ person: ApolloPersonMatch | null; error?: string }> {
-  await AuthService.verifySession();
+  const user = await AuthService.verifySession();
   await assertApolloEnabled();
   const p = typeof person === 'string' ? { apolloPersonId: person } : person;
   const allowPersonalEmail = (await SettingsService.get('apolloAllowPersonalEmail', 'false')) === 'true';
@@ -394,37 +395,32 @@ export async function enrichApolloPersonDirect(
     const err = getLastApolloErrors().find((e) => e.endpoint === 'people/match' && Date.now() - new Date(e.at).getTime() < 60000);
     return { person: null, error: err?.message || 'Apollo has no contact details for this person.' };
   }
-  if (!enriched.workEmail && !enriched.personalEmail && !enriched.phone) {
+  // The credit is spent once Apollo answers, whether or not it had contact details: keep a record of who used it.
+  const found = [enriched.workEmail && 'work email', enriched.personalEmail && 'personal email', enriched.phone && 'phone'].filter(Boolean);
+  await db.activityLog.create({
+    data: {
+      type: 'APOLLO_ENRICHED',
+      title: `Apollo enrichment: ${enriched.personName || p.personName || p.apolloPersonId}`,
+      details: `1 credit. ${found.length ? `Found ${found.join(', ')}.` : 'No contact details on file.'}${enriched.organizationName ? ` Company: ${enriched.organizationName}.` : ''}`,
+      entityId: p.apolloPersonId,
+      actor: user.name,
+    },
+  }).catch((err) => logger.warn('Could not record Apollo credit usage', { error: String(err) }));
+
+  if (!found.length) {
     return { person: enriched, error: 'Apollo matched this person but has no email or phone on file.' };
   }
   safeRevalidatePath('/apollo-search');
   return { person: enriched };
 }
 
-/**
- * Persist saved Apollo people map to PostgreSQL Database.
- */
-export async function saveApolloPeopleMapToDb(mapJson: string): Promise<boolean> {
-  try {
-    await AuthService.verifySession();
-    await SettingsService.set('bdos_apollo_saved_people_map', mapJson);
-    return true;
-  } catch (err) {
-    logger.error('Failed to persist saved Apollo people map to PostgreSQL', err);
-    return false;
-  }
-}
-
-/**
- * Retrieve saved Apollo people map from PostgreSQL Database.
- */
+/** The signed-in person's saved Apollo contacts as a JSON map (key -> person). Used by prioritization. */
 export async function getApolloPeopleMapFromDb(): Promise<string> {
   try {
-    await AuthService.verifySession();
-    const mapJson = await SettingsService.get('bdos_apollo_saved_people_map', '{}');
-    return mapJson;
+    const user = await AuthService.verifySession();
+    return JSON.stringify(await getSavedPeople(user));
   } catch (err) {
-    logger.error('Failed to fetch saved Apollo people map from PostgreSQL', err);
+    logger.error('Failed to read saved Apollo contacts', err);
     return '{}';
   }
 }

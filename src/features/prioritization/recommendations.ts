@@ -8,8 +8,7 @@ import { Company360Profile } from '../company360/types';
 
 export function generateNextBestActions(
   profile: Company360Profile,
-  priorityTier: PriorityTier,
-  score: number
+  priorityTier: PriorityTier
 ): NextBestAction[] {
   const actions: NextBestAction[] = [];
   const companyId = profile.companyId;
@@ -28,7 +27,7 @@ export function generateNextBestActions(
   const decisionMakers = profile.decisionMakers || [];
   const topContact = decisionMakers.length > 0 ? decisionMakers[0].jobTitle : 'CTO';
 
-  if (priorityTier === 'IMMEDIATE' || score >= 95) {
+  if (priorityTier === 'IMMEDIATE') {
     actions.push({
       id: `act_${companyId}_1`,
       actionType: 'LINKEDIN_CONNECT',
@@ -37,18 +36,19 @@ export function generateNextBestActions(
       recommendedAssignee: 'Senior BDE Lead',
       executionPriority: 'Urgent Today',
       ctaLabel: 'Send LinkedIn InMail',
-      targetUrl: `https://linkedin.com/company/${domain.split('.')[0]}`,
+      // The company's real LinkedIn page when Apollo has it; otherwise find people at the company in Apollo.
+      targetUrl: profile.overview.linkedinPageUrl || `/apollo-search?company=${encodeURIComponent(profile.overview.companyName)}`,
     });
 
     actions.push({
       id: `act_${companyId}_2`,
       actionType: 'GENERATE_PROPOSAL',
-      title: `Generate Fixed-Price 2-Week ${actualTechStack[0] || 'Tech'} Blueprint`,
-      description: `Auto-generate AI proposal for ${useCase}.`,
+      title: 'Write the first outreach',
+      description: `AI-written email sequence using what is known about ${profile.overview.companyName}.`,
       recommendedAssignee: 'Solutions Architect',
       executionPriority: 'Urgent Today',
-      ctaLabel: 'Generate AI Proposal',
-      targetUrl: `/marketplace`,
+      ctaLabel: 'Write outreach',
+      targetUrl: `/engagement?domain=${encodeURIComponent(domain)}`,
     });
 
     actions.push({
@@ -61,7 +61,7 @@ export function generateNextBestActions(
       ctaLabel: 'View Review Queue',
       targetUrl: `/review`,
     });
-  } else if (priorityTier === 'HIGH' || score >= 85) {
+  } else if (priorityTier === 'HIGH') {
     actions.push({
       id: `act_${companyId}_1`,
       actionType: 'PERSONALIZED_EMAIL',
@@ -70,7 +70,7 @@ export function generateNextBestActions(
       recommendedAssignee: 'BDE Executive',
       executionPriority: 'Within 24 Hours',
       ctaLabel: 'Generate AI Email',
-      targetUrl: `/engagement`,
+      targetUrl: `/engagement?domain=${encodeURIComponent(domain)}`,
     });
 
     actions.push({

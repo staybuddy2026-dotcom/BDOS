@@ -63,7 +63,7 @@ async function runTestSuite() {
   await runTest('Authentication & Authorization Guards', async () => {
     const user = await AuthService.getCurrentUser();
     assert(user !== null, 'Current user session must not be null.');
-    assert(user?.email === 'akash@tinyscript.in', 'User email must match owner session.');
+    assert(user?.email === 'test@bdos.local', 'User email must match the test session.');
     
     const verified = await AuthService.verifySession();
     assert(verified.id === user?.id, 'verifySession must return active user session.');

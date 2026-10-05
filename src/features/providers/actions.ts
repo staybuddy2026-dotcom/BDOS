@@ -92,7 +92,7 @@ export async function getProviderStats(): Promise<FrameworkStats> {
     const comingSoonProviders = list.filter(p => p.status === 'Coming Soon').length;
 
     const times = list.map(p => p.avgResponseTimeMs || 0).filter(t => t > 0);
-    const avgResponseTimeMs = 0;
+    const avgResponseTimeMs = times.length ? Math.round(times.reduce((x, y) => x + y, 0) / times.length) : 0;
 
     return {
       totalProviders,
@@ -100,19 +100,12 @@ export async function getProviderStats(): Promise<FrameworkStats> {
       liveProviders,
       comingSoonProviders,
       avgResponseTimeMs,
+      // Searches are not counted yet, so no success rate is reported.
       totalSearchesToday: 0,
-      searchSuccessRate: 100,
+      searchSuccessRate: 0,
     };
   } catch {
-    return {
-      totalProviders: 4,
-      connectedProviders: 1,
-      liveProviders: 1,
-      comingSoonProviders: 3,
-      avgResponseTimeMs: 0,
-      totalSearchesToday: 0,
-      searchSuccessRate: 100,
-    };
+    return { totalProviders: 0, connectedProviders: 0, liveProviders: 0, comingSoonProviders: 0, avgResponseTimeMs: 0, totalSearchesToday: 0, searchSuccessRate: 0 };
   }
 }
 

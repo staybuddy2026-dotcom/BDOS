@@ -39,16 +39,26 @@ export function calculateRevenueForecast(deals: RevenueDeal[]): ForecastProjecti
   let wonVal = 0;
   let lostVal = 0;
 
+  // Deals without an estimated value count as zero; won and lost deals are no longer pipeline.
+  const wonCycles: number[] = [];
+  let valuedCount = 0;
+  let valuedTotal = 0;
   for (const d of deals) {
-    const val = parseInt((d.dealValueInr || '').replace(/[^0-9]/g, ''), 10) || 5000000;
-    const prob = d.winProbability?.currentWinPercent || 50;
-    totalVal += val;
-    weightedVal += (val * prob) / 100;
-    if (d.stage === 'WON') wonVal += val;
-    if (d.stage === 'LOST') lostVal += val;
+    const val = parseInt((d.dealValueInr || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const prob = d.winProbability?.currentWinPercent ?? 0;
+    if (val > 0) { valuedCount++; valuedTotal += val; }
+    if (d.stage === 'WON') {
+      wonVal += val;
+      wonCycles.push((new Date(d.updatedAt).getTime() - new Date(d.createdAt).getTime()) / 86400000);
+    } else if (d.stage === 'LOST') {
+      lostVal += val;
+    } else {
+      totalVal += val;
+      weightedVal += (val * prob) / 100;
+    }
   }
 
-  const avgVal = deals.length > 0 ? Math.round(totalVal / deals.length) : 0;
+  const avgVal = valuedCount > 0 ? Math.round(valuedTotal / valuedCount) : 0;
   const monthly = Math.round(weightedVal / 3);
   const quarterly = Math.round(weightedVal);
   const annual = Math.round(weightedVal * 4);
@@ -62,6 +72,6 @@ export function calculateRevenueForecast(deals: RevenueDeal[]): ForecastProjecti
     wonRevenueInr: `₹${wonVal.toLocaleString('en-IN')}`,
     lostRevenueInr: `₹${lostVal.toLocaleString('en-IN')}`,
     averageDealSizeInr: `₹${avgVal.toLocaleString('en-IN')}`,
-    averageSalesCycleDays: 14,
+    averageSalesCycleDays: wonCycles.length ? Math.round(wonCycles.reduce((a, b) => a + b, 0) / wonCycles.length) : 0,
   };
 }

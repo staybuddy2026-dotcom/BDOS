@@ -19,7 +19,6 @@ import {
 import { ApprovalStatus } from '@prisma/client';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import blob from '@/assets/blob.png';
-import { WorkflowGuide } from '@/components/WorkflowGuide';
 import '@/styles/globals.css';
 import '@/styles/re-engagement.css';
 
@@ -230,14 +229,11 @@ export default function ReEngagementPage() {
       
       {/* SCROLLABLE MAIN CONTENT */}
       <div className="flex-1 overflow-y-auto flex flex-col relative">
-      <WorkflowGuide activeStep={6} />
       
       <div className="px-7 pt-4 pb-6 flex flex-col gap-5 flex-1">
         {/* Top Navigation & Breadcrumb */}
         <BreadcrumbHeader
           currentTitle="Automated Re-engagement Sequences"
-          stepNumber={6}
-          totalSteps={7}
           badge="Follow-up Schedules"
         />
 

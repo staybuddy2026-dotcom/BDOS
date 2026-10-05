@@ -8,20 +8,25 @@ import { FollowupTimeline, STAGES } from './FollowupTimeline';
 import { OutreachCampaignDashboard } from './OutreachCampaignDashboard';
 import {
   generateOutreachDraftAction,
+  saveWorkingDraftAction,
   scheduleOutreachSequenceAction,
   markStageSentAction,
   setSequencePausedAction,
 } from '@/features/outreach/actions';
+import { getMailboxStatusAction, sendOutreachEmailAction, sendOutreachTestEmailAction } from '@/features/email/actions';
+import type { MailboxStatus } from '@/features/email/actions';
 import {
   Search, Sparkles, Loader2, Building2, CheckCircle2, AlertTriangle, Copy, Check, Mail, Globe,
   UserRound, MessageSquare, CalendarClock, TrendingUp, Target,
 } from 'lucide-react';
 import { DiscoveryLeadItem } from '@/features/discovery/types';
 import { importLinkedInResearchAction } from '@/features/linkedin/actions';
-import s from './outreach.module.css';
+import { getResearchNotesAction, getShortlistAction, saveResearchNotesAction } from '@/features/prospecting/actions';
+import { importBrowserListsOnce } from '@/features/prospecting/browserImport';
+import s from '@/components/ui/ui.module.css';
 
+// An empty domain means no company has been chosen yet (older saved drafts may still hold the old placeholders).
 const PLACEHOLDER_DOMAINS = ['', 'enterprise.com', 'acmehealth.com'];
-const NOTES_KEY = 'bdos_outreach_research_notes';
 
 const EXAMPLE_ACCOUNTS = [
   { name: 'SaaS Labs', domain: 'saaslabs.com', tag: 'SaaS' },
@@ -34,22 +39,15 @@ const EXAMPLE_ACCOUNTS = [
 
 type Lead = { name: string; domain: string; tag: string };
 
-const readSavedLeads = (): Lead[] => {
-  try {
-    const raw = localStorage.getItem('bdos_company360_migrated_leads');
-    if (!raw) return [];
-    const parsed: Record<string, DiscoveryLeadItem> = JSON.parse(raw);
-    return Object.values(parsed)
-      .filter((l) => l && l.domain && l.companyName)
-      .map((l) => ({
-        name: l.companyName.replace(/\(.*?\)/g, '').trim(),
-        domain: l.domain,
-        tag: [l.icpScore ? `ICP ${l.icpScore}` : '', l.industry || ''].filter(Boolean).join(' · ') || 'Saved lead',
-      }));
-  } catch {
-    return [];
-  }
-};
+/** The team's Company 360 shortlist, as quick picks for who to write to. */
+const toLeads = (shortlist: Record<string, DiscoveryLeadItem>): Lead[] =>
+  Object.values(shortlist)
+    .filter((l) => l && l.domain && l.companyName)
+    .map((l) => ({
+      name: l.companyName.replace(/\(.*?\)/g, '').trim(),
+      domain: l.domain,
+      tag: l.industry || 'Shortlisted',
+    }));
 
 const cleanDomain = (value: string) =>
   value.trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').split(/[/?#]/)[0].toLowerCase();
@@ -72,9 +70,25 @@ export function EngagementWorkspace({
   const [leads, setLeads] = useState<Lead[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [campaignsVersion, setCampaignsVersion] = useState(0);
-  // Research notes per company domain (LinkedIn About, a recent post, news), remembered in this browser.
+  const [mailbox, setMailbox] = useState<MailboxStatus | null>(null);
+  useEffect(() => {
+    getMailboxStatusAction().then(setMailbox).catch(() => { /* automatic sending stays unavailable */ });
+  }, []);
+  // Research notes per company domain (LinkedIn About, a recent post, news), shared by the team in the database.
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const notesMapRef = useRef<Record<string, string>>({});
+  const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Loads a company's notes once; later reads come from the cache. */
+  const ensureNotes = useCallback(async (domain: string) => {
+    if (!domain || domain in notesMapRef.current) return;
+    try {
+      const { notes } = await getResearchNotesAction(domain);
+      if (domain in notesMapRef.current) return; // typed into meanwhile: keep what was typed
+      notesMapRef.current = { ...notesMapRef.current, [domain]: notes };
+      setNotesMap(notesMapRef.current);
+    } catch { /* notes stay empty; typing still saves */ }
+  }, []);
   const researchRef = useRef<HTMLTextAreaElement>(null);
   const [profileUrlInput, setProfileUrlInput] = useState('');
   const [importingResearch, setImportingResearch] = useState(false);
@@ -93,12 +107,20 @@ export function EngagementWorkspace({
   const draftRef = useRef(draft);
   useEffect(() => { draftRef.current = draft; });
 
-  const regenerate = useCallback(async (targetDomain: string, nextChannel: OutreachChannel, nextTone: ToneSetting, persist: boolean) => {
+  // Keep the draft on screen saved, so a reload or another device picks up where the BDE left off.
+  // The placeholder draft shown before a company is chosen is not worth saving.
+  useEffect(() => {
+    if (draft === initialDraft || PLACEHOLDER_DOMAINS.includes(draft.domain)) return;
+    const timer = setTimeout(() => { saveWorkingDraftAction(draft).catch(() => { /* the next change retries */ }); }, 1500);
+    return () => clearTimeout(timer);
+  }, [draft, initialDraft]);
+
+  const regenerate = useCallback(async (targetDomain: string, nextChannel: OutreachChannel, nextTone: ToneSetting) => {
     const id = ++requestId.current;
     setIsGenerating(true);
     try {
       const notes = notesMapRef.current[targetDomain]?.trim() || undefined;
-      const updated = await generateOutreachDraftAction(targetDomain, nextChannel, 'COLD_OUTREACH', nextTone, persist, true, notes);
+      const updated = await generateOutreachDraftAction(targetDomain, nextChannel, 'COLD_OUTREACH', nextTone, true, notes);
       if (id !== requestId.current) return null; // a newer request superseded this one
       // Keep a LinkedIn profile imported for this same company; forget it when the company changes.
       const prev = draftRef.current;
@@ -117,36 +139,49 @@ export function EngagementWorkspace({
     }
   }, [notify]);
 
-  // On mount: load saved leads, then write the real AI sequence (the server render skips AI for speed).
+  // On mount: load the shortlist and the company's research notes, then write the real AI sequence
+  // (the server render skips AI for speed).
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const saved = readSavedLeads();
+    let active = true;
+    (async () => {
+      await importBrowserListsOnce();
+      const saved = toLeads((await getShortlistAction().catch(() => ({ leads: {} }))).leads);
+      if (!active) return;
       setLeads(saved);
-      try {
-        const storedNotes = JSON.parse(localStorage.getItem(NOTES_KEY) || '{}');
-        if (storedNotes && typeof storedNotes === 'object') {
-          notesMapRef.current = storedNotes;
-          setNotesMap(storedNotes);
-        }
-      } catch { /* storage unavailable */ }
       const usePlaceholder = PLACEHOLDER_DOMAINS.includes(initialDraft.domain);
       const target = usePlaceholder && saved[0] ? saved[0].domain : initialDraft.domain;
       if (usePlaceholder && saved[0]) setDomainQuery(saved[0].domain);
-      if (!initialDraft.sequence && (initialDraft.channel === 'EMAIL' || initialDraft.channel === 'LINKEDIN')) {
-        regenerate(target, initialDraft.channel, initialDraft.tone, false);
+      await ensureNotes(target);
+      if (active && target && !PLACEHOLDER_DOMAINS.includes(target) && !initialDraft.sequence && (initialDraft.channel === 'EMAIL' || initialDraft.channel === 'LINKEDIN')) {
+        regenerate(target, initialDraft.channel, initialDraft.tone);
       }
-    }, 0);
-    return () => clearTimeout(timer);
+    })();
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load the notes of whichever company is open.
+  useEffect(() => { ensureNotes(draft.domain); }, [draft.domain, ensureNotes]);
+
+  // Save notes shortly after typing stops; flush a pending save when leaving the page.
+  const pendingNotes = useRef<{ domain: string; notes: string } | null>(null);
+  const flushNotes = useCallback(() => {
+    if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current);
+    const pending = pendingNotes.current;
+    pendingNotes.current = null;
+    if (pending) saveResearchNotesAction(pending.domain, pending.notes).then((res) => res.error && notify(res.error, true)).catch(() => notify('Could not save the research notes.', true));
+  }, [notify]);
+  useEffect(() => flushNotes, [flushNotes]);
 
   const researchNotes = notesMap[draft.domain] || '';
   const handleNotesChange = (value: string) => {
     const next = { ...notesMapRef.current, [draft.domain]: value };
-    if (!value.trim()) delete next[draft.domain];
     notesMapRef.current = next;
     setNotesMap(next);
-    try { localStorage.setItem(NOTES_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+    if (pendingNotes.current && pendingNotes.current.domain !== draft.domain) flushNotes();
+    pendingNotes.current = { domain: draft.domain, notes: value };
+    if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current);
+    notesSaveTimer.current = setTimeout(flushNotes, 800);
   };
 
   const handleImportLinkedIn = async () => {
@@ -199,19 +234,19 @@ export function EngagementWorkspace({
     if (isGenerating || !confirmDiscard()) return;
     setDomainError(null);
     setDomainQuery(domain);
-    await regenerate(domain, channel, tone, true);
+    await regenerate(domain, channel, tone);
   };
 
   const handleChannelChange = async (next: OutreachChannel) => {
     if (isGenerating || !confirmDiscard()) return;
     setChannel(next);
-    await regenerate(draft.domain, next, tone, false);
+    await regenerate(draft.domain, next, tone);
   };
 
   const handleToneChange = async (next: ToneSetting) => {
     if (isGenerating || !confirmDiscard()) return;
     setTone(next);
-    await regenerate(draft.domain, channel, next, false);
+    await regenerate(draft.domain, channel, next);
   };
 
   // Keep edits per stage so switching stages never loses them.
@@ -228,10 +263,11 @@ export function EngagementWorkspace({
     if (step) setDraft({ ...draft, followupStage: stage, subjectLine: step.subjectLine, bodyContent: step.bodyContent });
   };
 
-  const handleSchedule = async (startAt?: string) => {
+  const handleSchedule = async (startAt?: string, autoSend = false) => {
     setBusy('schedule');
     try {
-      const res = await scheduleOutreachSequenceAction(draft, startAt);
+      const res = await scheduleOutreachSequenceAction(draft, startAt, { autoSend });
+      if (!res.success) { notify(res.message, true); return false; }
       setDraft((prev) => ({ ...prev, status: res.draft.status, scheduledStartAt: res.draft.scheduledStartAt, sequencePaused: false }));
       setCampaignsVersion((v) => v + 1);
       notify(res.message);
@@ -264,6 +300,42 @@ export function EngagementWorkspace({
       notify('Could not record the sent stage. Please try again.', true);
     } finally {
       setBusy(null);
+    }
+  };
+
+  // Sends the active stage from the user's mailbox; the server marks the stage as sent.
+  const handleSendEmail = async () => {
+    setBusy('email');
+    try {
+      const res = await sendOutreachEmailAction(draft);
+      if (res.error) return notify(res.error, true);
+      const sentStages = res.draft?.sentStages || draft.sentStages || [];
+      const next = res.draft ? draft.sequence?.find((st) => !sentStages.includes(st.stage)) : undefined;
+      if (res.draft) {
+        setDraft((prev) => ({
+          ...prev,
+          status: res.draft!.status,
+          sentStages,
+          ...(next ? { followupStage: next.stage, subjectLine: next.subjectLine, bodyContent: next.bodyContent } : {}),
+        }));
+        setCampaignsVersion((v) => v + 1);
+      }
+      notify(res.message || 'Email sent.', !res.draft);
+    } catch {
+      notify('The email could not be sent. Please try again.', true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSendTest = async (to: string) => {
+    try {
+      const res = await sendOutreachTestEmailAction(to, draft.subjectLine, draft.bodyContent);
+      notify(res.error || res.message || 'Test email sent.', !!res.error);
+      return !res.error;
+    } catch {
+      notify('The test email could not be sent. Please try again.', true);
+      return false;
     }
   };
 
@@ -435,12 +507,12 @@ export function EngagementWorkspace({
             placeholder={`Paste real facts about ${hasName ? draft.targetContactName.split(' ')[0] : 'this prospect'}: their LinkedIn About section, a recent post, a launch, hiring news or funding. The AI only states facts it is given, so this is what makes the message specific.`}
           />
           <div className={s.fieldFoot}>
-            <span>Saved in this browser for {draft.domain}.</span>
+            <span>{draft.domain ? `Shared with your team for ${draft.domain}.` : 'Pick a company first.'}</span>
             <button
               type="button"
               className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
               disabled={isGenerating || !researchNotes.trim()}
-              onClick={() => confirmDiscard() && regenerate(draft.domain, channel, tone, false)}
+              onClick={() => confirmDiscard() && regenerate(draft.domain, channel, tone)}
             >
               <Sparkles size={14} /> Regenerate with research
             </button>
@@ -481,14 +553,14 @@ export function EngagementWorkspace({
           <div className={s.kpiFoot}>{telemetry.activeSequences ?? 0} active sequences</div>
         </div>
         <div className={s.kpi}>
-          <div className={s.kpiHead}>Est. pipeline <TrendingUp size={16} className={s.warn} /></div>
-          <div className={s.kpiValue}>{telemetry.pipelineInfluencedInr}</div>
-          <div className={s.kpiFoot}>Active sequences × ₹18L avg. deal</div>
+          <div className={s.kpiHead}>Reply rate <TrendingUp size={16} className={s.warn} /></div>
+          <div className={s.kpiValue}>{telemetry.sentCount ? `${telemetry.responseRatePercent}%` : '—'}</div>
+          <div className={s.kpiFoot}>{telemetry.sentCount ? `Of ${telemetry.sentCount} sent` : 'Nothing sent yet'}</div>
         </div>
         <div className={s.kpi}>
-          <div className={s.kpiHead}>Est. revenue <Target size={16} className={s.accent} /></div>
-          <div className={s.kpiValue}>{telemetry.estimatedRevenueInr}</div>
-          <div className={s.kpiFoot}>At an assumed 35% close rate</div>
+          <div className={s.kpiHead}>Meetings booked <Target size={16} className={s.accent} /></div>
+          <div className={s.kpiValue}>{telemetry.meetingsBookedCount}</div>
+          <div className={s.kpiFoot}>From outreach sequences</div>
         </div>
       </div>
 
@@ -518,13 +590,16 @@ export function EngagementWorkspace({
             isGenerating={isGenerating}
             busy={busy}
             onChange={handleEditorChange}
-            onRegenerate={() => confirmDiscard() && regenerate(draft.domain, channel, tone, false)}
+            onRegenerate={() => confirmDiscard() && regenerate(draft.domain, channel, tone)}
             onSchedule={handleSchedule}
             onMarkSent={handleMarkSent}
+            onSendEmail={handleSendEmail}
+            onSendTest={handleSendTest}
             onTogglePause={handleTogglePause}
             notify={notify}
             onAddResearch={focusResearch}
             hasResearch={!!researchNotes.trim()}
+            mailbox={mailbox ? { connected: mailbox.connected, address: mailbox.address } : undefined}
           />
         </div>
       </div>

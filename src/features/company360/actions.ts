@@ -1,6 +1,8 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
+import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { Company360Profile, Company360SearchResult, CompanyOverviewData, DecisionMakerContact } from './types';
@@ -10,15 +12,35 @@ import { LinkedInIntelligenceData } from '../linkedin/types';
 import { fuseCompanyProfiles, normalizeCompanyDomain } from './merge';
 import { getMigratedCompaniesFromDbAction } from '../discovery/actions';
 import { calculateAiOpportunityScore, generateRecommendedServices, generateExecutiveBriefing } from './scoring';
-import { createCrmDealFromMarketplaceOpportunity } from '@/features/crm/actions';
+import { createCrmDealForCompany } from '@/features/crm/actions';
 import { sendMarketplaceProjectToReviewQueue } from '@/features/marketplace/actions';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
-// Curated Master Company Store
-const masterCompanyStore: Map<string, Company360Profile> = new Map();
+// Built profiles are cached in the database: reopening a company costs no Apollo quota, and the cache
+// survives restarts. After PROFILE_MAX_AGE_DAYS the profile is rebuilt from fresh Apollo data.
+const PROFILE_MAX_AGE_DAYS = 7;
+// Bump when the way profiles are built changes, so cached ones are rebuilt instead of showing old numbers.
+const PROFILE_VERSION = 2;
 
-function initializeMasterCompanyStore() {
-  // Master Store initialized empty
+// normalizeCompanyDomain turns an empty value into a placeholder domain, so use the company id then.
+const profileKey = (profile: Pick<Company360Profile, 'domain' | 'companyId'>) =>
+  (profile.domain ? normalizeCompanyDomain(profile.domain) : profile.companyId || '').toLowerCase();
+
+async function readCachedProfile(query: string, cleaned: string | null): Promise<{ profile: Company360Profile; fresh: boolean } | null> {
+  const keys = [...new Set([cleaned, query.toLowerCase().trim()].filter((k): k is string => !!k))];
+  const row = await db.companyProfileCache.findFirst({ where: { OR: [{ key: { in: keys } }, { companyId: query }] }, orderBy: { updatedAt: 'desc' } });
+  if (!row) return null;
+  const data = row.data as unknown as Company360Profile & { profileVersion?: number };
+  const fresh = data.profileVersion === PROFILE_VERSION && Date.now() - row.updatedAt.getTime() < PROFILE_MAX_AGE_DAYS * 86400000;
+  return { profile: data, fresh };
+}
+
+async function saveProfile(profile: Company360Profile) {
+  const key = profileKey(profile);
+  if (!key) return;
+  const data = { ...profile, profileVersion: PROFILE_VERSION } as unknown as Prisma.InputJsonValue;
+  await db.companyProfileCache.upsert({ where: { key }, update: { companyId: profile.companyId, data }, create: { key, companyId: profile.companyId, data } })
+    .catch((err) => logger.warn('Could not cache a Company 360 profile', { error: String(err) }));
 }
 
 /**
@@ -27,12 +49,11 @@ function initializeMasterCompanyStore() {
 export async function getCompany360Profile(companyIdOrDomain: string): Promise<Company360Profile> {
   try {
     await AuthService.verifySession();
-    initializeMasterCompanyStore();
-
     logger.info(`Fetching Company 360 Master Profile for query: '${companyIdOrDomain}'...`);
 
     const cleaned = normalizeCompanyDomain(companyIdOrDomain);
-    const existing = masterCompanyStore.get(companyIdOrDomain) || masterCompanyStore.get(cleaned);
+    const cached = await readCachedProfile(companyIdOrDomain, cleaned).catch(() => null);
+    if (cached?.fresh) return cached.profile;
 
     const { DefaultApolloProvider } = await import('@/features/apollo/provider');
     const apolloProvider = new DefaultApolloProvider();
@@ -63,14 +84,6 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
         ? ({ activeJobOpeningsCount: o.openJobsCount, engineeringExpansionIndex: 90, jobOpenings: [], recentPosts: [] } as unknown as LinkedInIntelligenceData)
         : undefined;
 
-    if (existing) {
-      if (orgData) {
-        existing.growth = growthFromOrg(orgData) || existing.growth;
-        existing.linkedin = linkedinFromOrg(orgData) || existing.linkedin;
-      }
-      return existing;
-    }
-
     // Dynamic identity resolution fallback for unknown query
     const companyName = orgData?.name || companyIdOrDomain.replace(/comp_/, '').replace(/-/g, ' ').toUpperCase();
     
@@ -84,7 +97,7 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
     const productHunt = undefined; // disabled
     const reddit = undefined; // disabled
 
-    const apolloSeed: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[] } = {
+    const apolloSeed: Partial<CompanyOverviewData> & { decisionMakers?: DecisionMakerContact[]; technologies?: string[] } = {
       companyName: migratedLead?.companyName || (companyName as string),
       domain: cleaned,
     };
@@ -101,6 +114,7 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       apolloSeed.companyDescription = orgData.description;
       apolloSeed.websiteUrl = orgData.websiteUrl;
       apolloSeed.linkedinPageUrl = orgData.linkedinUrl;
+      apolloSeed.technologies = orgData.technologies || [];
     }
 
     if (migratedLead) {
@@ -170,7 +184,9 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
 
     const fused = fuseCompanyProfiles(apolloSeed, undefined, growth, productHunt, reddit, linkedin);
     const scoring = calculateAiOpportunityScore(fused.overview, fused.engineering, fused.decisionMakers, growth, productHunt, reddit, linkedin);
-    const recs = generateRecommendedServices(fused.engineering);
+    const { getServiceCatalog } = await import('@/features/learning/actions');
+    const catalog = await getServiceCatalog().catch(() => []);
+    const recs = generateRecommendedServices(fused.engineering, catalog);
     const briefing = generateExecutiveBriefing(fused.overview, fused.engineering, fused.decisionMakers, scoring);
 
     const newProfile: Company360Profile = {
@@ -185,11 +201,12 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       linkedin,
       opportunityScoring: scoring,
       recommendedServices: recs,
-      timeline: fused.timeline,
+      // Keep what the team did with this company (deal created, sent to review) when the profile is rebuilt.
+      timeline: [...(cached?.profile.timeline || []).filter((t) => t.source === 'CRM' || t.source === 'Cross-Provider'), ...fused.timeline],
       executiveBriefing: briefing,
       crmActivity: {
         currentStage: 'New Prospect',
-        assignedBde: 'Akash (Lead BDE)',
+        assignedBde: '',
         totalDealsCount: 0,
         openDealsValueInr: '₹0',
       },
@@ -199,7 +216,7 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
       },
     };
 
-    masterCompanyStore.set(newProfile.companyId, newProfile);
+    await saveProfile(newProfile);
     return newProfile;
   } catch (err: unknown) {
     logger.error('Failed to get Company 360 Profile', { error: String(err) });
@@ -213,21 +230,20 @@ export async function getCompany360Profile(companyIdOrDomain: string): Promise<C
 export async function searchCompanies360(query?: string): Promise<Company360SearchResult[]> {
   try {
     await AuthService.verifySession();
-    initializeMasterCompanyStore();
 
+    // Searching for a company the team has not opened yet builds (and caches) its profile.
     if (query && query.trim().length > 0) {
       const q = query.trim();
-      const existing = masterCompanyStore.get(q) || masterCompanyStore.get(normalizeCompanyDomain(q));
-      if (!existing) {
-        try {
-          await getCompany360Profile(q);
-        } catch {
-          // Dynamic fallback
-        }
+      if (!(await readCachedProfile(q, normalizeCompanyDomain(q)).catch(() => null))) {
+        await getCompany360Profile(q).catch(() => null);
       }
     }
 
-    const uniqueProfiles: Company360Profile[] = Array.from(new Set(masterCompanyStore.values()));
+    const rows = await db.companyProfileCache.findMany({ orderBy: { updatedAt: 'desc' }, take: 500 });
+    // Profiles built the old way carried invented scores; they are rebuilt when opened, and left out until then.
+    const uniqueProfiles: Company360Profile[] = rows
+      .map((r) => r.data as unknown as Company360Profile & { profileVersion?: number })
+      .filter((p) => p.profileVersion === PROFILE_VERSION);
 
     let filtered = uniqueProfiles;
     if (query && query.trim().length > 0) {
@@ -262,20 +278,19 @@ export async function searchCompanies360(query?: string): Promise<Company360Sear
 export async function createCrmDealFromCompany360(companyId: string, serviceName?: string) {
   try {
     await AuthService.verifySession();
-    initializeMasterCompanyStore();
-
     const profile = await getCompany360Profile(companyId);
 
     const dealTitle = serviceName 
       ? `${profile.overview.companyName} — ${serviceName}` 
       : `${profile.overview.companyName} Enterprise Deal`;
 
-    const result = await createCrmDealFromMarketplaceOpportunity({
-      projectTitle: dealTitle,
-      clientCountry: profile.overview?.headquarters || 'Global Client',
-      budget: profile.opportunityScoring?.estimatedDealSizeUsd || '$50,000',
-      technologyStack: profile.engineering?.primaryLanguages || ['React.js', 'Node.js'],
-      projectUrl: profile.overview?.websiteUrl || `https://company360.lead/${profile.companyId}`,
+    const result = await createCrmDealForCompany({
+      companyName: profile.overview.companyName,
+      domain: profile.overview?.websiteUrl || profile.domain,
+      title: dealTitle,
+      location: profile.overview?.headquarters,
+      industry: profile.overview?.industry,
+      technologies: profile.engineering?.primaryLanguages,
     });
 
     // Append to Company Timeline
@@ -290,6 +305,7 @@ export async function createCrmDealFromCompany360(companyId: string, serviceName
 
     profile.crmActivity.totalDealsCount += 1;
     profile.crmActivity.currentStage = 'Qualified Lead';
+    await saveProfile(profile);
 
     safeRevalidatePath('/company');
     safeRevalidatePath('/crm');
@@ -297,7 +313,9 @@ export async function createCrmDealFromCompany360(companyId: string, serviceName
     return {
       success: true,
       dealId: result.dealId,
-      message: `Created Enterprise CRM Deal for '${profile.overview.companyName}'!`,
+      message: result.created
+        ? `Created a CRM deal for '${profile.overview.companyName}'.`
+        : `'${profile.overview.companyName}' already has an open CRM deal (${result.ownerName ? `owner: ${result.ownerName}` : 'unassigned'}).`,
     };
   } catch (err: unknown) {
     logger.error('Failed to create CRM deal from Company 360', { error: String(err) });
@@ -315,7 +333,7 @@ export async function sendCompany360ToReviewQueue(companyId: string) {
 
     const cto = profile.decisionMakers[0];
     const companyDesc = profile.overview.companyDescription || `Company 360 profile for ${profile.overview.companyName} (${profile.overview.industry || 'Technology & Software'}).`;
-    const dealBudget = profile.opportunityScoring?.estimatedDealSizeUsd || '$35,000';
+    const dealBudget = profile.opportunityScoring?.estimatedDealSizeUsd || '';
 
     const result = await sendMarketplaceProjectToReviewQueue({
       title: `Company 360 Lead: ${profile.overview.companyName}`,
@@ -334,6 +352,7 @@ export async function sendCompany360ToReviewQueue(companyId: string) {
       description: `Company profile sent to Review Queue for BDE approval.`,
       source: 'Cross-Provider',
     });
+    await saveProfile(profile);
 
     safeRevalidatePath('/company');
     safeRevalidatePath('/review');

@@ -3,7 +3,8 @@
 import { AuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
-import crypto from 'crypto';
+import { db } from '@/lib/db';
+import { countListingsByProvider, listListings, parseCsv, saveListing } from './store';
 import { ProviderStatus, HealthStatus } from '@/features/providers/types';
 
 export type UniversalOpportunity = {
@@ -55,20 +56,9 @@ export type ProviderHealthTelemetry = {
   isLive: boolean;
 };
 
-function generateDuplicateHash(title: string, country: string, budget: string, url: string): string {
-  const normalized = `${title.trim().toLowerCase()}_${country.trim().toLowerCase()}_${budget.trim().toLowerCase()}_${url.trim().toLowerCase()}`;
-  return crypto.createHash('md5').update(normalized).digest('hex');
-}
-
-// In-Memory Global Opportunity Store.
-// No automatic scraping provider is live yet (Upwork/Freelancer/Guru/Toptal/RSS are
-// all "Coming Soon" — see placeholder-providers.ts), so this store starts empty and
-// is only ever populated by genuinely real input: inbound webhook payloads, manual
-// CSV import, or the manual "Send to Review Queue" flow.
-const globalOpportunityStore: UniversalOpportunity[] = [];
-
 /**
- * Perform live opportunity collection, normalization, deduplication, and AI qualification.
+ * The team's listings, filtered. Listings are stored in the database (see store.ts); nothing is scraped
+ * here: Upwork, Freelancer, Guru, Toptal and RSS are not connected yet.
  */
 export async function collectMarketplaceOpportunities(params?: {
   providerId?: string;
@@ -80,76 +70,34 @@ export async function collectMarketplaceOpportunities(params?: {
 }): Promise<{ opportunities: UniversalOpportunity[]; totalCount: number; duplicatesFiltered: number }> {
   try {
     await AuthService.verifySession();
-    logger.info(`Starting Marketplace Ingestion Pipeline (Provider: ${params?.providerId || 'ALL'})...`);
+    let filtered = await listListings();
 
-    // Filter store
-    let filtered = globalOpportunityStore.filter(o => o.status !== 'ARCHIVED');
-
-    if (params?.providerId && params.providerId !== 'all') {
-      filtered = filtered.filter(o => o.providerId === params.providerId);
-    }
-
+    if (params?.providerId && params.providerId !== 'all') filtered = filtered.filter((o) => o.providerId === params.providerId);
     if (params?.technology) {
-      const techQuery = params.technology.toLowerCase();
-      filtered = filtered.filter(o => 
-        o.technologyStack.some(t => t.toLowerCase().includes(techQuery)) ||
-        o.projectTitle.toLowerCase().includes(techQuery) ||
-        o.skills.some(s => s.toLowerCase().includes(techQuery))
-      );
+      const q = params.technology.toLowerCase();
+      filtered = filtered.filter((o) => o.technologyStack.some((t) => t.toLowerCase().includes(q)) || o.projectTitle.toLowerCase().includes(q) || o.skills.some((x) => x.toLowerCase().includes(q)));
     }
-
     if (params?.keywords) {
-      const kwQuery = params.keywords.toLowerCase();
-      filtered = filtered.filter(o => 
-        o.projectTitle.toLowerCase().includes(kwQuery) ||
-        o.projectDescription.toLowerCase().includes(kwQuery) ||
-        o.industry.toLowerCase().includes(kwQuery)
-      );
+      const q = params.keywords.toLowerCase();
+      filtered = filtered.filter((o) => o.projectTitle.toLowerCase().includes(q) || o.projectDescription.toLowerCase().includes(q) || o.industry.toLowerCase().includes(q));
     }
+    if (params?.budgetType) filtered = filtered.filter((o) => o.budgetType === params.budgetType);
+    if (params?.experienceLevel) filtered = filtered.filter((o) => o.experienceLevel === params.experienceLevel);
+    if (params?.minBudget) filtered = filtered.filter((o) => o.estimatedValueNumber >= params.minBudget!);
 
-    if (params?.budgetType) {
-      filtered = filtered.filter(o => o.budgetType === params.budgetType);
-    }
-
-    if (params?.experienceLevel) {
-      filtered = filtered.filter(o => o.experienceLevel === params.experienceLevel);
-    }
-
-    // Deduplicate
-    const seenHashes = new Set<string>();
-    const deduplicated: UniversalOpportunity[] = [];
-    let duplicatesFiltered = 0;
-
-    for (const item of filtered) {
-      if (seenHashes.has(item.duplicateHash)) {
-        duplicatesFiltered++;
-      } else {
-        seenHashes.add(item.duplicateHash);
-        deduplicated.push(item);
-      }
-    }
-
-    return {
-      opportunities: deduplicated,
-      totalCount: deduplicated.length,
-      duplicatesFiltered,
-    };
+    // Duplicates are refused when a listing is saved, so every stored listing is already unique.
+    return { opportunities: filtered, totalCount: filtered.length, duplicatesFiltered: 0 };
   } catch (err: unknown) {
     logger.error('Failed to collect marketplace opportunities', err);
     throw new AppError('Opportunity collection failed.', 500);
   }
 }
 
-/**
- * Dismiss / Archive an Opportunity Card from Marketplace view.
- */
+/** Hides a listing from the feed for the whole team. */
 export async function dismissOpportunity(opportunityId: string): Promise<{ success: boolean; id: string }> {
   try {
     await AuthService.verifySession();
-    const idx = globalOpportunityStore.findIndex(o => o.id === opportunityId);
-    if (idx !== -1) {
-      globalOpportunityStore[idx].status = 'ARCHIVED';
-    }
+    await db.marketplaceOpportunity.updateMany({ where: { id: opportunityId }, data: { status: 'ARCHIVED' } });
     return { success: true, id: opportunityId };
   } catch (err: unknown) {
     logger.error(`Failed to dismiss opportunity ${opportunityId}`, err);
@@ -158,7 +106,8 @@ export async function dismissOpportunity(opportunityId: string): Promise<{ succe
 }
 
 /**
- * Ingest an Inbound Webhook Opportunity (Zapier, Make.com, n8n, Custom).
+ * The in-app "Send test" of the webhook. Real webhook calls come in through /api/marketplace/webhook,
+ * which checks the webhook secret instead of a login.
  */
 export async function ingestInboundWebhookOpportunity(data: {
   projectTitle: string;
@@ -172,193 +121,87 @@ export async function ingestInboundWebhookOpportunity(data: {
 }): Promise<{ opportunity: UniversalOpportunity; isDuplicate: boolean }> {
   try {
     await AuthService.verifySession();
-
-    const title = data.projectTitle.trim();
-    const country = data.clientCountry || 'United States 🇺🇸';
-    const budget = data.budget || '$15,000 – $25,000';
-    const url = data.projectUrl || `https://bdos-webhook-ingest.local/${Date.now()}`;
-    const hash = generateDuplicateHash(title, country, budget, url);
-
-    const existingIdx = globalOpportunityStore.findIndex(o => o.duplicateHash === hash);
-    if (existingIdx !== -1) {
-      return { opportunity: globalOpportunityStore[existingIdx], isDuplicate: true };
-    }
-
-    const techStack = data.technologyStack && data.technologyStack.length > 0
-      ? data.technologyStack
-      : ['React.js', 'Node.js', 'TypeScript', 'AWS'];
-
-    const newOpp: UniversalOpportunity = {
-      id: `opp_wh_${Date.now()}`,
+    return await saveListing({
       providerId: 'webhook',
-      providerName: data.providerName || 'Zapier / Inbound Webhook',
-      projectTitle: title,
-      projectDescription: data.projectDescription,
-      budget,
-      budgetCurrency: 'USD',
-      estimatedValueNumber: 20000,
-      budgetType: data.budgetType || 'Fixed-Price',
-      clientCountry: country,
-      clientTimezone: 'UTC-5',
-      technologyStack: techStack,
-      skills: techStack,
-      industry: 'Software & Technology',
-      projectType: 'Inbound Webhook RFP',
-      experienceLevel: 'Expert',
-      engagementModel: 'Project Basis',
-      urgency: 'High',
-      postedDate: 'Just now (Webhook)',
-      proposalDeadline: '7 Days',
-      projectUrl: url,
-      sourceUrl: url,
-      aiOpportunityScore: 95,
-      duplicateHash: hash,
-      status: 'QUALIFIED',
-      tags: ['Inbound Webhook', 'Zapier', 'Live Ingest'],
-      revenuePotential: budget,
-      complexity: 'High',
-      deliveryRisk: 'Low (5%)',
-      estimatedTeamSize: '1 Tech Lead, 2 Engineers',
-      estimatedTimeline: '4 to 6 Weeks',
-      winningStrategy: 'Immediate automated response via BDOS Proposal Generator highlighting speed & TypeScript proficiency.',
-    };
-
-    globalOpportunityStore.unshift(newOpp);
-    logger.info(`Successfully ingested webhook opportunity '${title}' (ID: ${newOpp.id})`);
-    return { opportunity: newOpp, isDuplicate: false };
+      providerName: data.providerName || 'Inbound webhook',
+      title: data.projectTitle,
+      description: data.projectDescription,
+      budget: data.budget,
+      budgetType: data.budgetType,
+      country: data.clientCountry,
+      technologyStack: data.technologyStack,
+      projectUrl: data.projectUrl,
+      tags: ['Inbound webhook', 'Test'],
+    });
   } catch (err: unknown) {
     logger.error('Failed to ingest inbound webhook opportunity', err);
     throw new AppError('Inbound webhook ingestion failed.', 500);
   }
 }
 
-/**
- * Parse and Preview CSV Opportunities data before bulk import.
- */
+/** First rows of a CSV, to check the columns before importing. */
 export async function previewCsvImport(csvContent: string): Promise<{
   headers: string[];
   totalRows: number;
   sampleRows: Record<string, string>[];
 }> {
-  try {
-    await AuthService.verifySession();
-
-    const lines = csvContent.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    if (lines.length === 0) {
-      throw new AppError('Empty CSV file.', 400);
-    }
-
-    const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim());
-    const sampleRows: Record<string, string>[] = [];
-
-    for (let i = 1; i < Math.min(lines.length, 6); i++) {
-      const values = lines[i].split(',').map(v => v.replace(/^["']|["']$/g, '').trim());
-      const rowObj: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        rowObj[h] = values[idx] || '';
-      });
-      sampleRows.push(rowObj);
-    }
-
-    return {
-      headers,
-      totalRows: lines.length - 1,
-      sampleRows,
-    };
-  } catch (err: unknown) {
-    logger.error('Failed to preview CSV import', err);
-    throw new AppError('CSV preview failed.', 500);
-  }
+  await AuthService.verifySession();
+  const rows = parseCsv(csvContent || '');
+  if (!rows.length) throw new AppError('Empty CSV file.', 400);
+  const headers = rows[0];
+  const sampleRows = rows.slice(1, 6).map((values) => Object.fromEntries(headers.map((h, i) => [h, values[i] || ''])));
+  return { headers, totalRows: rows.length - 1, sampleRows };
 }
 
 /**
- * Bulk Import CSV Opportunities.
+ * Imports listings from CSV. Columns are matched by name (title, description, budget, country, technology,
+ * url). A row with no title is counted as an error; a listing already stored is counted as a duplicate.
  */
 export async function importCsvOpportunities(
   csvContent: string,
-  mapping?: { titleKey?: string; descKey?: string; budgetKey?: string; countryKey?: string; techKey?: string }
+  mapping?: { titleKey?: string; descKey?: string; budgetKey?: string; countryKey?: string; techKey?: string; urlKey?: string }
 ): Promise<{ importedCount: number; duplicatesCount: number; errorsCount: number }> {
   try {
     await AuthService.verifySession();
-    logger.info('Executing Bulk CSV Opportunity Import...');
+    const rows = parseCsv(csvContent || '');
+    if (rows.length < 2) return { importedCount: 0, duplicatesCount: 0, errorsCount: 0 };
 
-    const lines = csvContent.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    if (lines.length < 2) return { importedCount: 0, duplicatesCount: 0, errorsCount: 0 };
-
-    const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim());
-
-    const titleCol = mapping?.titleKey || headers.find(h => /title|project|name/i.test(h)) || headers[0];
-    const descCol = mapping?.descKey || headers.find(h => /desc|detail|summary/i.test(h)) || headers[1] || headers[0];
-    const budgetCol = mapping?.budgetKey || headers.find(h => /budget|price|rate/i.test(h)) || '';
-    const countryCol = mapping?.countryKey || headers.find(h => /country|location/i.test(h)) || '';
-    const techCol = mapping?.techKey || headers.find(h => /tech|skill|stack/i.test(h)) || '';
+    const headers = rows[0];
+    const col = (key: string | undefined, pattern: RegExp) => {
+      const name = key || headers.find((h) => pattern.test(h));
+      return name ? headers.indexOf(name) : -1;
+    };
+    const titleCol = col(mapping?.titleKey, /title|project|name/i);
+    const descCol = col(mapping?.descKey, /desc|detail|summary/i);
+    const budgetCol = col(mapping?.budgetKey, /budget|price|rate|value/i);
+    const countryCol = col(mapping?.countryKey, /country|location/i);
+    const techCol = col(mapping?.techKey, /tech|skill|stack/i);
+    const urlCol = col(mapping?.urlKey, /url|link/i);
+    const at = (row: string[], i: number) => (i >= 0 ? row[i] || '' : '');
 
     let importedCount = 0;
     let duplicatesCount = 0;
     let errorsCount = 0;
-
-    for (let i = 1; i < lines.length; i++) {
+    for (const row of rows.slice(1, 1001)) {
+      const title = at(row, titleCol);
+      if (!title) { errorsCount++; continue; }
       try {
-        const values = lines[i].split(',').map(v => v.replace(/^["']|["']$/g, '').trim());
-        const rowMap: Record<string, string> = {};
-        headers.forEach((h, idx) => { rowMap[h] = values[idx] || ''; });
-
-        const title = rowMap[titleCol] || `CSV Project ${i}`;
-        const description = rowMap[descCol] || title;
-        const budget = rowMap[budgetCol] || '$10,000 – $15,000';
-        const country = rowMap[countryCol] || 'United States 🇺🇸';
-        const techStr = rowMap[techCol] || 'React.js, Node.js';
-        const techStack = techStr.split(';').flatMap(s => s.split(',')).map(s => s.trim()).filter(Boolean);
-        const url = `https://csv-import.local/row_${i}_${Date.now()}`;
-
-        const hash = generateDuplicateHash(title, country, budget, url);
-        if (globalOpportunityStore.some(o => o.duplicateHash === hash)) {
-          duplicatesCount++;
-          continue;
-        }
-
-        const newOpp: UniversalOpportunity = {
-          id: `opp_csv_${Date.now()}_${i}`,
+        const res = await saveListing({
           providerId: 'manual',
-          providerName: 'Manual CSV Import',
-          projectTitle: title,
-          projectDescription: description,
-          budget,
-          budgetCurrency: 'USD',
-          estimatedValueNumber: 15000,
-          budgetType: 'Fixed-Price',
-          clientCountry: country,
-          clientTimezone: 'UTC-5',
-          technologyStack: techStack.length ? techStack : ['React.js', 'Node.js'],
-          skills: techStack,
-          industry: 'Custom Development',
-          projectType: 'CSV Bulk Import',
-          experienceLevel: 'Intermediate',
-          engagementModel: 'Project Basis',
-          urgency: 'Normal',
-          postedDate: 'Imported Today',
-          proposalDeadline: '14 Days',
-          projectUrl: url,
-          sourceUrl: url,
-          aiOpportunityScore: 89,
-          duplicateHash: hash,
-          status: 'QUALIFIED',
-          tags: ['CSV Import', 'Bulk Ingest'],
-          revenuePotential: budget,
-          complexity: 'Medium',
-          deliveryRisk: 'Low (10%)',
-          estimatedTeamSize: '1 Lead, 1 Full-Stack',
-          estimatedTimeline: '4 Weeks',
-          winningStrategy: 'Direct custom proposal emphasizing technical competency.',
-        };
-
-        globalOpportunityStore.unshift(newOpp);
-        importedCount++;
+          providerName: 'CSV import',
+          title,
+          description: at(row, descCol) || title,
+          budget: at(row, budgetCol),
+          country: at(row, countryCol),
+          technologyStack: at(row, techCol).split(/[;,|]/),
+          projectUrl: at(row, urlCol),
+          tags: ['CSV import'],
+        });
+        if (res.isDuplicate) duplicatesCount++; else importedCount++;
       } catch {
         errorsCount++;
       }
     }
-
     return { importedCount, duplicatesCount, errorsCount };
   } catch (err: unknown) {
     logger.error('Failed to import CSV opportunities', err);
@@ -387,6 +230,7 @@ export async function getProviderHealthList(): Promise<ProviderHealthTelemetry[]
     // Automatic marketplace scraping providers are all "Coming Soon" — none are
     // registered as live in the provider registry. Report that honestly instead
     // of fabricating sync timestamps or random "opportunities retrieved" counts.
+    const counts = await countListingsByProvider();
     const marketplaceProviderNames: Record<string, string> = {
       upwork: 'Upwork Enterprise',
       freelancer: 'Freelancer.com',
@@ -401,7 +245,7 @@ export async function getProviderHealthList(): Promise<ProviderHealthTelemetry[]
       status: 'Coming Soon',
       health: 'Coming Soon',
       lastSync: 'Not yet connected',
-      opportunitiesRetrieved: globalOpportunityStore.filter(o => o.providerId === providerId).length,
+      opportunitiesRetrieved: counts[providerId] || 0,
       avgResponseTimeMs: 0,
       errorsCount: 0,
       isLive: false,
@@ -415,7 +259,7 @@ export async function getProviderHealthList(): Promise<ProviderHealthTelemetry[]
         status: 'Connected',
         health: 'Healthy',
         lastSync: 'On demand',
-        opportunitiesRetrieved: globalOpportunityStore.filter(o => o.providerId === 'manual').length,
+        opportunitiesRetrieved: counts.manual || 0,
         avgResponseTimeMs: 0,
         errorsCount: 0,
         isLive: true,
@@ -426,7 +270,7 @@ export async function getProviderHealthList(): Promise<ProviderHealthTelemetry[]
         status: 'Connected',
         health: 'Healthy',
         lastSync: 'On demand',
-        opportunitiesRetrieved: globalOpportunityStore.filter(o => o.providerId === 'webhook').length,
+        opportunitiesRetrieved: counts.webhook || 0,
         avgResponseTimeMs: 0,
         errorsCount: 0,
         isLive: true,
@@ -461,7 +305,7 @@ export async function syncMarketplaceProvider(providerId: string): Promise<{ suc
     return {
       success: true,
       message: `'${providerId === 'manual' ? 'Manual CSV Import' : 'Inbound Webhook'}' is already live — use the Import/Webhook tools to add opportunities.`,
-      itemsRetrieved: globalOpportunityStore.filter(o => o.providerId === providerId).length,
+      itemsRetrieved: (await countListingsByProvider())[providerId] || 0,
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Provider sync failed.';

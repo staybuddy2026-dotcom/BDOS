@@ -2,7 +2,7 @@
 
 import { OutreachChannel, ToneSetting } from '@/features/outreach/types';
 import { Mail, MessageSquare, FileText, CalendarDays, Sparkles, Briefcase, Code2, Smile, Lightbulb, Layers, TrendingUp, Zap, SlidersHorizontal } from 'lucide-react';
-import s from './outreach.module.css';
+import s from '@/components/ui/ui.module.css';
 
 const CHANNELS = [
   { id: 'EMAIL' as const, label: 'Email', icon: Mail, sequence: true },

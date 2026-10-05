@@ -9,6 +9,7 @@ import { PostStatus, DraftStatus } from '@prisma/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
 import { SettingsService } from '@/lib/settings';
 import { AILearningService } from '../learning/service';
+import { getSenderIdentity } from '@/lib/sender';
 
 export type ReviewPostData = {
   id: string;
@@ -514,8 +515,7 @@ export async function markOutreachDraftAsSent(draftId: string) {
 }
 
 /**
- * Fetch all outreach drafts in the pipeline with post context and logs.
- * Falls back to mock data if the database is disconnected.
+ * Fetch all outreach drafts in the pipeline with post context and logs (an empty list when the database cannot be reached).
  */
 export async function getPipelineOutreaches() {
   try {
@@ -572,7 +572,7 @@ export async function updateOutreachDraftStatus(draftId: string, status: DraftSt
     }
 
     logger.info(`Outreach draft ID: ${draftId} status updated to ${status}.`);
-    safeRevalidatePath('/pipeline');
+    safeRevalidatePath('/crm');
     return updated;
   } catch (error) {
     logger.error(`Failed to update status for draft ID: ${draftId}`, error);
@@ -615,7 +615,7 @@ export async function createFollowUp(draftId: string, dueDate: Date, content?: s
     });
 
     logger.info(`Follow-up scheduled for draft ID: ${draftId} on date: ${dueDate}`);
-    safeRevalidatePath('/pipeline');
+    safeRevalidatePath('/crm');
     return followUp;
   } catch (error) {
     logger.error(`Failed to schedule follow-up for draft ID: ${draftId}`, error);
@@ -663,7 +663,7 @@ export async function progressToNextStep(draftId: string) {
           notes: 'Sequence finished. Playbook completed.',
         }
       });
-      safeRevalidatePath('/pipeline');
+      safeRevalidatePath('/crm');
       return { completed: true };
     }
 
@@ -720,47 +720,11 @@ export async function progressToNextStep(draftId: string) {
     });
 
     logger.info(`Progressed draft ID: ${draftId} to next step (New Draft ID: ${nextDraft.id})`);
-    safeRevalidatePath('/pipeline');
+    safeRevalidatePath('/crm');
     return { completed: false, draft: nextDraft };
   } catch (error) {
     logger.error(`Failed to progress step for draft ID: ${draftId}`, error);
     throw new AppError('Failed to progress playbook sequence step.', 500);
-  }
-}
-
-/**
- * Simulate prospect reply (Phase 10 Stop Rule).
- * Immediately stops sequences and cancels follow-up tasks.
- */
-export async function simulateProspectReply(draftId: string, replyText: string) {
-  try {
-    // 1. Move status to REPLIED
-    const updated = await db.outreachDraft.update({
-      where: { id: draftId },
-      data: { status: DraftStatus.REPLIED },
-    });
-
-    // 2. Cancel all pending follow ups for this draft
-    await db.followUp.updateMany({
-      where: { draftId, status: 'PENDING' },
-      data: { status: 'CANCELLED' },
-    });
-
-    // 3. Log history
-    await db.outreachHistory.create({
-      data: {
-        draftId,
-        status: DraftStatus.REPLIED,
-        notes: `Simulated Reply Received: "${replyText}". Automated follow-up sequence stopped.`,
-      },
-    });
-
-    logger.info(`Prospect reply simulated for draft ID: ${draftId}. Sequence stopped.`);
-    safeRevalidatePath('/pipeline');
-    return updated;
-  } catch (error) {
-    logger.error(`Failed to simulate reply for draft ID: ${draftId}`, error);
-    throw new AppError('Failed to simulate prospect reply.', 500);
   }
 }
 
@@ -781,7 +745,8 @@ export async function generateAiReplySuggestion(draftId: string, replyText: stri
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
     if (!apiKey) {
-      return `Hi ${draft.post.authorName.split(' ')[0]},\n\nThanks for your note. That sounds interesting. Let's discuss further next week.\n\nBest,\nAkash`;
+      const { name } = await getSenderIdentity();
+      return `Hi ${draft.post.authorName.split(' ')[0]},\n\nThanks for your note. That sounds interesting. Let's discuss further next week.\n\nBest,\n${name}`;
     }
 
     const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';

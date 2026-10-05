@@ -5,7 +5,7 @@ import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { db } from '@/lib/db';
 import { getCompany360Profile } from '@/features/company360/actions';
-import { calculateBuyingReadiness, determinePriorityTier } from './scoring';
+import { calculateBuyingReadiness } from './scoring';
 import { BuyingReadinessDetails, PriorityTier, PrioritizationDashboardTelemetry } from './types';
 
 /**
@@ -26,10 +26,9 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
     const targetDomains = new Set<string>();
 
     dbPosts.forEach((p) => {
-      const dom = (p.apolloEnrichment?.organizationDomain || p.companyName || '').toLowerCase().trim();
-      if (dom && dom !== 'organization' && dom !== 'target account' && !dom.includes('likesoft')) {
-        targetDomains.add(dom.includes('.') ? dom : `${dom.replace(/[^a-z0-9]/g, '')}.com`);
-      }
+      // Only real domains: guessing "<name>.com" from a company name would research the wrong company.
+      const dom = (p.apolloEnrichment?.organizationDomain || '').toLowerCase().trim();
+      if (dom.includes('.')) targetDomains.add(dom);
     });
 
     try {
@@ -39,10 +38,8 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
         const apolloSavedMap = JSON.parse(apolloSavedJson);
         Object.values(apolloSavedMap).forEach((p: unknown) => {
           const rec = p as Record<string, unknown>;
-          const dom = (rec.organizationDomain as string || rec.organizationName as string || '').toLowerCase().trim();
-          if (dom && dom !== 'organization' && dom !== 'target account' && !dom.includes('likesoft')) {
-            targetDomains.add(dom.includes('.') ? dom : `${dom.replace(/[^a-z0-9]/g, '')}.com`);
-          }
+          const dom = ((rec.organizationDomain as string) || '').toLowerCase().trim();
+          if (dom.includes('.')) targetDomains.add(dom);
         });
       }
     } catch (e) {
@@ -58,15 +55,7 @@ export async function getPrioritizedAccountsAction(filterTier?: PriorityTier): P
         const profile = await getCompany360Profile(domain);
         const readiness = calculateBuyingReadiness(profile);
 
-        const targetScore = readiness.buyingReadinessScore;
-
-        const tier = determinePriorityTier(targetScore);
-        const updatedReadiness: BuyingReadinessDetails = {
-          ...readiness,
-          buyingReadinessScore: targetScore,
-          priorityTier: tier,
-          winProbabilityPercent: Math.min(98, Math.round(targetScore * 0.96)),
-        };
+        const updatedReadiness: BuyingReadinessDetails = readiness;
 
         if (!filterTier || updatedReadiness.priorityTier === filterTier) {
           accounts.push(updatedReadiness);

@@ -1,88 +1,41 @@
 'use server';
 
 import { AuthService } from '@/lib/auth';
+import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { UniversalOpportunity } from '@/features/marketplace/ingestion';
 import { safeRevalidatePath } from '@/lib/revalidate';
+import { sameTech } from '@/lib/techMatch';
 
 export type BidRecommendationVerdict = 'BID' | 'CONSIDER' | 'DO NOT BID';
 
-export type PriorityLevel = 'Critical' | 'High' | 'Medium' | 'Low';
-
-export type TeamCostRole = {
-  role: string;
-  count: number;
-  ratePerHour: number;
-  hours: number;
+/** A service from the team's catalog that matches the listing's stack. */
+export type BidServiceMatch = {
+  name: string;
+  matchedTech: string[];
+  startingPriceUsd: string;
+  /** Whether the listing's budget reaches the service's starting price; null when either is unknown. */
+  budgetFits: boolean | null;
 };
 
-export type OpportunityCostEstimation = {
-  suggestedTeam: TeamCostRole[];
-  estimatedTimeline: string;
-  sprintCount: number;
-  estimatedDevHours: number;
-  internalCostNumber: number;
-  suggestedBidNumber: number;
-  expectedProfitNumber: number;
-  expectedMarginPercent: number;
-  formattedInternalCost: string;
-  formattedSuggestedBid: string;
-  formattedExpectedProfit: string;
-};
-
-export type ClientIntelligenceReport = {
-  clientType: 'Startup' | 'Enterprise' | 'Agency' | 'Government' | 'SME';
-  budgetConfidence: number;
-  timelineConfidence: number;
-  communicationQuality: 'High' | 'Moderate' | 'Low';
-  decisionSpeed: 'Fast (< 3 days)' | 'Moderate (1-2 weeks)' | 'Slow (> 2 weeks)';
-  futureBusinessPotential: 'High (Long-Term Partner)' | 'Moderate' | 'One-off Project';
-  riskIndicators: string[];
-};
-
+/**
+ * Bid report built from the listing itself and the team's service catalog. It states what is known
+ * (budget, stack, matching services) and what is missing; it does not guess the client, margin or timeline.
+ */
 export type OpportunityIntelligenceReport = {
   opportunityId: string;
   overallScore: number;
-  winProbability: number;
-  revenuePotential: string;
-  estimatedGrossMargin: number;
-  estimatedProfit: string;
-  complexity: 'Low' | 'Medium' | 'High' | 'Enterprise';
-  deliveryRisk: string;
-  clientQualityScore: number;
-  technicalFitScore: number;
-  longTermPotential: number;
-  strategicValue: number;
-  priorityLevel: PriorityLevel;
-  
-  // Recommendation & Reasoning
   recommendation: BidRecommendationVerdict;
-  bidReasoning: string[];
-  noBidReasoning: string[];
-  majorRisks: string[];
-  majorAdvantages: string[];
-  estimatedEffort: string;
-  expectedReturn: string;
-  
-  // AI Explanation Panel
-  whyBdosShouldBid: string;
-  whyCompetitorsMayWin: string;
-  proposalDifficulty: 'Easy' | 'Moderate' | 'Hard';
-  suggestedProposalTone: string;
-  suggestedEngagementModel: 'Dedicated Team' | 'Fixed Cost' | 'Hourly' | 'Staff Augmentation' | 'Technical Partnership';
-  
-  // Cost Estimation & Client Intelligence
-  costEstimation: OpportunityCostEstimation;
-  clientIntelligence: ClientIntelligenceReport;
-
-  // Semantic Duplicates
-  semanticDuplicates: {
-    matchedId: string;
-    matchedTitle: string;
-    similarityConfidence: number;
-    isSemanticDuplicate: boolean;
-  }[];
+  /** Facts in favour of bidding. */
+  reasons: string[];
+  /** Facts against, or things to check before bidding. */
+  risks: string[];
+  budget: string;
+  budgetType: string;
+  estimatedValueUsd: number | null;
+  services: BidServiceMatch[];
+  pitch: string;
 };
 
 export type SearchHistoryItem = {
@@ -118,311 +71,160 @@ export type ProviderAnalyticsItem = {
   rejectedCount: number;
   averageBudget: string;
   averageAiScore: number;
-  averageWinProbability: number;
-  averageProfit: string;
+  /** Listings from this source that became CRM deals. */
+  dealsInCrm: number;
   dealsWon: number;
+  /** Won deals out of listings imported. */
   successRatePercent: number;
 };
 
-// In-Memory Search History Store
-const searchHistoryStore: SearchHistoryItem[] = [
-  {
-    id: 'sh_1',
-    providerId: 'upwork',
-    keywords: 'React 19 HIPAA',
-    country: 'United States',
-    budget: '$20,000+',
-    technology: 'React.js',
-    resultsCount: 18,
-    timestamp: '2026-07-27 10:45:00',
-    executionTimeMs: 240,
-  },
-  {
-    id: 'sh_2',
-    providerId: 'freelancer',
-    keywords: 'Flutter Fleet GPS',
-    country: 'Canada',
-    budget: '$65/hr',
-    technology: 'Flutter',
-    resultsCount: 12,
-    timestamp: '2026-07-27 10:15:00',
-    executionTimeMs: 310,
-  },
-  {
-    id: 'sh_3',
-    providerId: 'rss',
-    keywords: 'Node.js Microservices',
-    country: 'All',
-    budget: 'Fixed-Price',
-    technology: 'Node.js',
-    resultsCount: 24,
-    timestamp: '2026-07-27 09:30:00',
-    executionTimeMs: 120,
-  },
-];
+const usdNumber = (v: string) => Number((v || '').replace(/[^0-9.]/g, '')) || null;
 
-// In-Memory Saved Searches Store
-const savedSearchesStore: SavedSearchItem[] = [
-  {
-    id: 'ss_1',
-    name: 'React 19 USA High Budget',
-    providerId: 'upwork',
-    keywords: 'React 19',
-    country: 'United States 🇺🇸',
-    budget: '$20,000+',
-    technology: 'React.js',
-    category: 'High Intent',
-    isShared: true,
-    createdDate: '2026-07-20',
-  },
-  {
-    id: 'ss_2',
-    name: 'Flutter Fleet & Mobile Europe',
-    providerId: 'freelancer',
-    keywords: 'Flutter GPS',
-    country: 'Germany / UK',
-    budget: '$50+/hr',
-    technology: 'Flutter',
-    category: 'Mobile Squad',
-    isShared: true,
-    createdDate: '2026-07-22',
-  },
-  {
-    id: 'ss_3',
-    name: 'Python AI & Local LLM Startups',
-    providerId: 'guru',
-    keywords: 'Llama 3 FastAPI',
-    country: 'United Kingdom 🇬🇧',
-    budget: '$15,000+',
-    technology: 'Python',
-    category: 'AI / ML',
-    isShared: false,
-    createdDate: '2026-07-25',
-  },
-];
-
-/**
- * Generate comprehensive AI Opportunity Intelligence Report & Cost Estimation.
- */
+/** Bid report for one listing: verdict, the facts behind it, and matching services from the catalog. */
 export async function getOpportunityIntelligence(opp: UniversalOpportunity): Promise<OpportunityIntelligenceReport> {
   try {
     await AuthService.verifySession();
-    logger.info(`Evaluating Opportunity Intelligence for ID '${opp.id}'...`);
+    const { getServiceCatalog } = await import('@/features/learning/actions');
+    const catalog = await getServiceCatalog().catch(() => []);
 
-    const isHighValue = opp.estimatedValueNumber >= 20000;
-    const isMediumValue = opp.estimatedValueNumber >= 10000;
+    const stack = opp.technologyStack || [];
+    const value = opp.estimatedValueNumber || null;
+    const services: BidServiceMatch[] = catalog
+      .map((svc) => {
+        const matchedTech = svc.stack.split(',').map((t) => t.trim()).filter((t) => t && stack.some((x) => sameTech(x, t)));
+        const min = usdNumber(svc.minUsd);
+        return { name: svc.name, matchedTech, startingPriceUsd: svc.minUsd, budgetFits: value && min ? value >= min : null };
+      })
+      .filter((x) => x.matchedTech.length)
+      .sort((a, b) => b.matchedTech.length - a.matchedTech.length)
+      .slice(0, 3);
 
-    const winProb = isHighValue ? 88 : isMediumValue ? 82 : 75;
-    const grossMargin = isHighValue ? 54 : 48;
-    const profitNum = Math.round(opp.estimatedValueNumber * (grossMargin / 100));
-    const internalCostNum = opp.estimatedValueNumber - profitNum;
+    const reasons: string[] = [];
+    const risks: string[] = [];
+    if (services.length) reasons.push(`Matches your ${services[0].name} service (${services[0].matchedTech.slice(0, 4).join(', ')}).`);
+    else if (stack.length) risks.push(`None of your catalog services lists ${opp.technologyStack.slice(0, 3).join(', ')}.`);
+    else risks.push('No technology is stated, so service fit cannot be checked.');
+    if (value) reasons.push(`Budget stated: ${opp.budget}.`);
+    else if (opp.budgetType === 'Hourly') risks.push(`Hourly rate (${opp.budget}): check the hours and duration before bidding.`);
+    else risks.push('No budget stated: ask before writing a full proposal.');
+    if (services[0]?.budgetFits === false) risks.push(`The budget is below the ${services[0].startingPriceUsd} starting price of ${services[0].name}.`);
+    if (services[0]?.budgetFits) reasons.push(`The budget covers the ${services[0].startingPriceUsd} starting price of ${services[0].name}.`);
+    if ((opp.projectDescription || '').length < 120) risks.push('The description is short: the scope will need clarifying.');
+    if (opp.projectUrl) reasons.push('The original listing is linked, so details can be checked.');
 
-    // Team cost calculations
-    const team: TeamCostRole[] = [
-      { role: 'Tech Lead / Architect', count: 1, ratePerHour: 60, hours: 40 },
-      { role: 'Senior React/Node Developer', count: 2, ratePerHour: 45, hours: 160 },
-      { role: 'QA Automation Engineer', count: 1, ratePerHour: 30, hours: 40 },
-    ];
+    const recommendation: BidRecommendationVerdict = services.length && services[0].budgetFits !== false && opp.aiOpportunityScore >= 88 ? 'BID'
+      : services.length || opp.aiOpportunityScore >= 70 ? 'CONSIDER' : 'DO NOT BID';
 
-    const totalHours = team.reduce((acc, t) => acc + (t.hours * t.count), 0);
-    const sprintCount = Math.ceil(totalHours / 160);
-
-    const verdict: BidRecommendationVerdict = opp.aiOpportunityScore >= 88 ? 'BID' : opp.aiOpportunityScore >= 70 ? 'CONSIDER' : 'DO NOT BID';
-    const priority: PriorityLevel = opp.aiOpportunityScore >= 94 ? 'Critical' : opp.aiOpportunityScore >= 85 ? 'High' : opp.aiOpportunityScore >= 70 ? 'Medium' : 'Low';
+    const pitch = services.length
+      ? `Lead with ${services[0].name}: say how you have delivered ${services[0].matchedTech.slice(0, 2).join(' and ')} work, and propose a short first milestone so the client can judge quickly.`
+      : 'Ask a clarifying question about the stack and scope first; a generic proposal is unlikely to win.';
 
     return {
       opportunityId: opp.id,
       overallScore: opp.aiOpportunityScore,
-      winProbability: winProb,
-      revenuePotential: opp.budget,
-      estimatedGrossMargin: grossMargin,
-      estimatedProfit: `$${profitNum.toLocaleString()}`,
-      complexity: opp.complexity || 'High',
-      deliveryRisk: opp.deliveryRisk || 'Low (10%)',
-      clientQualityScore: 92,
-      technicalFitScore: 96,
-      longTermPotential: 90,
-      strategicValue: 94,
-      priorityLevel: priority,
-      recommendation: verdict,
-      bidReasoning: [
-        'Strong technical match with Tiny Script React 19 & Node.js architecture stacks',
-        'Healthy estimated gross margin (> 50%) with low delivery complexity risk',
-        'High client payment rating & verified contract budget',
-      ],
-      noBidReasoning: [
-        'Tight launch deadline requiring dedicated senior squad deployment',
-      ],
-      majorRisks: [
-        'Client has strict 6-week timeline for microservices migration',
-      ],
-      majorAdvantages: [
-        'Pre-built HIPAA compliance & TypeScript REST API boilerplate modules',
-        'Proven case studies in scaling high-concurrency SaaS applications',
-      ],
-      estimatedEffort: `${totalHours} Dev Hours (${sprintCount} Sprints)`,
-      expectedReturn: `$${profitNum.toLocaleString()} Estimated Net Margin`,
-      whyBdosShouldBid: 'Opportunity matches Tiny Script primary dev squad capabilities with zero custom R&D overhead.',
-      whyCompetitorsMayWin: 'Freelance individuals offering low hourly rates; position our fixed-price sprint guarantee.',
-      proposalDifficulty: 'Easy',
-      suggestedProposalTone: 'Consultative, Technical & Solution-Oriented',
-      suggestedEngagementModel: 'Fixed Cost',
-      costEstimation: {
-        suggestedTeam: team,
-        estimatedTimeline: `${sprintCount * 2} Weeks (${sprintCount} Sprints)`,
-        sprintCount,
-        estimatedDevHours: totalHours,
-        internalCostNumber: internalCostNum,
-        suggestedBidNumber: opp.estimatedValueNumber,
-        expectedProfitNumber: profitNum,
-        expectedMarginPercent: grossMargin,
-        formattedInternalCost: `$${internalCostNum.toLocaleString()}`,
-        formattedSuggestedBid: `$${opp.estimatedValueNumber.toLocaleString()}`,
-        formattedExpectedProfit: `$${profitNum.toLocaleString()}`,
-      },
-      clientIntelligence: {
-        clientType: 'Enterprise',
-        budgetConfidence: 95,
-        timelineConfidence: 85,
-        communicationQuality: 'High',
-        decisionSpeed: 'Fast (< 3 days)',
-        futureBusinessPotential: 'High (Long-Term Partner)',
-        riskIndicators: ['Aggressive 6-week milestone schedule'],
-      },
-      semanticDuplicates: [
-        {
-          matchedId: 'opp_sem_dup_1',
-          matchedTitle: 'Full-Stack React & Node Microservices Healthcare Portal',
-          similarityConfidence: 94,
-          isSemanticDuplicate: true,
-        },
-      ],
+      recommendation,
+      reasons,
+      risks,
+      budget: opp.budget,
+      budgetType: opp.budgetType,
+      estimatedValueUsd: value,
+      services,
+      pitch,
     };
   } catch (err: unknown) {
-    logger.error(`Failed to generate intelligence report for ${opp.id}`, err);
-    throw new AppError('AI Intelligence evaluation failed.', 500);
+    logger.error(`Failed to build the bid report for ${opp.id}`, err);
+    throw new AppError('Could not build the bid report.', 500);
   }
 }
 
+const PROVIDER_NAMES: Record<string, string> = {
+  manual: 'CSV import',
+  webhook: 'Inbound webhook',
+  upwork: 'Upwork',
+  freelancer: 'Freelancer.com',
+  guru: 'Guru.com',
+  toptal: 'Toptal',
+  rss: 'RSS feeds',
+};
+
 /**
- * Query Provider Analytics across all marketplace sources.
+ * Per source: how many listings came in, how many are still in play, and how many became CRM deals and
+ * were won. Counted from the stored listings and the CRM, so a new workspace shows zeros.
  */
 export async function getProviderAnalytics(): Promise<ProviderAnalyticsItem[]> {
   try {
     await AuthService.verifySession();
-    return [
-      {
-        providerId: 'upwork',
-        providerName: 'Upwork Enterprise',
-        projectsImported: 42,
-        qualifiedCount: 36,
-        rejectedCount: 6,
-        averageBudget: '$22,500',
-        averageAiScore: 94,
-        averageWinProbability: 86,
-        averageProfit: '$11,700',
-        dealsWon: 8,
-        successRatePercent: 88,
-      },
-      {
-        providerId: 'freelancer',
-        providerName: 'Freelancer.com',
-        projectsImported: 28,
-        qualifiedCount: 22,
-        rejectedCount: 6,
-        averageBudget: '$24,000',
-        averageAiScore: 91,
-        averageWinProbability: 82,
-        averageProfit: '$12,400',
-        dealsWon: 5,
-        successRatePercent: 82,
-      },
-      {
-        providerId: 'guru',
-        providerName: 'Guru.com',
-        projectsImported: 18,
-        qualifiedCount: 15,
-        rejectedCount: 3,
-        averageBudget: '$14,500',
-        averageAiScore: 89,
-        averageWinProbability: 80,
-        averageProfit: '$7,250',
-        dealsWon: 4,
-        successRatePercent: 80,
-      },
-      {
-        providerId: 'rss',
-        providerName: 'RSS Procurement Feeds',
-        projectsImported: 35,
-        qualifiedCount: 30,
-        rejectedCount: 5,
-        averageBudget: '$25,000',
-        averageAiScore: 95,
-        averageWinProbability: 90,
-        averageProfit: '$13,500',
-        dealsWon: 7,
-        successRatePercent: 90,
-      },
-      {
-        providerId: 'webhook',
-        providerName: 'Zapier / Webhooks',
-        projectsImported: 24,
-        qualifiedCount: 22,
-        rejectedCount: 2,
-        averageBudget: '$20,000',
-        averageAiScore: 96,
-        averageWinProbability: 92,
-        averageProfit: '$10,800',
-        dealsWon: 6,
-        successRatePercent: 94,
-      },
-    ];
+    const rows = await db.marketplaceOpportunity.findMany({ select: { providerId: true, status: true, estimatedValue: true, projectUrl: true, data: true } });
+    const urls = rows.map((r) => r.projectUrl).filter(Boolean);
+    const deals = urls.length
+      ? await db.deal.findMany({ where: { source: 'MARKETPLACE', sourceRef: { in: urls } }, select: { sourceRef: true, stage: true } })
+      : [];
+    const dealByUrl = new Map(deals.map((d) => [d.sourceRef!, d.stage]));
+
+    const byProvider = new Map<string, typeof rows>();
+    for (const row of rows) byProvider.set(row.providerId, [...(byProvider.get(row.providerId) || []), row]);
+
+    return [...byProvider.entries()].map(([providerId, list]) => {
+      const values = list.map((r) => r.estimatedValue).filter((v): v is number => v != null);
+      const scores = list.map((r) => Number((r.data as { aiOpportunityScore?: number })?.aiOpportunityScore) || 0).filter(Boolean);
+      const inCrm = list.filter((r) => r.projectUrl && dealByUrl.has(r.projectUrl));
+      const won = inCrm.filter((r) => dealByUrl.get(r.projectUrl) === 'WON').length;
+      return {
+        providerId,
+        providerName: PROVIDER_NAMES[providerId] || providerId,
+        projectsImported: list.length,
+        qualifiedCount: list.filter((r) => r.status !== 'ARCHIVED').length,
+        rejectedCount: list.filter((r) => r.status === 'ARCHIVED').length,
+        averageBudget: values.length ? `$${Math.round(values.reduce((a, b) => a + b, 0) / values.length).toLocaleString('en-US')}` : 'Not stated',
+        averageAiScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+        dealsInCrm: inCrm.length,
+        dealsWon: won,
+        successRatePercent: list.length ? Math.round((won / list.length) * 100) : 0,
+      };
+    }).sort((a, b) => b.projectsImported - a.projectsImported);
   } catch (err: unknown) {
     logger.error('Failed to query provider analytics', err);
     return [];
   }
 }
 
-/**
- * Fetch Search History items.
- */
+const day = (d: Date) => d.toISOString().replace('T', ' ').slice(0, 16);
+
+/** The signed-in person's last 50 collection runs. */
 export async function getSearchHistory(): Promise<SearchHistoryItem[]> {
   try {
-    await AuthService.verifySession();
-    return searchHistoryStore;
+    const user = await AuthService.verifySession();
+    const rows = await db.marketplaceSearch.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 50 });
+    return rows.map((r) => ({
+      id: r.id, providerId: r.providerId, keywords: r.keywords, country: r.country, budget: r.budget, technology: r.technology,
+      resultsCount: r.resultsCount, timestamp: day(r.createdAt), executionTimeMs: r.executionTimeMs,
+    }));
   } catch (err: unknown) {
     logger.error('Failed to query search history', err);
     return [];
   }
 }
 
-/**
- * Add a new entry to Search History.
- */
 export async function addSearchHistory(entry: Omit<SearchHistoryItem, 'id' | 'timestamp'>) {
   try {
-    await AuthService.verifySession();
-    const newItem: SearchHistoryItem = {
-      id: `sh_${Date.now()}`,
-      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      ...entry,
-    };
-    searchHistoryStore.unshift(newItem);
-    return { success: true, item: newItem };
+    const user = await AuthService.verifySession();
+    const row = await db.marketplaceSearch.create({
+      data: {
+        userId: user.id, providerId: entry.providerId.slice(0, 50), keywords: entry.keywords.slice(0, 200), technology: entry.technology.slice(0, 200),
+        country: entry.country.slice(0, 100), budget: entry.budget.slice(0, 100), resultsCount: entry.resultsCount, executionTimeMs: Math.round(entry.executionTimeMs),
+      },
+    });
+    return { success: true, item: { ...entry, id: row.id, timestamp: day(row.createdAt) } };
   } catch (err: unknown) {
     logger.error('Failed to log search history', err);
     throw new AppError('Failed to record search history.', 500);
   }
 }
 
-/**
- * Delete a Search History item.
- */
 export async function deleteSearchHistory(id: string) {
   try {
-    await AuthService.verifySession();
-    const idx = searchHistoryStore.findIndex(s => s.id === id);
-    if (idx !== -1) searchHistoryStore.splice(idx, 1);
+    const user = await AuthService.verifySession();
+    await db.marketplaceSearch.deleteMany({ where: { id, userId: user.id } });
     return { success: true, id };
   } catch (err: unknown) {
     logger.error(`Failed to delete search history ${id}`, err);
@@ -430,51 +232,52 @@ export async function deleteSearchHistory(id: string) {
   }
 }
 
-/**
- * Fetch Saved Searches items.
- */
+/** The signed-in person's presets plus the ones teammates shared. */
 export async function getSavedSearches(): Promise<SavedSearchItem[]> {
   try {
-    await AuthService.verifySession();
-    return savedSearchesStore;
+    const user = await AuthService.verifySession();
+    const rows = await db.marketplaceSavedSearch.findMany({ where: { OR: [{ userId: user.id }, { isShared: true }] }, orderBy: { createdAt: 'desc' }, take: 100 });
+    return rows.map((r) => ({
+      id: r.id, name: r.name, providerId: r.providerId, keywords: r.keywords, country: r.country, budget: r.budget, technology: r.technology,
+      category: r.category, isShared: r.isShared, createdDate: r.createdAt.toISOString().slice(0, 10),
+    }));
   } catch (err: unknown) {
     logger.error('Failed to query saved searches', err);
     return [];
   }
 }
 
-/**
- * Create a new Saved Search preset.
- */
 export async function createSavedSearch(item: Omit<SavedSearchItem, 'id' | 'createdDate'>) {
   try {
-    await AuthService.verifySession();
-    const newItem: SavedSearchItem = {
-      id: `ss_${Date.now()}`,
-      createdDate: new Date().toISOString().split('T')[0],
-      ...item,
-    };
-    savedSearchesStore.unshift(newItem);
+    const user = await AuthService.verifySession();
+    const name = item.name.trim().slice(0, 100);
+    if (!name) throw new AppError('Give the preset a name.', 400);
+    const row = await db.marketplaceSavedSearch.create({
+      data: {
+        userId: user.id, name, providerId: item.providerId, keywords: item.keywords.slice(0, 200), technology: item.technology.slice(0, 200),
+        country: item.country.slice(0, 100), budget: item.budget.slice(0, 100), category: item.category.slice(0, 100), isShared: item.isShared,
+      },
+    });
     safeRevalidatePath('/marketplace');
-    return { success: true, item: newItem };
+    return { success: true, item: { ...item, name, id: row.id, createdDate: row.createdAt.toISOString().slice(0, 10) } };
   } catch (err: unknown) {
     logger.error('Failed to save search preset', err);
+    if (err instanceof AppError) throw err;
     throw new AppError('Failed to create saved search.', 500);
   }
 }
 
-/**
- * Delete a Saved Search preset.
- */
+/** Deletes a preset. Only the person who made it can delete it, even when it is shared. */
 export async function deleteSavedSearch(id: string) {
   try {
-    await AuthService.verifySession();
-    const idx = savedSearchesStore.findIndex(s => s.id === id);
-    if (idx !== -1) savedSearchesStore.splice(idx, 1);
+    const user = await AuthService.verifySession();
+    const res = await db.marketplaceSavedSearch.deleteMany({ where: { id, userId: user.id } });
+    if (!res.count) throw new AppError('Only the person who saved this preset can delete it.', 403);
     safeRevalidatePath('/marketplace');
     return { success: true, id };
   } catch (err: unknown) {
     logger.error(`Failed to delete saved search ${id}`, err);
+    if (err instanceof AppError) throw err;
     throw new AppError('Failed to delete saved search.', 500);
   }
 }

@@ -15,7 +15,7 @@ export function RevenueForecast({ projections }: { projections: ForecastProjecti
         </div>
 
         <span style={{ fontSize: '0.72rem', background: 'var(--accent-indigo-glow)', color: 'var(--accent-indigo)', border: '1px solid var(--border-focus)', padding: '4px 10px', borderRadius: '6px', fontWeight: 800 }}>
-          FY 2026 Forecast Model Active
+          Weighted by stage
         </span>
       </div>
 
@@ -29,13 +29,13 @@ export function RevenueForecast({ projections }: { projections: ForecastProjecti
         <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Quarterly Projections</div>
           <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--color-warning)', marginTop: '2px' }}>{projections.expectedQuarterlyRevenueInr}</div>
-          <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Q1 2026 Target</div>
+          <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Next 3 months</div>
         </div>
 
         <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px' }}>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Annual Forecast</div>
           <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--color-success)', marginTop: '2px' }}>{projections.expectedAnnualRevenueInr}</div>
-          <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Annual Recurring Run Rate</div>
+          <div style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Next 12 months</div>
         </div>
 
         <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '12px' }}>

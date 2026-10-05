@@ -360,22 +360,24 @@ export default function KeywordsPage() {
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '12px',
-        borderBottom: '1px solid var(--border-subtle)',
-        height: '65px',
+        gap: '14px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
+        height: '68px',
         flexShrink: 0,
         padding: '0 28px',
-        background: 'var(--bg-primary)'
+        background: 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(16px)',
+        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.02)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)', padding: '8px', borderRadius: '8px', boxShadow: '0 4px 16px rgba(245, 158, 11, 0.3)' }}>
+          <div style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', padding: '9px', borderRadius: '12px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.28)' }}>
             <Search size={20} style={{ color: '#ffffff' }} />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 700, background: 'linear-gradient(135deg, #0f172a, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+            <h2 style={{ fontSize: '1.28rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
               Keyword Library & Boolean Queries
             </h2>
-            <p style={{ fontSize: '0.8rem', color: '#8ba0cb', fontWeight: 600, letterSpacing: '0.03em', marginTop: '4px', margin: 0 }}>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, letterSpacing: '0.01em', marginTop: '2px', margin: 0 }}>
               Configure search keywords and Boolean queries to scan for buying signals
             </p>
           </div>
@@ -421,15 +423,15 @@ export default function KeywordsPage() {
               align-items: center;
               gap: 12px;
               padding: 14px 20px;
-              border-radius: 'var(--radius-md)';
+              border-radius: var(--radius-md);
               box-shadow: 0 10px 30px rgba(0,0,0,0.5);
               z-index: 1000;
               color: white;
               font-size: 0.9rem;
               animation: fadeIn 0.2s forwards;
             }
-            .notification.success { background: 'var(--color-success)'; }
-            .notification.error { background: 'var(--color-danger)'; }
+            .notification.success { background: var(--color-success); }
+            .notification.error { background: var(--color-danger); }
             :global(.notif-icon) { width: 18px; height: 18px; }
           `}</style>
         </div>
@@ -450,13 +452,13 @@ export default function KeywordsPage() {
             .db-warning-banner {
               display: flex;
               align-items: center;
-              gap: 'var(--space-md)';
+              gap: var(--space-md);
               border-color: rgba(239, 68, 68, 0.2);
               background: rgba(239, 68, 68, 0.05);
             }
-            .warning-icon { color: 'var(--color-danger)'; width: 28px; height: 28px; }
-            .warning-content h4 { color: 'var(--color-danger)'; margin-bottom: 2px; }
-            .warning-content p { font-size: 0.85rem; color: 'var(--text-secondary)'; }
+            .warning-icon { color: var(--color-danger); width: 28px; height: 28px; }
+            .warning-content h4 { color: var(--color-danger); margin-bottom: 2px; }
+            .warning-content p { font-size: 0.85rem; color: var(--text-secondary); }
             .refresh-icon { width: 16px; height: 16px; }
           `}</style>
         </div>
@@ -470,50 +472,50 @@ export default function KeywordsPage() {
 
       {/* Statistics Cards */}
       <div className="stats-grid">
-        <div className="stat-card card-glass">
+        <div className="stat-card stat-total card-glass">
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Total Keywords</span>
-              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : totalCount}</span>
+              <span className="stat-val">{pageLoading ? '...' : totalCount}</span>
             </div>
             <div className="stat-icon-wrapper">
-              <FileSpreadsheet className="stat-icon" />
+              <FileSpreadsheet className="stat-icon text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="stat-card border-(--accent-indigo) bg-(--accent-indigo-glow) shadow-[0_0_12px_rgba(0,208,156,0.15)] card-glass">
+        <div className="stat-card stat-active card-glass">
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Active (Discovery)</span>
-              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : activeCount}</span>
+              <span className="stat-val">{pageLoading ? '...' : activeCount}</span>
             </div>
             <div className="stat-icon-wrapper">
-              <CheckCircle className="stat-icon" style={{ color: 'var(--color-success)' }} />
+              <CheckCircle className="stat-icon text-emerald-600" />
             </div>
           </div>
         </div>
 
-        <div className="stat-card fav-card card-glass">
+        <div className="stat-card fav-card stat-favorite card-glass">
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Starred Terms</span>
-              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : favoriteCount}</span>
+              <span className="stat-val">{pageLoading ? '...' : favoriteCount}</span>
             </div>
             <div className="stat-icon-wrapper">
-              <Star className="stat-icon" style={{ color: 'var(--color-warning)', fill: '#fbbf24' }} />
+              <Star className="stat-icon text-amber-500 fill-amber-400" />
             </div>
           </div>
         </div>
 
-        <div className="stat-card card-glass">
+        <div className="stat-card stat-matches card-glass">
           <div className="stat-content">
             <div className="stat-info">
               <span className="stat-label">Discovery Matches</span>
-              <span className="text-[1.6rem] font-bold text-(--text-primary)">{pageLoading ? '...' : totalMatches}</span>
+              <span className="stat-val">{pageLoading ? '...' : totalMatches}</span>
             </div>
             <div className="stat-icon-wrapper">
-              <Search className="stat-icon" style={{ color: 'var(--accent-cyan)' }} />
+              <Search className="stat-icon text-sky-500" />
             </div>
           </div>
         </div>
@@ -524,17 +526,36 @@ export default function KeywordsPage() {
         
         {/* Filter Toolbar */}
         <div className="filter-bar card-glass">
-          <div className="filter-left" style={{ flex: 1 }}>
+          <div className="filter-left">
             {/* Premium Search */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', width: '100%', maxWidth: '400px' }}>
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid var(--border-subtle)' }}>
-                <Search size={16} style={{ color: 'var(--accent-indigo)', flexShrink: 0 }} />
+            <div style={{ position: 'relative', width: '100%', maxWidth: '420px' }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.95)',
+                borderRadius: '12px',
+                padding: '7px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                border: '1.5px solid #cbd5e1',
+                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+                transition: 'all 0.2s ease'
+              }}>
+                <Search size={17} style={{ color: '#6366f1', flexShrink: 0 }} />
                 <input 
                   type="text" 
                   placeholder="Search keywords or categories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 600, outline: 'none', padding: '10px 0' }}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#0f172a',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    padding: '4px 0'
+                  }}
                 />
               </div>
             </div>
@@ -607,14 +628,14 @@ export default function KeywordsPage() {
                 <button 
                   onClick={() => handleBulkStatusChange(KeywordStatus.ACTIVE)} 
                   className="btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                  style={{ padding: '6px 14px', fontSize: '0.8rem' }}
                 >
                   Activate Selected
                 </button>
                 <button 
                   onClick={() => handleBulkStatusChange(KeywordStatus.INACTIVE)} 
                   className="btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                  style={{ padding: '6px 14px', fontSize: '0.8rem' }}
                 >
                   Deactivate Selected
                 </button>
@@ -628,7 +649,7 @@ export default function KeywordsPage() {
           <div className="table-wrapper">
             {pageLoading ? (
               <div className="empty-state">
-                <RefreshCw className="empty-icon animate-spin" />
+                <RefreshCw className="empty-icon animate-spin text-indigo-500" />
                 <p>Loading keyword database...</p>
               </div>
             ) : filteredKeywords.length === 0 ? (
@@ -636,7 +657,7 @@ export default function KeywordsPage() {
                 <Search className="empty-icon" />
                 <h4>No search terms match</h4>
                 <p>Try resetting filters or creating a new search keyword.</p>
-                <button onClick={handleOpenCreateModal} className="btn-primary" style={{ marginTop: '12px' }}>
+                <button onClick={handleOpenCreateModal} className="btn-primary" style={{ marginTop: '14px' }}>
                   <Plus size={16} /> Create Search Term
                 </button>
               </div>
@@ -652,14 +673,14 @@ export default function KeywordsPage() {
                         className="checkbox-glow"
                       />
                     </th>
-                    <th style={{ width: '40px' }}>Starred</th>
+                    <th style={{ width: '45px' }}>Starred</th>
                     <th>Query Keyword</th>
                     <th>Category</th>
                     <th>Priority</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Matches</th>
                     <th>Last Searched</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
+                    <th style={{ width: '90px', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -679,6 +700,7 @@ export default function KeywordsPage() {
                           <button 
                             onClick={() => handleToggleFavorite(kw.id, kw.isFavorite)}
                             className={`star-btn ${kw.isFavorite ? 'active' : ''}`}
+                            title={kw.isFavorite ? 'Remove from favorites' : 'Star this term'}
                           >
                             <Star size={16} fill={kw.isFavorite ? '#fbbf24' : 'none'} />
                           </button>
@@ -688,9 +710,10 @@ export default function KeywordsPage() {
                           {kw.keyword.split(/(\s+AND\s+|\s+OR\s+|\s+NOT\s+)/i).map((part, index) => {
                             const upperPart = part.toUpperCase();
                             if ([' AND ', ' OR ', ' NOT '].includes(upperPart)) {
+                              const tokenType = upperPart.trim().toLowerCase();
                               return (
-                                <span key={index} className="boolean-token">
-                                  {part}
+                                <span key={index} className={`boolean-token token-${tokenType}`}>
+                                  {part.trim()}
                                 </span>
                               );
                             }
@@ -701,7 +724,7 @@ export default function KeywordsPage() {
                           <span className="badge badge-indigo">{kw.category}</span>
                         </td>
                         <td>
-                          <span className="td-priority-badge">
+                          <span className={`td-priority-badge priority-${kw.priority.toLowerCase()}`}>
                             <span className={`priority-dot ${kw.priority.toLowerCase()}`} />
                             {kw.priority}
                           </span>
@@ -711,22 +734,38 @@ export default function KeywordsPage() {
                             onClick={() => handleToggleStatus(kw.id, kw.status)}
                             className={`badge ${kw.status === KeywordStatus.ACTIVE ? 'badge-success' : 'badge-danger'}`}
                             style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
+                            title="Click to toggle status"
                           >
                             {kw.status}
                           </button>
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 'bold', color: kw.matchesFound > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
-                          {kw.matchesFound}
+                        <td style={{ textAlign: 'right' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minWidth: '28px',
+                            padding: '3px 9px',
+                            borderRadius: '9999px',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            fontVariantNumeric: 'tabular-nums',
+                            background: kw.matchesFound > 0 ? 'rgba(14, 165, 233, 0.1)' : 'transparent',
+                            color: kw.matchesFound > 0 ? '#0284c7' : '#94a3b8',
+                            border: kw.matchesFound > 0 ? '1px solid rgba(14, 165, 233, 0.25)' : 'none'
+                          }}>
+                            {kw.matchesFound}
+                          </span>
                         </td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <td style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
                           {kw.lastSearchedAt ? new Date(kw.lastSearchedAt).toLocaleDateString() : 'Never'}
                         </td>
                         <td>
                           <div className="action-btns">
-                            <button onClick={() => handleEditClick(kw)} className="icon-btn" title="Edit">
+                            <button onClick={() => handleEditClick(kw)} className="icon-btn" title="Edit Search Term">
                               <Edit size={14} />
                             </button>
-                            <button onClick={() => handleDelete(kw.id)} className="icon-btn delete" title="Delete">
+                            <button onClick={() => handleDelete(kw.id)} className="icon-btn delete" title="Delete Search Term">
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -762,7 +801,7 @@ export default function KeywordsPage() {
                   placeholder='("AI Development" OR "Machine Learning") AND ("looking for" OR "need help")'
                   value={keywordText}
                   onChange={handleKeywordChange}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-(--text-primary) text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-(--accent-indigo) focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white"
+                  className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-800 text-[0.85rem] font-medium outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.18)] focus:bg-white"
                   autoFocus
                 />
                 <span className="helper-text">
@@ -777,7 +816,7 @@ export default function KeywordsPage() {
                   placeholder="e.g. Sales, Recruiting, HR"
                   value={categoryText}
                   onChange={(e) => setCategoryText(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-(--text-primary) text-[0.82rem] outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-(--accent-indigo) focus:shadow-[0_0_0_3px_rgba(0,208,156,0.15)] focus:bg-white"
+                  className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-800 text-[0.85rem] font-medium outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.18)] focus:bg-white"
                   list="existing-categories-modal"
                 />
                 <datalist id="existing-categories-modal">
@@ -844,7 +883,9 @@ export default function KeywordsPage() {
         <div className="modal-backdrop" onClick={() => setShowCsvModal(false)}>
           <div className="create-modal card-glass" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Import Keywords CSV</h3>
+              <h3 className="flex items-center gap-2">
+                <Upload size={18} className="text-indigo-600" /> Import Keywords CSV
+              </h3>
               <button onClick={() => setShowCsvModal(false)} className="icon-btn">
                 <X size={18} />
               </button>
@@ -883,7 +924,7 @@ export default function KeywordsPage() {
               {/* Error notifications */}
               {csvErrorList.length > 0 && (
                 <div className="csv-errors-box">
-                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'red' }}>Parsing errors found:</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#dc2626' }}>Parsing errors found:</span>
                   {csvErrorList.map((err, idx) => (
                     <span key={idx} className="csv-error-line">• {err}</span>
                   ))}
@@ -892,8 +933,8 @@ export default function KeywordsPage() {
 
               {/* Success message */}
               {importSuccess && (
-                <div className="selected-file-banner" style={{ background: 'var(--color-success-bg)', borderColor: 'var(--color-success-bg)' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--color-success)' }}>{importSuccess}</span>
+                <div className="selected-file-banner" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#059669', fontWeight: 600 }}>{importSuccess}</span>
                 </div>
               )}
             </div>

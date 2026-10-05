@@ -42,10 +42,10 @@ export default async function RevenueOSPage() {
         {/* Live Engine Status Pills */}
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="text-[0.76rem] bg-emerald-50 text-emerald-600 border border-emerald-200/50 px-3.5 py-1 rounded-full font-semibold flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Forecast Accuracy {telemetry.forecastAccuracyPercent}%
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {telemetry.dealsWonCount} won · {telemetry.dealsLostCount} lost
           </span>
           <span className="text-[0.72rem] bg-indigo-50/50 text-indigo-600 border border-indigo-200/50 px-3 py-1 rounded-full font-extrabold">
-            FY Target {telemetry.annualSalesTargetInr}
+            {telemetry.annualSalesTargetInr ? `Yearly target ${telemetry.annualSalesTargetInr}` : 'No yearly target set'}
           </span>
         </div>
       </div>

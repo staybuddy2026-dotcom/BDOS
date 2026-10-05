@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { z } from 'zod';
 import { STAGES } from './FollowupTimeline';
-import s from './outreach.module.css';
+import s from '@/components/ui/ui.module.css';
 
 const TestEmailSchema = z.string().trim().email('Enter a valid email address');
 const TEST_EMAIL_KEY = 'bdos_outreach_test_email';
@@ -59,7 +59,7 @@ const openMailto = (to: string, subject: string, body: string) => {
   window.location.href = url;
 };
 
-export type EditorBusy = 'schedule' | 'send' | 'pause' | null;
+export type EditorBusy = 'schedule' | 'send' | 'email' | 'pause' | null;
 
 export function OutreachEditor({
   draft,
@@ -69,11 +69,16 @@ export function OutreachEditor({
   onRegenerate,
   onSchedule,
   onMarkSent,
+  onSendEmail,
+  onSendTest,
   onTogglePause,
   notify,
   onAddResearch,
   hasResearch = false,
+  mailbox,
 }: {
+  /** The mailbox outgoing email uses; automatic follow-ups need one. */
+  mailbox?: { connected: boolean; address?: string };
   onAddResearch?: () => void;
   hasResearch?: boolean;
   draft: OutreachMessageDraft;
@@ -81,8 +86,12 @@ export function OutreachEditor({
   busy: EditorBusy;
   onChange: (patch: { subjectLine?: string; bodyContent?: string }) => void;
   onRegenerate: () => void;
-  onSchedule: (startAt?: string) => Promise<boolean>;
+  onSchedule: (startAt?: string, autoSend?: boolean) => Promise<boolean>;
   onMarkSent: () => void;
+  /** Sends the active stage from the user's connected mailbox and marks it as sent. */
+  onSendEmail: () => void;
+  /** Sends the active stage to the given address as a test. Resolves true when it was sent. */
+  onSendTest: (to: string) => Promise<boolean>;
   onTogglePause: () => void;
   notify: (msg: string, isError?: boolean) => void;
 }) {
@@ -93,8 +102,11 @@ export function OutreachEditor({
     try { return typeof window === 'undefined' ? '' : localStorage.getItem(TEST_EMAIL_KEY) || ''; } catch { return ''; }
   });
   const [testEmailError, setTestEmailError] = useState<string | null>(null);
+  const [testSending, setTestSending] = useState(false);
   const [startAt, setStartAt] = useState(defaultStart);
   const [startError, setStartError] = useState<string | null>(null);
+  // Off until the user ticks it: automatic emails are never a surprise.
+  const [autoSend, setAutoSend] = useState(false);
   const [errors, setErrors] = useState<{ subject?: string; body?: string }>({});
 
   // Close modals with Escape.
@@ -119,6 +131,15 @@ export function OutreachEditor({
   const lengthOver = isConnectionNote ? chars > LINKEDIN_NOTE_LIMIT : words > maxWords;
   const needsInfo = activeStep?.confidence === 'low';
   const locked = isGenerating || busy !== null;
+  // Automatic sending needs an email channel, a recipient address and a connected mailbox.
+  const canAutoSend = draft.channel === 'EMAIL' && !!draft.targetContactEmail && !!mailbox?.connected;
+  const autoSendBlocker = draft.channel !== 'EMAIL'
+    ? 'Only email sequences can be sent automatically.'
+    : !draft.targetContactEmail
+      ? 'This contact has no email address yet.'
+      : !mailbox?.connected
+        ? 'Connect your mailbox under Profile first.'
+        : null;
 
   const validate = () => {
     const next: typeof errors = {};
@@ -154,7 +175,7 @@ export function OutreachEditor({
     }
   };
 
-  const handleSendTest = () => {
+  const handleSendTest = async () => {
     const parsed = TestEmailSchema.safeParse(testEmail);
     if (!parsed.success) {
       setTestEmailError(parsed.error.issues[0].message);
@@ -162,9 +183,16 @@ export function OutreachEditor({
     }
     try { localStorage.setItem(TEST_EMAIL_KEY, parsed.data); } catch { /* ignore */ }
     setTestEmailError(null);
-    setModal(null);
-    openMailto(parsed.data, `[TEST] ${draft.subjectLine}`, draft.bodyContent);
-    notify(`Test draft opened in your email app for ${parsed.data}`);
+    setTestSending(true);
+    const ok = await onSendTest(parsed.data);
+    setTestSending(false);
+    if (ok) setModal(null);
+  };
+
+  const handleSendNow = () => {
+    if (!validate()) return;
+    if (!draft.targetContactEmail) return notify('No email on file for this contact. Enrich the contact first, or open it in your email app.', true);
+    onSendEmail();
   };
 
   const handleConfirmSchedule = async () => {
@@ -173,7 +201,7 @@ export function OutreachEditor({
     if (d.getTime() < Date.now() - 60000) return setStartError('The start date must be in the future.');
     if (!validate()) return;
     setStartError(null);
-    if (await onSchedule(d.toISOString())) setModal(null);
+    if (await onSchedule(d.toISOString(), canAutoSend && autoSend)) setModal(null);
   };
 
   const handleApproveNow = () => {
@@ -349,7 +377,13 @@ export function OutreachEditor({
       {/* Actions */}
       <div className={s.actionBar}>
         <div className={s.actionGroup}>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleOpenChannel} disabled={locked}>
+          {isEmail && (
+            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleSendNow} disabled={locked || isSent} title={draft.targetContactEmail ? `Sends from your connected mailbox to ${draft.targetContactEmail}` : 'No email on file for this contact'}>
+              {busy === 'email' ? <Loader2 size={15} className={s.spin} /> : <Send size={15} />}
+              {busy === 'email' ? 'Sending…' : 'Send email now'}
+            </button>
+          )}
+          <button type="button" className={`${s.btn} ${isEmail ? s.btnSecondary : s.btnPrimary}`} onClick={handleOpenChannel} disabled={locked}>
             {isEmail ? <><Mail size={15} /> Open in email app</> : <><ExternalLink size={15} /> Copy & open LinkedIn</>}
           </button>
           <button type="button" className={`${s.btn} ${isSent ? s.btnSuccess : s.btnSecondary}`} onClick={() => validate() && onMarkSent()} disabled={locked || isSent}>
@@ -387,8 +421,8 @@ export function OutreachEditor({
         </div>
         <div className={s.actionHint}>
           {isEmail
-            ? 'Emails are sent from your own email app; use "Mark as sent" so the sequence tracks it.'
-            : 'LinkedIn messages are sent manually from LinkedIn; use "Mark as sent" so the sequence tracks it.'}
+            ? '"Send email now" sends this stage from your mailbox. "Pick start date" can schedule the rest to go out automatically; otherwise each stage shows up in Today on its date.'
+            : 'LinkedIn messages are sent manually from LinkedIn; each stage shows up in Today on its date, and "Mark as sent" keeps the sequence in step.'}
           {isScheduled && ` Sequence started ${new Date(draft.scheduledStartAt!).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}.`}
         </div>
       </div>
@@ -401,7 +435,7 @@ export function OutreachEditor({
               <h3 className={s.modalTitle} id="test-title"><Send size={17} /> Send a test to yourself</h3>
               <button type="button" className={s.iconBtn} onClick={() => setModal(null)} aria-label="Close"><X size={16} /></button>
             </div>
-            <p className={s.modalText}>Opens this stage in your email app addressed to you, so you can check how it reads before it goes to {draft.targetContactName}.</p>
+            <p className={s.modalText}>Sends this stage to your own inbox from your connected mailbox, so you can check how it reads before it goes to {draft.targetContactName}.</p>
             <div>
               <label className={s.label} htmlFor="test-email">Your email</label>
               <input
@@ -413,13 +447,15 @@ export function OutreachEditor({
                 style={{ marginTop: 6 }}
                 value={testEmail}
                 onChange={(e) => { setTestEmail(e.target.value); setTestEmailError(null); }}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendTest()}
+                onKeyDown={(e) => e.key === 'Enter' && !testSending && handleSendTest()}
               />
               {testEmailError && <div className={s.fieldError} style={{ marginTop: 6 }}>{testEmailError}</div>}
             </div>
             <div className={s.modalActions}>
               <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setModal(null)}>Cancel</button>
-              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleSendTest}><Mail size={15} /> Open test email</button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleSendTest} disabled={testSending}>
+                {testSending ? <Loader2 size={15} className={s.spin} /> : <Mail size={15} />} {testSending ? 'Sending…' : 'Send test email'}
+              </button>
             </div>
           </div>
         </div>
@@ -447,6 +483,17 @@ export function OutreachEditor({
               />
               {startError && <div className={s.fieldError} style={{ marginTop: 6 }}>{startError}</div>}
             </div>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: canAutoSend ? 'var(--o-text)' : 'var(--o-muted)', cursor: canAutoSend ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" checked={canAutoSend && autoSend} disabled={!canAutoSend} onChange={(e) => setAutoSend(e.target.checked)} style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--o-accent)' }} />
+              <span>
+                <strong>Send each stage automatically</strong>
+                <span style={{ display: 'block', color: 'var(--o-muted)', marginTop: 2, lineHeight: 1.5 }}>
+                  {canAutoSend
+                    ? `Emails go to ${draft.targetContactEmail} from ${mailbox?.address} at the times below. They stop by themselves when you log a reply, book a meeting or close the deal.`
+                    : `${autoSendBlocker} Without it, each stage appears in Today on its date for you to send.`}
+                </span>
+              </span>
+            </label>
             {schedulePreview.length > 0 && (
               <ul className={s.scheduleList}>
                 {schedulePreview.map((p, i) => (
@@ -459,7 +506,7 @@ export function OutreachEditor({
             <div className={s.modalActions}>
               <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setModal(null)} disabled={busy !== null}>Cancel</button>
               <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={handleConfirmSchedule} disabled={busy !== null}>
-                {busy === 'schedule' ? <Loader2 size={15} className={s.spin} /> : <Check size={15} />} Confirm schedule
+                {busy === 'schedule' ? <Loader2 size={15} className={s.spin} /> : <Check size={15} />} {canAutoSend && autoSend ? 'Schedule automatic sending' : 'Confirm schedule'}
               </button>
             </div>
           </div>
