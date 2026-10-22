@@ -23,11 +23,25 @@ export function generateNextBestActions(account: Omit<BuyingReadinessDetails, 'n
     });
   }
 
+  // They said on LinkedIn that they need something: answering that post is the warmest way in.
+  const post = account.linkedinEvidence?.posts[0];
+  if (post) {
+    add({
+      actionType: 'LINKEDIN_CONNECT',
+      title: `Reply to ${post.author}'s LinkedIn post`,
+      description: post.summary
+        ? `They wrote: "${post.summary.slice(0, 160)}". Comment or message while it is fresh${matchedService ? `, and mention ${matchedService.name}` : ''}.`
+        : `A reply to what they posted is warmer than a cold email${matchedService ? `; mention ${matchedService.name}` : ''}.`,
+      ctaLabel: 'Open the post',
+      targetUrl: post.url,
+    });
+  }
+
   if (priorityTier === 'ARCHIVE' || priorityTier === 'MONITOR') {
     add({
       actionType: 'MONITOR_ACTIVITY',
       title: 'Check again later',
-      description: 'Too little evidence of a need right now. The profile is refreshed from Apollo every 7 days, so new funding, hiring or contacts will raise the score.',
+      description: 'Too little evidence of a need right now. The profile is refreshed from Apollo every 7 days, and new LinkedIn posts from them are picked up by keyword scans; either will raise the score.',
       ctaLabel: 'View in Company 360',
       targetUrl: `/company?query=${encodeURIComponent(domain)}`,
     });
@@ -38,7 +52,7 @@ export function generateNextBestActions(account: Omit<BuyingReadinessDetails, 'n
     add({
       actionType: 'FIND_CONTACT',
       title: 'Find a decision maker',
-      description: `No senior contact at ${companyName} has been found yet. Search Apollo for founders, CTOs and engineering leaders there.`,
+      description: `No senior contact at ${companyName} has been found in Apollo or on LinkedIn yet. Search Apollo for founders, CTOs and engineering leaders there.`,
       ctaLabel: 'Search Apollo',
       targetUrl: `/apollo-search?company=${encodeURIComponent(companyName)}`,
     });

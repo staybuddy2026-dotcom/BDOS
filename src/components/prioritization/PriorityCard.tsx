@@ -1,7 +1,7 @@
 'use client';
 
-import { BuyingReadinessDetails, PriorityTier, TIER_BANDS } from '@/features/prioritization/types';
-import { ArrowRight, Gauge, UserRound, Briefcase, Kanban, Hand } from 'lucide-react';
+import { BuyingReadinessDetails, DataSource, PriorityTier, TIER_BANDS } from '@/features/prioritization/types';
+import { ArrowRight, Gauge, UserRound, Briefcase, Kanban, Hand, Share2, Database } from 'lucide-react';
 import { CustomDropdown } from '@/components/CustomDropdown';
 
 export const TIER_STYLE: Record<PriorityTier, { color: string; bg: string; border: string; glow: string }> = {
@@ -20,6 +20,44 @@ export function tierOptions(account: BuyingReadinessDetails) {
   ];
 }
 
+const SOURCE_STYLE: Record<'Apollo' | 'LinkedIn', { color: string; bg: string }> = {
+  Apollo: { color: '#b45309', bg: 'rgba(245, 158, 11, 0.12)' },
+  LinkedIn: { color: '#0a66c2', bg: 'rgba(10, 102, 194, 0.10)' },
+};
+
+/** Where a value came from: Apollo, LinkedIn or both. */
+export function SourceBadge({ source, label }: { source: DataSource; label?: string }) {
+  const parts = source === 'Apollo + LinkedIn' ? (['Apollo', 'LinkedIn'] as const) : [source];
+  return (
+    <span style={{ display: 'inline-flex', gap: 3, verticalAlign: 'middle' }}>
+      {parts.map((p) => (
+        <span key={p} style={{ fontSize: '0.62rem', fontWeight: 800, color: SOURCE_STYLE[p].color, background: SOURCE_STYLE[p].bg, borderRadius: 5, padding: '1px 5px', display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+          {p === 'Apollo' ? <Database size={9} /> : <Share2 size={9} />} {label && parts.length === 1 ? label : p}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** "Asked for on LinkedIn", "Tech stack match", "Likely fit". */
+export const serviceMatchLabel = (by?: 'linkedin' | 'tech' | 'focus') =>
+  by === 'linkedin' ? 'Asked for on LinkedIn' : by === 'focus' ? 'Likely service' : 'Service';
+
+/** One-line summary of the LinkedIn evidence. */
+export function linkedinSummary(account: BuyingReadinessDetails): { value: string; detail: string } {
+  const ev = account.linkedinEvidence;
+  if (!ev) return { value: 'Nothing yet', detail: 'No LinkedIn posts or people saved for this company yet' };
+  const scores = ev.posts.map((p) => p.intentScore).filter((x): x is number => x !== undefined);
+  if (ev.posts.length) {
+    return {
+      value: scores.length ? `Intent ${Math.max(...scores)}/100` : `${ev.posts.length} post${ev.posts.length === 1 ? '' : 's'}`,
+      detail: `${ev.posts.length} LinkedIn post${ev.posts.length === 1 ? '' : 's'} about a need${ev.people.length ? `, ${ev.people.length} people found` : ''}`,
+    };
+  }
+  if (ev.people.length) return { value: `${ev.people.length} ${ev.people.length === 1 ? 'person' : 'people'}`, detail: `Found on LinkedIn: ${ev.people.map((p) => p.name).join(', ')}` };
+  return { value: 'Deal from LinkedIn', detail: 'A deal for this company came in from LinkedIn' };
+}
+
 export function displayCompanyName(rawName: string, domain: string): string {
   if (!rawName) return domain || 'Unnamed company';
   let clean = rawName.replace(/\([^)]*\)/g, '').trim().replace(/\.com$/i, '');
@@ -28,7 +66,7 @@ export function displayCompanyName(rawName: string, domain: string): string {
 }
 
 const metricBox = { background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '10px 12px', minWidth: 0 };
-const metricLabel = { fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' as const, display: 'flex', alignItems: 'center', gap: '4px' };
+const metricLabel = { fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' as const, display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: '4px' };
 const metricValue = { fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const };
 
 export function PriorityCard({
@@ -47,6 +85,7 @@ export function PriorityCard({
   const style = TIER_STYLE[account.priorityTier];
   const contact = account.primaryContact;
   const service = account.matchedService;
+  const linkedin = linkedinSummary(account);
 
   return (
     <div
@@ -74,6 +113,10 @@ export function PriorityCard({
             <h3 style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>{displayCompanyName(account.companyName, account.domain)}</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
               <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{account.domain}</span>
+              <SourceBadge source="Apollo" label={`Apollo ${account.scoreBreakdown.apollo.points}/${account.scoreBreakdown.apollo.max}`} />
+              {account.scoreBreakdown.linkedin.found
+                ? <SourceBadge source="LinkedIn" label={`LinkedIn ${account.scoreBreakdown.linkedin.points}/${account.scoreBreakdown.linkedin.max}`} />
+                : <span title="No LinkedIn posts or people saved for this company yet" style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-muted)', border: '1px dashed var(--border-subtle)', borderRadius: 5, padding: '0 5px' }}>LinkedIn: no data yet</span>}
               {account.inCrm && (
                 <span style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--accent-indigo)', background: 'var(--accent-indigo-glow)', borderRadius: '6px', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                   <Kanban size={10} /> In CRM{account.inCrm.mine ? '' : ` · ${account.inCrm.ownerName || 'teammate'}`}
@@ -89,8 +132,8 @@ export function PriorityCard({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.04em' }}>Fit score</div>
+          <div style={{ textAlign: 'right' }} title={`Apollo company fit ${account.scoreBreakdown.apollo.fitScore}/100 → ${account.scoreBreakdown.apollo.points} of ${account.scoreBreakdown.apollo.max} points\nLinkedIn evidence → ${account.scoreBreakdown.linkedin.points} of ${account.scoreBreakdown.linkedin.max} points`}>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.04em' }}>Combined fit</div>
             <div style={{ fontSize: '1.35rem', fontWeight: 900, color: style.color, lineHeight: 1.1 }}>{account.buyingReadinessScore}<span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>/100</span></div>
           </div>
           <div onClick={(e) => e.stopPropagation()} style={{ minWidth: '170px' }}>
@@ -103,7 +146,7 @@ export function PriorityCard({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
         <div style={metricBox} title={account.dataChecklist.map((e) => `${e.known ? '✓' : '✗'} ${e.label}`).join('\n') || 'How much is known about this company'}>
           <div style={metricLabel}><Gauge size={12} style={{ color: 'var(--color-success)' }} /> Data coverage</div>
           <div style={{ ...metricValue, color: account.dataCoveragePercent >= 60 ? 'var(--color-success)' : account.dataCoveragePercent >= 40 ? 'var(--color-warning)' : 'var(--text-muted)' }}>
@@ -115,20 +158,39 @@ export function PriorityCard({
             )}
           </div>
         </div>
-        <div style={metricBox} title={contact ? `${contact.name}, ${contact.jobTitle}` : 'No senior contact found yet'}>
-          <div style={metricLabel}><UserRound size={12} style={{ color: 'var(--accent-indigo)' }} /> Contact</div>
-          <div style={{ ...metricValue, color: contact ? 'var(--text-primary)' : 'var(--text-muted)' }}>{contact ? contact.name : 'None found'}</div>
+        <div style={metricBox} title={contact ? `${contact.name}, ${contact.jobTitle} (from ${contact.source})` : 'No senior contact found in Apollo or on LinkedIn yet'}>
+          <div style={{ ...metricLabel, justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserRound size={12} style={{ color: 'var(--accent-indigo)' }} /> Contact</span>{contact && <SourceBadge source={contact.source} />}</div>
+          <div style={{ ...metricValue, color: contact ? 'var(--text-primary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact ? contact.name : 'None found'}</span>
+            {contact && (contact.linkedinUrl || contact.linkedinSearchUrl) && (
+              <a
+                href={contact.linkedinUrl || contact.linkedinSearchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={contact.linkedinUrl ? `${contact.name} on LinkedIn` : `Find ${contact.name} on LinkedIn`}
+                title={contact.linkedinUrl ? 'LinkedIn profile' : 'Find on LinkedIn (profile not on file)'}
+                style={{ color: '#0a66c2', display: 'inline-flex', flexShrink: 0 }}
+              >
+                <Share2 size={13} />
+              </a>
+            )}
+          </div>
         </div>
         <div
           style={metricBox}
           title={service
-            ? `${service.matchedBy === 'focus' ? 'Likely fit' : 'Tech stack match'}: ${service.name}. ${service.reason}`
+            ? `${serviceMatchLabel(service.matchedBy)}: ${service.name}. ${service.reason}`
             : account.techFundingCheckedAt ? 'Their tech stack and what they do do not match a service in your catalog' : 'What they do does not point to a service; their tech stack is not checked yet'}
         >
-          <div style={metricLabel}><Briefcase size={12} style={{ color: 'var(--color-warning)' }} /> {service?.matchedBy === 'focus' ? 'Likely service' : 'Service'}</div>
+          <div style={{ ...metricLabel, justifyContent: 'space-between' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase size={12} style={{ color: 'var(--color-warning)' }} /> {serviceMatchLabel(service?.matchedBy)}</span>{service && <SourceBadge source={service.source} />}</div>
           <div style={{ ...metricValue, color: service ? 'var(--color-warning)' : 'var(--text-muted)' }}>
             {service ? service.name : account.techFundingCheckedAt ? 'No match' : 'Not checked yet'}
           </div>
+        </div>
+        <div style={metricBox} title={linkedin.detail}>
+          <div style={metricLabel}><Share2 size={12} style={{ color: '#0a66c2' }} /> LinkedIn</div>
+          <div style={{ ...metricValue, color: account.linkedinEvidence ? '#0a66c2' : 'var(--text-muted)' }}>{linkedin.value}</div>
         </div>
       </div>
 

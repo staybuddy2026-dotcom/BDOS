@@ -43,12 +43,47 @@ export type AccountBuyingSignal = {
 
 export type TierOverride = { tier: PriorityTier; setBy: string; setAt: string };
 
+export type DataSource = 'Apollo' | 'LinkedIn' | 'Apollo + LinkedIn';
+
+/** A LinkedIn post by someone at the company, with the AI's buying-intent reading of it. */
+export type LinkedInPostEvidence = {
+  url: string;
+  author: string;
+  authorTitle?: string;
+  postedAt?: string;
+  /** AI buying-intent score of the post (0-100); unset when the post was not scored yet. */
+  intentScore?: number;
+  signals: string[];
+  summary?: string;
+  outreachAngle?: string;
+  /** Post text, used to match what they ask for with the service catalog. */
+  text: string;
+};
+
+/** A person at the company found on LinkedIn (post author, CRM contact with a LinkedIn profile, or added from LinkedIn). */
+export type LinkedInPersonEvidence = { name: string; jobTitle?: string; linkedinUrl?: string; email?: string; via: string };
+
+/** Everything the app holds from LinkedIn about one company. */
+export type LinkedInAccountEvidence = {
+  posts: LinkedInPostEvidence[];
+  people: LinkedInPersonEvidence[];
+  /** A deal for the company came in from LinkedIn (post or people search). */
+  fromLinkedInDeal: boolean;
+};
+
+/** How the combined fit score is built: Apollo company fit (70 points) + LinkedIn evidence (30 points). */
+export type ScoreBreakdown = {
+  apollo: { fitScore: number; points: number; max: number };
+  linkedin: { points: number; max: number; found: boolean };
+};
+
 export type BuyingReadinessDetails = {
   companyId: string;
   domain: string;
   companyName: string;
-  /** Company 360 fit score: the sum of the evidence-based factors in keySignals. */
+  /** Combined fit score: Apollo company fit scaled to 70 points + LinkedIn evidence up to 30 points. */
   buyingReadinessScore: number;
+  scoreBreakdown: ScoreBreakdown;
   /** The tier shown: the team's manual choice when there is one, else the score's tier. */
   priorityTier: PriorityTier;
   /** The tier the score alone gives. */
@@ -57,12 +92,22 @@ export type BuyingReadinessDetails = {
   /** Share of the eight facts in dataChecklist that are known. */
   dataCoveragePercent: number;
   /** What is known about the company and what is still missing (with how to get it). */
-  dataChecklist: { label: string; known: boolean; hint?: string }[];
-  primaryContact?: { name: string; jobTitle: string; linkedinUrl?: string; email?: string };
+  dataChecklist: { label: string; known: boolean; hint?: string; source?: 'Apollo' | 'LinkedIn' }[];
+  /** linkedinSearchUrl: a LinkedIn people search for the person when their profile URL is not known. */
+  primaryContact?: { name: string; jobTitle: string; linkedinUrl?: string; linkedinSearchUrl?: string; email?: string; source: DataSource; via?: string };
+  /** Senior people Apollo found at the company, most relevant first, with their LinkedIn profile or a search for it. */
+  apolloPeople: { name: string; jobTitle: string; linkedinUrl?: string; linkedinSearchUrl: string; email?: string }[];
+  /** What LinkedIn shows about the company (posts, people); unset when nothing was found. */
+  linkedinEvidence?: { posts: LinkedInPostEvidence[]; people: LinkedInPersonEvidence[]; fromLinkedInDeal: boolean };
   linkedinPageUrl?: string;
-  /** Best match from the team's service catalog, with the catalog's starting price. */
-  /** 'tech' when their tech stack matches the service; 'focus' when what they do fits it (a likely match). */
-  matchedService?: { name: string; reason: string; fromInr: string; fromUsd: string; model: string; matchedBy: 'tech' | 'focus' };
+  /**
+   * Best match from the team's service catalog, with the catalog's starting price.
+   * 'linkedin': they asked for it in a LinkedIn post (strongest); 'tech': their tech stack (Apollo) matches;
+   * 'focus': what they do fits it (a likely match).
+   */
+  matchedService?: { name: string; reason: string; fromInr: string; fromUsd: string; model: string; matchedBy: 'linkedin' | 'tech' | 'focus'; source: DataSource };
+  /** Other catalog services that fit, best first. */
+  otherServices: { name: string; matchedBy: 'linkedin' | 'tech' | 'focus' }[];
   inCrm?: CrmMatch;
   nextBestActions: NextBestAction[];
   keySignals: AccountBuyingSignal[];
@@ -79,6 +124,8 @@ export type PrioritizationSummary = {
   highPriority: number;
   withContact: number;
   inCrm: number;
+  /** Accounts with LinkedIn evidence (posts or people). */
+  withLinkedIn: number;
   /** Sum of catalog starting prices of the matched services (not a forecast). */
   matchedServiceValueInr: string;
   matchedServiceValueUsd: string;

@@ -17,7 +17,8 @@ import { resolveLinkedInAccount } from '@/features/prioritization/linkedinAccoun
 import { lookupCrmMatches } from '@/features/crm/service';
 import type { CrmLookupResult } from '@/features/crm/types';
 import { calculateBuyingReadiness } from './scoring';
-import type { BuyingReadinessDetails, PrioritiesResult, PrioritizationSummary, PriorityTier, TierOverride } from './types';
+import { loadLinkedInEvidence } from './linkedinEvidence';
+import type { BuyingReadinessDetails, LinkedInAccountEvidence, PrioritiesResult, PrioritizationSummary, PriorityTier, TierOverride } from './types';
 
 /** Building a new profile uses Apollo quota (company + people search), so only a few are built per visit. */
 const MAX_NEW_PROFILES_PER_VISIT = 8;
@@ -96,6 +97,7 @@ function summarize(accounts: BuyingReadinessDetails[]): PrioritizationSummary {
     highPriority: accounts.filter((a) => a.priorityTier === 'HIGH').length,
     withContact: accounts.filter((a) => a.primaryContact).length,
     inCrm: accounts.filter((a) => a.inCrm).length,
+    withLinkedIn: accounts.filter((a) => a.linkedinEvidence).length,
     matchedServiceValueInr: formatInr(matched.reduce((sum, a) => sum + digits(a.matchedService?.fromInr), 0)),
     matchedServiceValueUsd: formatUsd(matched.reduce((sum, a) => sum + digits(a.matchedService?.fromUsd), 0)),
     matchedServiceAccounts: matched.length,
@@ -152,15 +154,20 @@ export async function getPrioritiesAction(): Promise<PrioritiesResult> {
   const catalog = await getServiceCatalog().catch(() => []);
   scored.forEach((entry) => { entry.profile = rescoreProfile(entry.profile, catalog); });
 
-  const crm = await lookupCrmMatches(user, {
-    companies: scored.map(({ profile }) => ({ key: profile.domain || profile.companyId, domain: profile.domain, name: profile.overview.companyName })),
-  }).catch((): CrmLookupResult => ({ people: {}, companies: {} }));
+  const keyed = scored.map(({ profile }) => ({ key: profile.domain || profile.companyId, domain: profile.domain, name: profile.overview.companyName }));
+  const [crm, linkedin] = await Promise.all([
+    lookupCrmMatches(user, { companies: keyed }).catch((): CrmLookupResult => ({ people: {}, companies: {} })),
+    // LinkedIn posts, people and deals already saved in the app (database only, no Apify cost).
+    loadLinkedInEvidence(keyed).catch((err) => { logger.warn('AI Priorities: could not load LinkedIn evidence', { error: String(err) }); return {} as Record<string, LinkedInAccountEvidence>; }),
+  ]);
 
   const accounts = scored
     .map(({ profile, evaluatedAt }) => calculateBuyingReadiness(profile, {
       evaluatedAt,
       inCrm: crm.companies[profile.domain || profile.companyId],
       override: overrides[normalizeCompanyDomain(profile.domain || profile.companyId)],
+      linkedin: linkedin[profile.domain || profile.companyId],
+      catalog,
     }))
     .sort((a, b) => TIERS.indexOf(a.priorityTier) - TIERS.indexOf(b.priorityTier) || b.buyingReadinessScore - a.buyingReadinessScore);
 
@@ -196,14 +203,21 @@ export async function lookUpTechAndFundingAction(domain: string): Promise<{ acco
   if (res.error || !res.profile) return { error: res.error || 'The Apollo lookup failed. Please try again.' };
   const profile = res.profile;
   const key = profile.domain || profile.companyId;
-  const crm = await lookupCrmMatches(user, { companies: [{ key, domain: profile.domain, name: profile.overview.companyName }] })
-    .catch((): CrmLookupResult => ({ people: {}, companies: {} }));
-  const overrides = await readOverrides();
+  const company = [{ key, domain: profile.domain, name: profile.overview.companyName }];
+  const { getServiceCatalog } = await import('@/features/learning/actions');
+  const [crm, linkedin, catalog, overrides] = await Promise.all([
+    lookupCrmMatches(user, { companies: company }).catch((): CrmLookupResult => ({ people: {}, companies: {} })),
+    loadLinkedInEvidence(company).catch(() => ({} as Awaited<ReturnType<typeof loadLinkedInEvidence>>)),
+    getServiceCatalog().catch(() => []),
+    readOverrides(),
+  ]);
   return {
     account: calculateBuyingReadiness(profile, {
       evaluatedAt: new Date(),
       inCrm: crm.companies[key],
       override: overrides[normalizeCompanyDomain(key)],
+      linkedin: linkedin[key],
+      catalog,
     }),
   };
 }

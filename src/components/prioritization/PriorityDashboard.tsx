@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Flame, Filter, CheckCircle2, AlertTriangle, Target, UserRound, IndianRupee, Info, Sparkles, Link2, Loader2, X } from 'lucide-react';
+import { Flame, Filter, CheckCircle2, AlertTriangle, Target, UserRound, IndianRupee, Info, Sparkles, Link2, Loader2, X, Share2 } from 'lucide-react';
 import { addLinkedInAccountAction, lookUpTechAndFundingAction, setPriorityTierAction } from '@/features/prioritization/actions';
 import { BuyingReadinessDetails, PrioritiesResult, PrioritizationSummary, PriorityTier, TIER_BANDS } from '@/features/prioritization/types';
 import { generateNextBestActions } from '@/features/prioritization/recommendations';
@@ -122,7 +122,7 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
       const next = res.account;
       setAccounts((list) => list.map((a) => (a.companyId === account.companyId ? next : a)));
       const diff = next.buyingReadinessScore - account.buyingReadinessScore;
-      notify(`${next.companyName}: fit score ${account.buyingReadinessScore} → ${next.buyingReadinessScore}${diff === 0 ? ' (no tech stack or funding on file)' : ''}.`);
+      notify(`${next.companyName}: combined fit ${account.buyingReadinessScore} → ${next.buyingReadinessScore}${diff === 0 ? ' (no tech stack or funding on file)' : ''}.`);
     } catch {
       notify('The Apollo lookup failed. Please try again.', true);
     } finally {
@@ -368,7 +368,7 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
       {renderAddLinkedInBar()}
 
       {/* Totals, all counted from the accounts below */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '16px' }}>
         <div style={kpiCard('var(--accent-indigo)')}>
           <div style={kpiLabel}>Contact today</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -391,6 +391,14 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
             <UserRound size={20} /> {summary.withContact}<span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>/ {summary.totalAccounts}</span>
           </div>
           <div style={kpiSub}>{summary.inCrm} already in the CRM</div>
+        </div>
+
+        <div style={kpiCard('#0a66c2')} title="Combined fit score = Apollo company fit (70 points) + LinkedIn evidence (30 points): posts about a need with their AI buying-intent score, and people found on LinkedIn.">
+          <div style={kpiLabel}>LinkedIn evidence</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0a66c2', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Share2 size={20} /> {summary.withLinkedIn ?? 0}<span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>/ {summary.totalAccounts}</span>
+          </div>
+          <div style={kpiSub}>Score = Apollo fit (70) + LinkedIn (30)</div>
         </div>
 
         <div style={kpiCard('var(--text-primary)')} title="Sum of the starting prices in your service catalog for the services matched to these accounts. Not a forecast.">
@@ -457,7 +465,7 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ fontSize: '0.86rem', fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Ranked accounts ({filteredAccounts.length})</span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Score = sum of the signals found</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Score = Apollo fit (70) + LinkedIn evidence (30)</span>
           </div>
 
           {filteredAccounts.length === 0 ? (

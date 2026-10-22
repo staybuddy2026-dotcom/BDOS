@@ -29,7 +29,8 @@ export type ScoreSignals = {
 
 // Roles that decide on buying development work.
 const TECH_LEADER = /\b(cto|chief technology|chief technical|vp,? (of )?(engineering|technology|product)|vice president,? (of )?(engineering|technology|product)|head of (engineering|technology|product|development|software)|director of (engineering|technology|software)|engineering director|chief product|cpo|cio|chief information)\b/i;
-const FOUNDER = /\b(founder|co-?founder|ceo|chief executive|owner|managing director)\b/i;
+// "Owner" only as the business owner, not a job title such as "Product Owner" or "Process Owner".
+const FOUNDER = /\b(founder|co-?founder|ceo|chief executive|managing director)\b|^\s*(business |company )?owner\b|(&|\/|,|\band) *owner\b/i;
 // Companies that build digital products (likely buyers of development work).
 const DIGITAL_PRODUCT = /\b(saas|software|platform|mobile app|apps?|e-?commerce|marketplace|fintech|healthtech|edtech|insurtech|proptech|internet|online|digital|ai|artificial intelligence|machine learning|data|cloud|startup|consumer tech)\b/i;
 // IT services / outsourcing firms sell the same thing: usually competitors or partners, not buyers. Checked on
