@@ -41,14 +41,20 @@ export function DecisionMakerPanel({ decisionMakers }: { decisionMakers: Decisio
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem' }}>
-                <span style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Mail size={12} style={{ color: 'var(--color-success)' }} /> {dm.email}
-                </span>
-                <span style={{ fontSize: '0.62rem', color: 'var(--color-success)', display: 'inline-flex', alignItems: 'center', gap: '2px', fontWeight: 600 }}>
-                  <CheckCircle size={10} /> {dm.emailStatus}
-                </span>
-              </div>
+              {dm.email ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+                  <span style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Mail size={12} style={{ color: 'var(--color-success)' }} /> {dm.email}
+                  </span>
+                  <span style={{ fontSize: '0.62rem', color: dm.emailStatus === 'Verified' ? 'var(--color-success)' : 'var(--color-warning)', display: 'inline-flex', alignItems: 'center', gap: '2px', fontWeight: 600 }}>
+                    {dm.emailStatus === 'Verified' && <CheckCircle size={10} />} {dm.emailStatus === 'Verified' ? 'Verified' : 'Not verified'}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Reveal it on Apollo Search with Enrich Contact (1 credit)">
+                  <Mail size={12} /> No email yet (reveal in Apollo Search, 1 credit)
+                </div>
+              )}
 
               {dm.linkedinUrl && (
                 <a 

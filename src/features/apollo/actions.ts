@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { AppError } from '@/lib/errors';
 import { SettingsService } from '@/lib/settings';
-import { apolloProvider, ApolloPersonMatch, ApolloSearchParams, ApolloOrgSearchParams, ApolloUsageEndpoint, ApolloErrorInfo, getLastApolloErrors, normalizeDomain, isApolloConfigured } from './provider';
+import { apolloProvider, ApolloPersonMatch, ApolloOrganizationMatch, ApolloSearchParams, ApolloOrgSearchParams, ApolloUsageEndpoint, ApolloErrorInfo, getLastApolloErrors, normalizeDomain, isApolloConfigured, getAdvancedFiltersAvailable } from './provider';
 import { getSavedPeople } from '@/features/prospecting/service';
 import { AuthService } from '@/lib/auth';
 import { EnrichmentStatus } from '@prisma/client';
@@ -91,8 +91,17 @@ export async function enrichPostWithApollo(
 
     logger.info(`Starting Apollo enrichment for post ID ${postId} (${post.authorName})...`);
 
-    // 4. Resolve the company's real domain (never guess "<name>.com" when we know better)
+    // 4. Already enriched with everything asked for: return it instead of paying Apollo again.
     const existing = await db.apolloEnrichment.findUnique({ where: { linkedPostId: postId } });
+    if (existing?.enrichmentStatus === EnrichmentStatus.ENRICHED) {
+      const missing = (options.workEmail !== false && !existing.workEmail) || (shouldPersonalEmail && !existing.personalEmail) || (shouldPhone && !existing.phone);
+      if (!missing) {
+        logger.info(`Post ${postId} is already enriched; no Apollo credit used.`);
+        return existing;
+      }
+    }
+
+    // 5. Resolve the company's real domain (never guess "<name>.com" when we know better)
     const domain = resolvePostDomain(post.postUrl, existing?.organizationDomain, post.companyName);
     if (!domain) {
       throw new AppError(`Could not determine the company domain for "${post.companyName || post.authorName}". Add it via Apollo Search and link the contact instead.`, 400);
@@ -100,6 +109,8 @@ export async function enrichPostWithApollo(
 
     let matches: ApolloPersonMatch[] = [];
     const isGenericName = !post.authorName || /decision maker|executive/i.test(post.authorName);
+    // people/match already returns the email, so a named person costs exactly one credit.
+    let revealed = false;
 
     if (isGenericName) {
       logger.info(`Generic name detected. Searching for senior leaders at ${domain}...`);
@@ -111,7 +122,15 @@ export async function enrichPostWithApollo(
       if (advancedRes.error) throw new AppError(advancedRes.error.message, 502);
       matches = advancedRes.people;
     } else {
-      matches = await apolloProvider.searchPeople({ name: post.authorName, domain });
+      const person = await apolloProvider.enrichPerson({
+        apolloPersonId: existing?.apolloPersonId || '',
+        name: post.authorName,
+        domain,
+        revealPersonalEmail: shouldPersonalEmail,
+        revealPhone: shouldPhone,
+      });
+      matches = person ? [person] : [];
+      revealed = true;
       const err = getLastApolloErrors().find((e) => e.endpoint === 'people/match');
       if (!matches.length && err && Date.now() - new Date(err.at).getTime() < 60000) throw new AppError(err.message, 502);
     }
@@ -143,7 +162,7 @@ export async function enrichPostWithApollo(
     let enrichedMatch: ApolloPersonMatch = { ...match, organizationDomain: match.organizationDomain || domain };
     let revealNote: string | undefined;
     const wantsWorkEmail = options.workEmail !== false && !match.workEmail;
-    if (wantsWorkEmail || shouldPersonalEmail || shouldPhone) {
+    if (!revealed && (wantsWorkEmail || shouldPersonalEmail || shouldPhone)) {
       const detailed = await apolloProvider.enrichPerson({
         apolloPersonId: match.apolloPersonId,
         name: match.personName,
@@ -160,7 +179,7 @@ export async function enrichPostWithApollo(
     }
     if (revealNote) logger.warn(`Apollo contact reveal unavailable for post ${postId}: ${revealNote}`);
 
-    // 5. Save to database
+    // 6. Save to database
     const enrichment = await db.apolloEnrichment.upsert({
       where: { linkedPostId: postId },
       create: {
@@ -240,7 +259,7 @@ export async function checkApolloCreditWarning(): Promise<ApolloCreditWarning> {
     // Ignore impossible thresholds (e.g. larger than the daily limit), which would keep the warning on forever.
     const rawThreshold = parseInt(await SettingsService.get('apolloCreditWarningThreshold', '20'), 10);
     const threshold = rawThreshold > 0 && (!people || rawThreshold < people.dayLimit) ? rawThreshold : 20;
-    const blocking = getLastApolloErrors().find((e) => e.code === 'RATE_LIMIT' || e.code === 'CREDITS_EXHAUSTED' || e.code === 'INVALID_KEY');
+    const blocking = getLastApolloErrors().find((e) => e.code === 'RATE_LIMIT' || e.code === 'CREDITS_EXHAUSTED' || e.code === 'INVALID_KEY' || e.code === 'PLAN_RESTRICTED');
     const remaining = people ? people.dayLeft : -1;
     return {
       isWarning: !!blocking || (remaining >= 0 && remaining <= threshold),
@@ -286,6 +305,15 @@ async function assertApolloEnabled() {
 async function maxPerPage(requested?: number) {
   const maxEnrich = parseInt(await SettingsService.get('apolloMaxEnrich', '5'), 10) || 5;
   return Math.min(requested || 10, Math.max(maxEnrich * 5, 10), 100);
+}
+
+/**
+ * Whether the connected Apollo plan allows advanced filters (technology, hiring, funding date).
+ * null when unknown (Apollo not configured or not reachable): the page then leaves them on.
+ */
+export async function getApolloFilterAccessAction(): Promise<{ advancedFilters: boolean | null }> {
+  await AuthService.verifySession();
+  return { advancedFilters: await getAdvancedFiltersAvailable() };
 }
 
 /**
@@ -382,6 +410,30 @@ export async function enrichApolloPersonDirect(
   const p = typeof person === 'string' ? { apolloPersonId: person } : person;
   const allowPersonalEmail = (await SettingsService.get('apolloAllowPersonalEmail', 'false')) === 'true';
 
+  // Someone on the team already revealed this person (it is in the CRM with an email): reuse it, no credit.
+  if (p.apolloPersonId && !p.apolloPersonId.startsWith('apollo-')) {
+    const known = await db.contact.findFirst({
+      where: { apolloPersonId: p.apolloPersonId, email: { not: null } },
+      include: { company: { select: { name: true, domain: true } } },
+    }).catch(() => null);
+    if (known?.email) {
+      logger.info(`Apollo person ${p.apolloPersonId} already in the CRM; no credit used.`);
+      return {
+        person: {
+          apolloPersonId: p.apolloPersonId,
+          personName: known.name,
+          jobTitle: known.title || undefined,
+          workEmail: known.email,
+          phone: known.phone || undefined,
+          linkedinUrl: known.linkedinUrl || undefined,
+          organizationName: known.company.name,
+          organizationDomain: known.company.domain || p.organizationDomain,
+          creditsUsed: 0,
+        },
+      };
+    }
+  }
+
   logger.info(`Enriching Apollo person ${p.apolloPersonId}...`);
   const enriched = await apolloProvider.enrichPerson({
     apolloPersonId: p.apolloPersonId,
@@ -412,6 +464,35 @@ export async function enrichApolloPersonDirect(
   }
   safeRevalidatePath('/apollo-search');
   return { person: enriched };
+}
+
+/**
+ * Company enrichment for one search result: technologies, funding and description, which Apollo's
+ * company search does not return. Uses 1 Apollo credit per company (the page asks first); asking again
+ * for the same company within a day is answered from the cache at no cost.
+ */
+export async function enrichApolloCompanyAction(org: { domain?: string; apolloOrganizationId?: string; name?: string }): Promise<{ organization?: ApolloOrganizationMatch; error?: string }> {
+  const user = await AuthService.verifySession();
+  await assertApolloEnabled();
+  const domain = normalizeDomain(org.domain);
+  if (!domain && !org.apolloOrganizationId) return { error: 'This company has no website in Apollo, so it cannot be enriched.' };
+
+  const enriched = await apolloProvider.enrichOrganization({ domain, apolloOrgId: org.apolloOrganizationId });
+  if (!enriched) {
+    const err = getLastApolloErrors().find((e) => e.endpoint.startsWith('organizations/') && Date.now() - new Date(e.at).getTime() < 60000);
+    return { error: err?.message || `Apollo has no details for ${org.name || domain}.` };
+  }
+  const found = [enriched.technologies?.length && 'tech stack', enriched.latestFundingStage && 'funding', enriched.description && 'description'].filter(Boolean);
+  await db.activityLog.create({
+    data: {
+      type: 'APOLLO_ENRICHED',
+      title: `Apollo company enrichment: ${enriched.name}`,
+      details: `1 credit. ${found.length ? `Found ${found.join(', ')}.` : 'No tech stack or funding on file.'}`,
+      entityId: enriched.apolloOrganizationId,
+      actor: user.name,
+    },
+  }).catch((err) => logger.warn('Could not record Apollo credit usage', { error: String(err) }));
+  return { organization: enriched };
 }
 
 /** The signed-in person's saved Apollo contacts as a JSON map (key -> person). Used by prioritization. */

@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import Link from 'next/link';
 import {
-  AlertTriangle, ArrowRight, CalendarClock, CalendarDays, Check, CheckCircle2, CheckSquare, ChevronDown, Clock, Copy, ExternalLink, Hand, Inbox, Loader2,
+  AlertTriangle, ArrowRight, Calendar, CalendarClock, CalendarDays, Check, CheckCircle2, CheckSquare, ChevronDown, Clock, Copy, ExternalLink, Hand, Inbox, Loader2,
   Mail, Moon, Plus, RotateCcw, Search, Send, Share2, Sparkles, Sun, Sunrise, Video, Zap,
 } from 'lucide-react';
 import { addMyTaskAction, getTodayAction, toggleTaskAction } from '@/features/today/actions';
@@ -13,7 +14,7 @@ import { markFollowUpSentAction, sendFollowUpNowAction } from '@/features/outrea
 import { STAGE_LABELS } from '@/features/crm/types';
 import s from '@/components/ui/ui.module.css';
 import { useToast } from '@/components/ui/useToast';
-import { Time } from '@/components/crm/ui';
+import { Time, formatDate } from '@/components/crm/ui';
 import t from './today.module.css';
 
 const dealHref = (dealId: string) => `/crm?deal=${dealId}`;
@@ -83,6 +84,14 @@ function Empty({ children }: { children: ReactNode }) {
   );
 }
 
+const isSameDayTask = (iso: string, targetYmd: string) => {
+  if (!iso || !targetYmd) return false;
+  const d = new Date(iso);
+  const localYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const utcYmd = iso.slice(0, 10);
+  return localYmd === targetYmd || utcYmd === targetYmd;
+};
+
 /**
  * The signed-in person's day: what to send, what to do on which deal, tasks and meetings.
  * Everything here can be finished from this page; each action reloads the lists.
@@ -92,7 +101,7 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [task, setTask] = useState({ title: '', dueDate: '' });
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = usePageState<Filter>('today.filter', 'all');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   /** Rows being completed: shown struck through until the reload removes them. */
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
@@ -100,6 +109,8 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
   const [cleared, setCleared] = useState(0);
   /** Set after mount so server and browser render the same first frame. */
   const [now, setNow] = useState<Date | null>(null);
+  const [taskDateFilter, setTaskDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'overdue' | string>('all');
+  const [customTaskDate, setCustomTaskDate] = useState<string>('');
 
   const { toast, notify } = useToast();
 
@@ -143,6 +154,31 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
   const nothingToday = data.actionCount === 0 && data.meetings.length === 0 && automatic.length === 0;
   const overdue = data.tasks.filter((x) => x.overdue).length + data.nextActions.filter((x) => x.overdue).length + data.followUps.filter((x) => x.overdue && x.status !== 'FAILED').length;
   const worthALook = data.staleDeals.length + (data.unassignedLeads > 0 ? 1 : 0);
+
+  const todayYmd = localDate(0);
+  const tomorrowYmd = localDate(1);
+  const todayTasksCount = data.tasks.filter((x) => isSameDayTask(x.dueDate, todayYmd)).length;
+  const tomorrowTasksCount = data.tasks.filter((x) => isSameDayTask(x.dueDate, tomorrowYmd)).length;
+  const overdueTasksCount = data.tasks.filter((x) => x.overdue).length;
+
+  const filteredTasks = data.tasks.filter((x) => {
+    if (taskDateFilter === 'all') return true;
+    if (taskDateFilter === 'today') return isSameDayTask(x.dueDate, todayYmd);
+    if (taskDateFilter === 'tomorrow') return isSameDayTask(x.dueDate, tomorrowYmd);
+    if (taskDateFilter === 'overdue') return x.overdue;
+    return isSameDayTask(x.dueDate, taskDateFilter);
+  });
+
+  const filterSubtitle =
+    taskDateFilter === 'all'
+      ? 'All tasks'
+      : taskDateFilter === 'today'
+      ? 'Today'
+      : taskDateFilter === 'tomorrow'
+      ? 'Tomorrow'
+      : taskDateFilter === 'overdue'
+      ? 'Overdue'
+      : formatDate(taskDateFilter);
 
   const total = cleared + data.actionCount;
   const progress = total === 0 ? 1 : cleared / total;
@@ -400,9 +436,27 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
           )}
 
           {show('tasks') && (
-            <Section open={!collapsed.has('tasks')} onToggle={() => toggleSection('tasks')} tone="success" icon={<CheckSquare size={17} />} title="Your tasks" count={data.tasks.length}
-              subtitle="Due today or overdue, from your deals and your own list.">
-              <form className={t.quickAdd} onSubmit={async (e) => { e.preventDefault(); if (await run('task-add', () => addMyTaskAction(task), 'Task added.')) setTask({ title: '', dueDate: '' }); }}>
+            <Section open={!collapsed.has('tasks')} onToggle={() => toggleSection('tasks')} tone="success" icon={<CheckSquare size={17} />} title="Your tasks" count={filteredTasks.length}
+              subtitle={taskDateFilter !== 'all' ? `Filtered by: ${filterSubtitle} (${filteredTasks.length})` : "Due today or overdue, from your deals and your own list."}>
+              <form className={t.quickAdd} onSubmit={async (e) => {
+                e.preventDefault();
+                const addedDate = task.dueDate;
+                if (await run('task-add', () => addMyTaskAction(task), 'Task added.')) {
+                  if (addedDate) {
+                    if (addedDate === todayYmd) {
+                      setTaskDateFilter('today');
+                      setCustomTaskDate(todayYmd);
+                    } else if (addedDate === tomorrowYmd) {
+                      setTaskDateFilter('tomorrow');
+                      setCustomTaskDate(tomorrowYmd);
+                    } else {
+                      setTaskDateFilter(addedDate);
+                      setCustomTaskDate(addedDate);
+                    }
+                  }
+                  setTask({ title: '', dueDate: '' });
+                }
+              }}>
                 <Plus size={16} color="#4f46e5" style={{ marginLeft: 4 }} aria-hidden />
                 <input className={t.quickInput} placeholder="Add a task for yourself…" aria-label="Task" required value={task.title} onChange={(e) => setTask({ ...task, title: e.target.value })} />
                 <div className={t.dateChips}>
@@ -414,9 +468,108 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
                   {busy === 'task-add' ? <Loader2 size={13} className={s.spin} /> : <Plus size={13} />} Add
                 </button>
               </form>
-              {data.tasks.length === 0 ? <Empty>All caught up! No tasks due today.</Empty> : (
+
+              {/* Date Filter Bar */}
+              <div className={t.taskFilterBar}>
+                <div className={t.taskFilterGroup}>
+                  <span className={t.taskFilterLabel}>
+                    <Calendar size={13} /> Filter:
+                  </span>
+                  <div className={t.taskFilterChips}>
+                    <button
+                      type="button"
+                      className={`${t.dateChip} ${taskDateFilter === 'all' ? t.dateChipOn : ''}`}
+                      onClick={() => { setTaskDateFilter('all'); setCustomTaskDate(''); }}
+                    >
+                      All ({data.tasks.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`${t.dateChip} ${taskDateFilter === 'today' ? t.dateChipOn : ''}`}
+                      onClick={() => { setTaskDateFilter('today'); setCustomTaskDate(todayYmd); }}
+                    >
+                      Today ({todayTasksCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`${t.dateChip} ${taskDateFilter === 'tomorrow' ? t.dateChipOn : ''}`}
+                      onClick={() => { setTaskDateFilter('tomorrow'); setCustomTaskDate(tomorrowYmd); }}
+                    >
+                      Tomorrow ({tomorrowTasksCount})
+                    </button>
+                    {overdueTasksCount > 0 && (
+                      <button
+                        type="button"
+                        className={`${t.dateChip} ${taskDateFilter === 'overdue' ? t.dateChipOn : ''}`}
+                        onClick={() => { setTaskDateFilter('overdue'); setCustomTaskDate(''); }}
+                      >
+                        Overdue ({overdueTasksCount})
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className={t.taskFilterPicker}>
+                  <input
+                    type="date"
+                    className={t.quickDate}
+                    aria-label="Filter tasks for specific date"
+                    value={customTaskDate}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomTaskDate(val);
+                      if (val) {
+                        if (val === todayYmd) {
+                          setTaskDateFilter('today');
+                        } else if (val === tomorrowYmd) {
+                          setTaskDateFilter('tomorrow');
+                        } else {
+                          setTaskDateFilter(val);
+                        }
+                      } else {
+                        setTaskDateFilter('all');
+                      }
+                    }}
+                  />
+                  {taskDateFilter !== 'all' && (
+                    <button
+                      type="button"
+                      className={t.clearFilterBtn}
+                      onClick={() => { setTaskDateFilter('all'); setCustomTaskDate(''); }}
+                      title="Clear date filter"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {filteredTasks.length === 0 ? (
+                <Empty>
+                  <span>
+                    {taskDateFilter === 'all'
+                      ? 'All caught up! No tasks found.'
+                      : taskDateFilter === 'today'
+                      ? 'No tasks due today.'
+                      : taskDateFilter === 'tomorrow'
+                      ? 'No tasks scheduled for tomorrow.'
+                      : taskDateFilter === 'overdue'
+                      ? 'No overdue tasks.'
+                      : `No tasks found for ${filterSubtitle}.`}
+                  </span>
+                  {taskDateFilter !== 'all' && (
+                    <button
+                      type="button"
+                      className={`${s.btn} ${s.btnGhost} ${s.btnSm}`}
+                      style={{ marginLeft: 8 }}
+                      onClick={() => { setTaskDateFilter('all'); setCustomTaskDate(''); }}
+                    >
+                      Show all tasks
+                    </button>
+                  )}
+                </Empty>
+              ) : (
                 <div className={t.list}>
-                  {data.tasks.map((x) => {
+                  {filteredTasks.map((x) => {
                     const key = `task-${x.id}`;
                     return (
                       <div key={x.id} className={`${t.row} ${t.rowInline} ${t.toneSuccess} ${x.overdue ? t.rowOverdue : ''} ${leaving.has(key) ? t.rowLeaving : ''}`}>

@@ -6,8 +6,8 @@ const isSet = (v?: string | null) => !!v && v !== 'Undisclosed' && v !== 'Unknow
 /** Buyers first: founders and CEOs, then technology leaders, then other senior roles; recruiters last. */
 const titleRank = (t = '') =>
   /talent|recruit|people|\bhr\b|human resources/i.test(t) ? 9
-    : /founder|\bceo\b|chief executive|owner/i.test(t) ? 0
-      : /\bcto\b|chief technology|chief product|\bcpo\b/i.test(t) ? 1
+    : /\bcto\b|chief technology|chief product|\bcpo\b|vp,? (of )?engineering|head of (engineering|technology)/i.test(t) ? 0
+      : /founder|\bceo\b|chief executive|owner/i.test(t) ? 1
         : /chief|president|\bcoo\b|\bcio\b/i.test(t) ? 2
           : /\bvp\b|vice president/i.test(t) ? 3
             : /head of/i.test(t) ? 4
@@ -31,7 +31,8 @@ export function generateOpportunityPlaybook(profile: Company360Profile): Opportu
     .sort((a, b) => titleRank(a.jobTitle) - titleRank(b.jobTitle))
     .slice(0, 5)
     .map((d) => ({
-      name: d.name,
+      // Apollo masks surnames until a contact is revealed ("Alberto Sh***d"): show "Alberto S.".
+      name: d.name.replace(/\s+([A-Za-z])[A-Za-z]*\*+[A-Za-z]*/g, ' $1.').trim(),
       title: d.jobTitle,
       channel: d.email && d.emailStatus === 'Verified' ? 'Email' : 'LinkedIn',
       email: d.email,

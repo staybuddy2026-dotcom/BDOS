@@ -1,4 +1,4 @@
-import { Filter, RotateCcw, Search } from 'lucide-react';
+import { Filter, Lock, RotateCcw, Search } from 'lucide-react';
 import { CustomDropdown } from '@/components/CustomDropdown';
 
 export type ApolloSearchFiltersProps = {
@@ -20,13 +20,14 @@ export type ApolloSearchFiltersProps = {
   companyLocation: string; setCompanyLocation: (val: string) => void;
   employeeCountRange: string; setEmployeeCountRange: (val: string) => void;
   companyTechUsage: string; setCompanyTechUsage: (val: string) => void;
-  fundingStage: string; setFundingStage: (val: string) => void;
   companyHiringKeywords: string; setCompanyHiringKeywords: (val: string) => void;
   fundingPresetDays: number | undefined; setFundingPresetDays: (val: number | undefined) => void;
   executeCompanySearch: (page: number) => void;
   
   loading: boolean;
   selectedProviderId: string;
+  /** false when the Apollo plan has no advanced filters (technology, hiring, funding date). */
+  advancedAvailable: boolean;
 };
 
 export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
@@ -37,10 +38,11 @@ export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
     techUsage, setTechUsage, executePeopleSearch,
     companyName, setCompanyName, companyDomain, setCompanyDomain, companyKeywords, setCompanyKeywords,
     companyLocation, setCompanyLocation, employeeCountRange, setEmployeeCountRange,
-    companyTechUsage, setCompanyTechUsage, fundingStage, setFundingStage,
+    companyTechUsage, setCompanyTechUsage,
     companyHiringKeywords, setCompanyHiringKeywords, fundingPresetDays, setFundingPresetDays,
-    executeCompanySearch, loading, selectedProviderId
+    executeCompanySearch, loading, selectedProviderId, advancedAvailable
   } = props;
+  const paidOnly = !advancedAvailable;
 
   return (
     <div className="apollo-filter-panel">
@@ -53,7 +55,7 @@ export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
           onClick={handleResetFilters}
           className="btn-secondary"
           style={{ padding: '4px 10px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-          title="Reset all filters"
+          title="Clear all filters and the results on screen (saved contacts are kept)"
         >
           <RotateCcw size={12} /> Reset
         </button>
@@ -83,9 +85,10 @@ export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
               placeholder="Any Seniority"
               options={[
                 { value: '', label: 'Any Seniority' },
-                { value: 'owner', label: 'Founder / Owner' },
+                { value: 'owner,founder', label: 'Founder / Owner' },
                 { value: 'c_suite', label: 'C-Suite Executive' },
                 { value: 'vp', label: 'VP / Vice President' },
+                { value: 'head', label: 'Head of …' },
                 { value: 'director', label: 'Director' },
                 { value: 'manager', label: 'Manager' }
               ]}
@@ -139,13 +142,14 @@ export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label>Target Technologies</label>
+            <label>Company Uses Technology <PaidBadge show={paidOnly} /></label>
             <input
               type="text"
-              value={techUsage}
+              value={paidOnly ? '' : techUsage}
               onChange={(e) => setTechUsage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && executePeopleSearch(1)}
-              placeholder="e.g. React, Node.js, AWS"
+              placeholder={paidOnly ? 'Needs a paid Apollo plan' : 'e.g. React, Node.js, AWS'}
+              disabled={paidOnly}
             />
           </div>
 
@@ -229,73 +233,65 @@ export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
 
           <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 3 — TECHNOLOGY STACK</div>
           <div className="flex flex-col gap-1.5">
-            <label>Technology Used</label>
+            <label>Technology Used <PaidBadge show={paidOnly} /></label>
             <input
               type="text"
-              value={companyTechUsage}
+              value={paidOnly ? '' : companyTechUsage}
               onChange={(e) => setCompanyTechUsage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && executeCompanySearch(1)}
-              placeholder="React, Node.js, Python, Flutter, AWS"
+              placeholder={paidOnly ? 'Needs a paid Apollo plan' : 'React, Node.js, Python, Flutter, AWS'}
+              disabled={paidOnly}
             />
           </div>
 
-          <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 4 — FUNDING & GROWTH</div>
+          <div className="text-[0.72rem] font-extrabold tracking-[0.08em] text-(--accent-indigo) uppercase pb-1.5 border-b border-(--border-subtle) mt-2">GROUP 4 — HIRING & FUNDING</div>
           <div className="flex flex-col gap-1.5">
-            <label>Funding Stage</label>
-            <CustomDropdown
-              value={fundingStage}
-              onChange={setFundingStage}
-              placeholder="Any Funding Stage"
-              options={[
-                { value: '', label: 'Any Funding Stage' },
-                { value: 'seed,pre_seed', label: '🌱 Seed & Pre-Seed Round' },
-                { value: 'series_a', label: '🚀 Series A Funding' },
-                { value: 'series_b', label: '🔥 Series B Funding' },
-                { value: 'series_c,series_d', label: '🏢 Series C+ Growth Funding' },
-                { value: 'angel,family_office', label: '👼 Angel & Family Office Round' },
-                { value: 'bootstrapped', label: '💪 Bootstrapped / Self-Funded' }
-              ]}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label>Hiring Activity & Open Roles</label>
+            <label>Hiring For (open job titles) <PaidBadge show={paidOnly} /></label>
             <input
               type="text"
-              value={companyHiringKeywords}
+              value={paidOnly ? '' : companyHiringKeywords}
               onChange={(e) => setCompanyHiringKeywords(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && executeCompanySearch(1)}
-              placeholder="Software Engineer, CTO, React Developer"
+              placeholder={paidOnly ? 'Needs a paid Apollo plan' : 'Software Engineer, React Developer'}
+              disabled={paidOnly}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label>Funding Date Window</label>
+            <label>Funded Within <PaidBadge show={paidOnly} /></label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
               <button
                 className={`btn-secondary ${fundingPresetDays === 30 ? 'active' : ''}`}
-                onClick={() => setFundingPresetDays(30)}
+                onClick={() => setFundingPresetDays(fundingPresetDays === 30 ? undefined : 30)}
+                disabled={paidOnly}
+                aria-pressed={fundingPresetDays === 30}
                 style={{ fontSize: '0.7rem', padding: '6px 8px', borderColor: fundingPresetDays === 30 ? '#06b6d4' : undefined, background: fundingPresetDays === 30 ? 'rgba(6,182,212,0.15)' : undefined }}
               >
                 Last 30 Days
               </button>
               <button
                 className={`btn-secondary ${fundingPresetDays === 90 ? 'active' : ''}`}
-                onClick={() => setFundingPresetDays(90)}
+                onClick={() => setFundingPresetDays(fundingPresetDays === 90 ? undefined : 90)}
+                disabled={paidOnly}
+                aria-pressed={fundingPresetDays === 90}
                 style={{ fontSize: '0.7rem', padding: '6px 8px', borderColor: fundingPresetDays === 90 ? '#06b6d4' : undefined, background: fundingPresetDays === 90 ? 'rgba(6,182,212,0.15)' : undefined }}
               >
                 Last 90 Days
               </button>
               <button
                 className={`btn-secondary ${fundingPresetDays === 180 ? 'active' : ''}`}
-                onClick={() => setFundingPresetDays(180)}
+                onClick={() => setFundingPresetDays(fundingPresetDays === 180 ? undefined : 180)}
+                disabled={paidOnly}
+                aria-pressed={fundingPresetDays === 180}
                 style={{ fontSize: '0.7rem', padding: '6px 8px', borderColor: fundingPresetDays === 180 ? '#06b6d4' : undefined, background: fundingPresetDays === 180 ? 'rgba(6,182,212,0.15)' : undefined }}
               >
                 Last 180 Days
               </button>
               <button
                 className={`btn-secondary ${fundingPresetDays === 365 ? 'active' : ''}`}
-                onClick={() => setFundingPresetDays(365)}
+                onClick={() => setFundingPresetDays(fundingPresetDays === 365 ? undefined : 365)}
+                disabled={paidOnly}
+                aria-pressed={fundingPresetDays === 365}
                 style={{ fontSize: '0.7rem', padding: '6px 8px', borderColor: fundingPresetDays === 365 ? '#06b6d4' : undefined, background: fundingPresetDays === 365 ? 'rgba(6,182,212,0.15)' : undefined }}
               >
                 Last 12 Months
@@ -315,5 +311,15 @@ export function ApolloSearchFilters(props: ApolloSearchFiltersProps) {
         </>
       )}
     </div>
+  );
+}
+
+/** Small lock label for filters the connected Apollo plan does not include. */
+function PaidBadge({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <span title="This filter needs a paid Apollo plan" style={{ marginLeft: 6, fontSize: '0.66rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 3, verticalAlign: 'middle' }}>
+      <Lock size={9} /> Paid plan
+    </span>
   );
 }

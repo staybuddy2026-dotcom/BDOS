@@ -168,7 +168,7 @@ export function fuseCompanyProfiles(
   const timeline: CompanyTimelineEvent[] = [
     {
       id: `tl_${companyId}_1`,
-      timestamp: 'Today',
+      timestamp: new Date().toISOString().slice(0, 10),
       eventType: 'APOLLO_IMPORTED',
       title: 'Company Profile Created',
       description: `Indexed ${overview.companyName}`,

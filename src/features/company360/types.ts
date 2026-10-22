@@ -85,6 +85,8 @@ export type AiOpportunityScoreDetails = {
   estimatedDealSizeUsd: string; // e.g. "$30,000 – $55,000"
   salesPriority: 'HIGH' | 'MEDIUM' | 'LOW';
   confidenceScorePercent: number; // 0-100
+  /** The facts behind data coverage: what is known about the company and what is still missing. */
+  evidence?: { label: string; known: boolean; hint?: string }[];
   scoringFactors: {
     factorName: string;
     impactScore: number; // +1 to +30
@@ -102,6 +104,8 @@ export type RecommendedServiceItem = {
   estimatedEngagementUsd: string;
   suggestedSquad: string;
   fitScore: number; // 0-100
+  /** 'tech': their tech stack uses what the service covers. 'focus': what they do (Apollo keywords) fits it. */
+  matchedBy?: 'tech' | 'focus';
 };
 
 export type CompanyTimelineEvent = {
@@ -157,6 +161,10 @@ export type Company360Profile = {
     lastContactDate?: string;
   };
   provenance: Record<string, DataSourceOrigin>;
+  /** Set when Apollo could not be reached while building: the profile is incomplete and was not cached. */
+  apolloUnavailable?: boolean;
+  /** Free Apollo search facts used by the fit score, and when tech & funding were looked up (1 credit). */
+  apolloSignals?: { keywords?: string[]; headcountGrowth6m?: number; headcountGrowth12m?: number; enrichedAt?: string };
 };
 
 export type Company360SearchResult = {

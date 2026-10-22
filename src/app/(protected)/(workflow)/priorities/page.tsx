@@ -1,5 +1,5 @@
 import { AuthService } from '@/lib/auth';
-import { getPrioritizedAccountsAction, getPrioritizationTelemetryAction } from '@/features/prioritization/actions';
+import { getPrioritiesAction } from '@/features/prioritization/actions';
 import { PriorityDashboard } from '@/components/prioritization/PriorityDashboard';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { Sparkles } from 'lucide-react';
@@ -12,10 +12,8 @@ export const dynamic = 'force-dynamic';
 export default async function DailyPrioritiesPage() {
   await AuthService.verifySession();
 
-  const [accounts, telemetry] = await Promise.all([
-    getPrioritizedAccountsAction(),
-    getPrioritizationTelemetryAction(),
-  ]);
+  // One pass: accounts and totals come from the same data (it used to be loaded twice).
+  const priorities = await getPrioritiesAction();
 
   return (
     <div 
@@ -30,17 +28,17 @@ export default async function DailyPrioritiesPage() {
           </div>
           <div>
             <h1 className="text-[1.3rem] font-extrabold bg-gradient-to-br from-slate-900 to-blue-500 bg-clip-text text-transparent m-0">
-              AI Sales Command Center & Daily Priorities
+              AI Daily Priorities
             </h1>
             <p className="text-[0.8rem] text-slate-400 font-semibold tracking-wide mt-1 m-0">
-              Automated multi-provider buying readiness scoring, priority ranking & next best sales actions
+              Your known accounts ranked by real buying signals, with the next step for each
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="text-[0.72rem] bg-indigo-50/50 text-indigo-600 border border-indigo-200/50 px-3 py-1.5 rounded-lg font-extrabold">
-            {telemetry.companiesToContactToday} Accounts Requiring Immediate Contact Today 🚀
+            {priorities.summary.contactToday} to contact today
           </div>
         </div>
       </div>
@@ -58,7 +56,7 @@ export default async function DailyPrioritiesPage() {
           />
 
           {/* Priority Dashboard Component */}
-          <PriorityDashboard initialAccounts={accounts} telemetry={telemetry} />
+          <PriorityDashboard initial={priorities} />
         </div>
       </div>
     </div>

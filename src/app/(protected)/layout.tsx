@@ -4,6 +4,10 @@ import { CommandPalette } from '@/components/navigation/CommandPalette';
 import { AuthService } from '@/lib/auth';
 import { getTodayCount } from '@/features/today/service';
 
+// Every page in here depends on the signed-in user, so none is pre-rendered at build time
+// (getCurrentUser swallows the cookies() error Next.js would otherwise use to detect that).
+export const dynamic = 'force-dynamic';
+
 export default async function ProtectedLayout({
   children,
 }: {

@@ -57,6 +57,15 @@ export interface ApolloOrganizationMatch {
   foundedYear?: number;
   whyThisCompanySummary?: string;
   hasPhone?: boolean;
+  /** What the company does, from Apollo's keyword tags (company search always includes these). */
+  keywords?: string[];
+  /** Headcount change as a fraction (0.12 = +12%); Apollo leaves it empty for many smaller companies. */
+  headcountGrowth6m?: number;
+  headcountGrowth12m?: number;
+  headcountGrowth24m?: number;
+  publicSymbol?: string;
+  /** True once company enrichment (1 credit) added technologies, funding and description. */
+  enriched?: boolean;
   searchMatches?: { type: 'keyword' | 'tech' | 'hiring' | 'title' | 'domain'; label: string }[];
 }
 
@@ -71,7 +80,6 @@ export interface ApolloOrgSearchParams {
   techUsage?: string;
   hiringKeywords?: string;
   minOpenJobs?: number;
-  fundingStage?: string;
   fundingPresetDays?: number;
   fundingDateFrom?: string;
   fundingDateTo?: string;
@@ -79,13 +87,15 @@ export interface ApolloOrgSearchParams {
   perPage?: number;
 }
 
-export type ApolloErrorCode = 'NOT_CONFIGURED' | 'INVALID_KEY' | 'RATE_LIMIT' | 'CREDITS_EXHAUSTED' | 'BAD_REQUEST' | 'HTTP_ERROR' | 'NETWORK';
+export type ApolloErrorCode = 'NOT_CONFIGURED' | 'INVALID_KEY' | 'PLAN_RESTRICTED' | 'RATE_LIMIT' | 'CREDITS_EXHAUSTED' | 'BAD_REQUEST' | 'HTTP_ERROR' | 'NETWORK';
 
 export interface ApolloErrorInfo {
   code: ApolloErrorCode;
   message: string;
   endpoint: string;
   at: string;
+  /** For PLAN_RESTRICTED: the Apollo filter the plan does not include. */
+  filter?: string;
 }
 
 export interface ApolloOrgSearchResponse {
@@ -117,6 +127,8 @@ export interface ApolloSearchResponse {
   page: number;
   perPage: number;
   error?: ApolloErrorInfo;
+  /** What a filter was turned into, e.g. "People at Freshworks (freshworks.com)". */
+  note?: string;
 }
 
 export interface ApolloUsageEndpoint {
@@ -138,6 +150,8 @@ export interface ApolloProvider {
     name?: string;
     domain?: string;
     organizationName?: string;
+    /** Public LinkedIn profile URL; enough on its own for Apollo to find the person. */
+    linkedinUrl?: string;
     revealPersonalEmail?: boolean;
     revealPhone?: boolean;
     webhookUrl?: string;
@@ -232,6 +246,22 @@ async function getApiKey(): Promise<string | undefined> {
   return settingsKeyCache.value;
 }
 
+/** Called after a key is saved on the Settings page, so the new key (and its plan) is used right away. */
+export async function resetApolloKeyCache() {
+  settingsKeyCache = null;
+  lastErrors.clear();
+  // Another key can be on another plan: check advanced filters again.
+  advancedState = null;
+  try {
+    const { SettingsService } = await import('@/lib/settings');
+    await SettingsService.set(ADVANCED_SETTING, 'null');
+  } catch { /* checked again within a day anyway */ }
+  // Search results stay cached (they do not depend on the key); account checks must re-run.
+  for (const key of cache.keys()) {
+    if (key.startsWith('GET auth/health') || key.startsWith('GET usage_stats/')) cache.delete(key);
+  }
+}
+
 export async function isApolloConfigured(): Promise<boolean> {
   return !!(await getApiKey());
 }
@@ -243,6 +273,16 @@ function classifyError(endpoint: string, status: number, body: Record<string, un
   const label = ENDPOINT_LABELS[endpoint] || endpoint;
   const at = new Date().toISOString();
 
+  // "Cannot access advanced filters currently_using_any_of_technology_uids on free plan. Please start a trial or upgrade."
+  const advanced = raw.match(/advanced filters?\s+([a-z_]+)/i);
+  if (advanced || /on (the )?free plan|start a trial or upgrade/i.test(raw)) {
+    const filter = advanced?.[1];
+    return {
+      code: 'PLAN_RESTRICTED', endpoint, at, filter,
+      message: `The ${(filter && ADVANCED_FILTER_LABELS[filter]) || 'selected'} filter needs a paid Apollo plan (your plan does not include advanced filters). Remove it and search again, or upgrade Apollo.`,
+    };
+  }
+
   if (status === 429 || /RATE_LIMIT/i.test(code) || /maximum number of api calls|rate limit/i.test(raw)) {
     const limit = raw.match(/is (\d+) times per (\w+)/);
     return {
@@ -252,10 +292,16 @@ function classifyError(endpoint: string, status: number, body: Record<string, un
         : `Apollo ${label.toLowerCase()} rate limit reached. Please wait and try again.`,
     };
   }
-  if (/CREDITS|credit/i.test(code) || /insufficient credits/i.test(raw)) {
+  if (/CREDITS|credit/i.test(code + ' ' + raw) || /insufficient credits/i.test(raw)) {
     return { code: 'CREDITS_EXHAUSTED', endpoint, at, message: `Your Apollo account has no credits left this billing cycle, so ${label.toLowerCase()} is unavailable. Upgrade the Apollo plan or wait for the next cycle.` };
   }
-  if (status === 401 || status === 403 || /INVALID_API_KEY|api key/i.test(code + raw)) {
+  if (status === 403 && /master api key/i.test(raw)) {
+    return { code: 'PLAN_RESTRICTED', endpoint, at, message: `Apollo ${label.toLowerCase()} needs a master API key. Create one in Apollo (Settings > Integrations > API, "Set as master key") and use it as APOLLO_API_KEY.` };
+  }
+  if (status === 403 && (/API_INACCESSIBLE|API_RESTRICTED/i.test(code) || /free plan|paid plan|not included in your/i.test(raw))) {
+    return { code: 'PLAN_RESTRICTED', endpoint, at, message: `The Apollo ${label.toLowerCase()} API is not included in your current Apollo plan. Upgrade the plan to use it.` };
+  }
+  if (status === 401 || status === 403 || /INVALID_API_KEY|api key/i.test(code + ' ' + raw)) {
     return { code: 'INVALID_KEY', endpoint, at, message: 'Apollo rejected the API key. Check APOLLO_API_KEY in your environment settings.' };
   }
   if (status === 422 || status === 400) {
@@ -308,12 +354,14 @@ async function apolloRequest<T>(
     const softError = res.ok && data && typeof data.message === 'string' && /maximum number of api calls|insufficient credits/i.test(data.message);
     if (!res.ok || softError || !data) {
       const info = classifyError(endpoint, res.status, data);
+      if (info.code === 'PLAN_RESTRICTED' && info.filter) void rememberAdvanced(false);
       lastErrors.set(endpoint, info);
       logger.warn(`Apollo ${endpoint} failed: ${info.code} ${info.message}`);
       throw new ApolloApiError(info);
     }
 
     lastErrors.delete(endpoint);
+    if (options.body && usesAdvancedFilters(options.body).length && advancedState?.available !== true) void rememberAdvanced(true);
     if (options.ttl) cacheSet(cacheKey, data, options.ttl);
     return data as T;
   })();
@@ -324,6 +372,75 @@ async function apolloRequest<T>(
   } finally {
     inFlight.delete(cacheKey);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Advanced filters (paid Apollo plans only)
+// ---------------------------------------------------------------------------
+
+/** Apollo search filters that only paid plans may use, with the name the page shows for them. */
+export const ADVANCED_FILTER_LABELS: Record<string, string> = {
+  currently_using_any_of_technology_uids: 'Technology',
+  q_organization_job_titles: 'Hiring for roles',
+  latest_funding_date_range: 'Funding date',
+  latest_funding_amount_range: 'Funding amount',
+  total_funding_range: 'Total funding',
+  revenue_range: 'Revenue',
+  organization_num_jobs_range: 'Open jobs',
+};
+const ADVANCED_SETTING = 'apollo_advanced_filters';
+const ADVANCED_RECHECK_MS = 24 * 60 * 60 * 1000;
+let advancedState: { available: boolean; checkedAt: number } | null = null;
+
+async function rememberAdvanced(available: boolean) {
+  advancedState = { available, checkedAt: Date.now() };
+  try {
+    const { SettingsService } = await import('@/lib/settings');
+    await SettingsService.set(ADVANCED_SETTING, JSON.stringify(advancedState));
+  } catch { /* kept in memory */ }
+}
+
+const usesAdvancedFilters = (body: Record<string, unknown>) => Object.keys(ADVANCED_FILTER_LABELS).filter((k) => body[k] !== undefined);
+
+/**
+ * Whether this Apollo plan allows advanced filters (technology, hiring, funding date...). Checked with
+ * one small search at most once a day, so the page can switch those filters off instead of failing.
+ * null when it could not be checked (Apollo not configured or not reachable).
+ */
+export async function getAdvancedFiltersAvailable(): Promise<boolean | null> {
+  if (advancedState && Date.now() - advancedState.checkedAt < ADVANCED_RECHECK_MS) return advancedState.available;
+  try {
+    const { SettingsService } = await import('@/lib/settings');
+    const saved = JSON.parse(await SettingsService.get(ADVANCED_SETTING, 'null')) as typeof advancedState;
+    if (saved && Date.now() - saved.checkedAt < ADVANCED_RECHECK_MS) {
+      advancedState = saved;
+      return saved.available;
+    }
+  } catch { /* check below */ }
+  if (!(await getApiKey())) return null;
+  try {
+    await apolloRequest('organizations/search', { body: { currently_using_any_of_technology_uids: ['react'], page: 1, per_page: 1 } });
+    await rememberAdvanced(true);
+    return true;
+  } catch (err) {
+    if (err instanceof ApolloApiError && err.info.code === 'PLAN_RESTRICTED') {
+      lastErrors.delete('organizations/search'); // a check, not a failed search
+      await rememberAdvanced(false);
+      return false;
+    }
+    return null;
+  }
+}
+
+/** Refuses a search that uses advanced filters on a plan without them, before spending a call on it. */
+async function blockedByPlan(endpoint: string, body: Record<string, unknown>): Promise<ApolloErrorInfo | null> {
+  const used = usesAdvancedFilters(body);
+  if (!used.length || (await getAdvancedFiltersAvailable()) !== false) return null;
+  const names = used.map((k) => ADVANCED_FILTER_LABELS[k]).join(', ');
+  return {
+    code: 'PLAN_RESTRICTED', endpoint, at: new Date().toISOString(), filter: used[0],
+    message: `${names} ${used.length === 1 ? 'needs' : 'need'} a paid Apollo plan (your plan does not include advanced filters). Clear ${used.length === 1 ? 'it' : 'them'} and search again, or upgrade Apollo.`,
+  };
 }
 
 const toErrorInfo = (err: unknown, endpoint: string): ApolloErrorInfo =>
@@ -386,6 +503,8 @@ function mapOrganization(o: Record<string, unknown>): ApolloOrganizationMatch {
   }
   if (openJobs && openJobs > 0) summaryParts.push(`Hiring for ${openJobs} roles`);
   if (techList.length) summaryParts.push(`Uses ${techList.slice(0, 3).join(', ')}`);
+  const growth12 = pickNumber(o.organization_headcount_twelve_month_growth);
+  if (growth12 !== undefined && Math.abs(growth12) >= 0.05) summaryParts.push(`Headcount ${growth12 > 0 ? '+' : ''}${Math.round(growth12 * 100)}% in 12 months`);
 
   return {
     apolloOrganizationId: pickString(o.id, o.organization_id) || `apollo-org-${domain || pickString(o.name) || 'unknown'}`,
@@ -413,6 +532,11 @@ function mapOrganization(o: Record<string, unknown>): ApolloOrganizationMatch {
     foundedYear: pickNumber(o.founded_year),
     whyThisCompanySummary: summaryParts.length ? summaryParts.join(' • ') : undefined,
     hasPhone: Boolean(o.phone || (o.primary_phone as Record<string, unknown> | undefined)?.number),
+    keywords: Array.isArray(o.keywords) ? (o.keywords as unknown[]).filter((k): k is string => typeof k === 'string' && !!k.trim()).slice(0, 8) : undefined,
+    headcountGrowth6m: pickNumber(o.organization_headcount_six_month_growth),
+    headcountGrowth12m: growth12,
+    headcountGrowth24m: pickNumber(o.organization_headcount_twenty_four_month_growth),
+    publicSymbol: pickString(o.publicly_traded_symbol),
     searchMatches: openJobs && openJobs > 0 ? [{ type: 'hiring', label: `Hiring for ${openJobs} roles` }] : undefined,
   };
 }
@@ -497,7 +621,6 @@ export class DefaultApolloProvider implements ApolloProvider {
    */
   async searchPeopleAdvanced(params: ApolloSearchParams): Promise<ApolloSearchResponse> {
     const domain = normalizeDomain(params.domain);
-    const keywordParts = [clean(params.keywords), clean(params.companyName), clean(params.hiringActivity)].filter(Boolean);
     const perPage = Math.min(Math.max(params.perPage || 10, 1), 100);
     const body: Record<string, unknown> = {
       person_titles: orUndefined(splitList(clean(params.jobTitle))),
@@ -507,12 +630,30 @@ export class DefaultApolloProvider implements ApolloProvider {
       // The correct filter name; Apollo silently ignores "organization_domains".
       q_organization_domains_list: domain ? [domain] : undefined,
       currently_using_any_of_technology_uids: orUndefined(toTechUids(params.techUsage)),
-      q_keywords: keywordParts.length ? keywordParts.join(' ') : undefined,
+      // Companies with open roles like these (a real Apollo filter, not a keyword match on the person).
+      q_organization_job_titles: orUndefined(splitList(clean(params.hiringActivity))),
+      q_keywords: clean(params.keywords),
       page: params.page || 1,
       per_page: perPage,
     };
+    let note: string | undefined;
+
+    const blocked = await blockedByPlan('mixed_people/api_search', body);
+    if (blocked) return emptyPeople({ ...params, perPage }, blocked);
 
     try {
+      // A company name is matched to the Apollo company first. As a keyword it would also match
+      // people elsewhere who merely mention the name ("Freshworks Developer" at another firm).
+      const companyName = clean(params.companyName);
+      if (companyName && !domain) {
+        const company = await this.findCompanyByName(companyName);
+        if (!company) {
+          return { ...emptyPeople({ ...params, perPage }), note: `Apollo has no company named "${companyName}". Check the spelling or search by website.` };
+        }
+        body.organization_ids = [company.apolloOrganizationId];
+        note = `People at ${company.name}${company.domain ? ` (${company.domain})` : ''}`;
+      }
+
       const data = await apolloRequest<{ people?: Record<string, unknown>[]; total_entries?: number; pagination?: { total_entries?: number } }>(
         'mixed_people/api_search', { body, ttl: TTL.search }
       );
@@ -522,11 +663,22 @@ export class DefaultApolloProvider implements ApolloProvider {
         totalCount: data.total_entries ?? data.pagination?.total_entries ?? people.length,
         page: params.page || 1,
         perPage,
+        note,
       };
     } catch (err) {
       if (!(err instanceof ApolloApiError)) logger.error('Apollo searchPeopleAdvanced failed', err);
       return emptyPeople({ ...params, perPage }, toErrorInfo(err, 'mixed_people/api_search'));
     }
+  }
+
+  /** The Apollo company for a typed name: an exact name match first, else Apollo's best match. Throws Apollo errors. */
+  private async findCompanyByName(name: string): Promise<ApolloOrganizationMatch | null> {
+    const data = await apolloRequest<{ organizations?: Record<string, unknown>[]; accounts?: Record<string, unknown>[] }>(
+      'organizations/search', { body: { q_organization_name: name, page: 1, per_page: 5 }, ttl: TTL.search }
+    );
+    const found = [...(data.organizations || []), ...(data.accounts || [])].map(mapOrganization).filter((o) => !o.apolloOrganizationId.startsWith('apollo-org-'));
+    const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return found.find((o) => norm(o.name) === norm(name)) || found[0] || null;
   }
 
   /**
@@ -543,7 +695,7 @@ export class DefaultApolloProvider implements ApolloProvider {
       organization_locations: orUndefined(splitList(clean(params.location))),
       organization_num_employees_ranges: params.employeeCountRange ? [params.employeeCountRange] : undefined,
       currently_using_any_of_technology_uids: orUndefined(toTechUids(params.techUsage)),
-      latest_funding_stage_cd: orUndefined(splitList(params.fundingStage)),
+      // Apollo has no funding-stage filter (a "latest_funding_stage_cd" field is silently ignored), so none is sent.
       page: params.page || 1,
       per_page: perPage,
     };
@@ -558,6 +710,9 @@ export class DefaultApolloProvider implements ApolloProvider {
         : params.fundingDateFrom;
       if (min) body.latest_funding_date_range = { min, max: params.fundingDateTo || today.toISOString().split('T')[0] };
     }
+
+    const blocked = await blockedByPlan('organizations/search', body);
+    if (blocked) return emptyOrgs({ ...params, perPage }, blocked);
 
     try {
       const data = await apolloRequest<{ organizations?: Record<string, unknown>[]; accounts?: Record<string, unknown>[]; pagination?: { total_entries?: number } }>(
@@ -588,6 +743,7 @@ export class DefaultApolloProvider implements ApolloProvider {
     name?: string;
     domain?: string;
     organizationName?: string;
+    linkedinUrl?: string;
     revealPersonalEmail?: boolean;
     revealPhone?: boolean;
     webhookUrl?: string;
@@ -606,13 +762,14 @@ export class DefaultApolloProvider implements ApolloProvider {
     if (params.firstName) body.first_name = params.firstName;
     if (params.lastName) body.last_name = params.lastName;
     if (params.organizationName) body.organization_name = params.organizationName;
+    if (params.linkedinUrl) body.linkedin_url = params.linkedinUrl;
     if (params.revealPersonalEmail) body.reveal_personal_emails = true;
     const webhookUrl = params.webhookUrl || process.env.APOLLO_WEBHOOK_URL;
     if (params.revealPhone && webhookUrl?.startsWith('http')) {
       body.reveal_phone_number = true;
       body.webhook_url = webhookUrl;
     }
-    if (!body.id && !(body.first_name && (body.domain || body.organization_name))) return null;
+    if (!body.id && !body.linkedin_url && !(body.first_name && (body.domain || body.organization_name))) return null;
 
     try {
       const data = await apolloRequest<{ person?: Record<string, unknown> }>('people/match', { body, ttl: TTL.enrich });
@@ -631,11 +788,11 @@ export class DefaultApolloProvider implements ApolloProvider {
     try {
       if (domain) {
         const data = await apolloRequest<{ organization?: Record<string, unknown> }>('organizations/enrich', { method: 'GET', query: { domain }, ttl: TTL.enrich });
-        return data.organization ? mapOrganization(data.organization) : null;
+        return data.organization ? { ...mapOrganization(data.organization), enriched: true } : null;
       }
       if (params.apolloOrgId && !params.apolloOrgId.startsWith('apollo-org-')) {
         const data = await apolloRequest<{ organization?: Record<string, unknown> }>(`organizations/${encodeURIComponent(params.apolloOrgId)}`, { method: 'GET', ttl: TTL.enrich });
-        return data.organization ? mapOrganization(data.organization) : null;
+        return data.organization ? { ...mapOrganization(data.organization), enriched: true } : null;
       }
       return null;
     } catch (err) {

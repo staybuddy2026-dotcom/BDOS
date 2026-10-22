@@ -2,10 +2,13 @@
 
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { geminiGenerate, hasGeminiKey } from '@/lib/gemini';
 import { AppError } from '@/lib/errors';
 import { SettingsService } from '@/lib/settings';
 import { ApprovalStatus } from '@prisma/client';
 import { safeRevalidatePath } from '@/lib/revalidate';
+import { AuthService } from '@/lib/auth';
+import { scanLinkedInReEngagements } from './linkedin';
 
 export type ReEngagementData = {
   id: string;
@@ -56,10 +59,25 @@ export async function getReEngagementEvents(): Promise<ReEngagementData[]> {
 }
 
 /**
- * Scan previously contacted prospect feeds for new posts matching buying signals using Apollo API.
+ * Looks for new reasons to re-contact prospects we already reached out to: new LinkedIn posts with
+ * buying intent (when LinkedIn is connected) and company funding or hiring found through Apollo.
  * Generates contextual re-engagement follow-ups.
  */
-export async function scanForReEngagements(): Promise<{ count: number }> {
+export async function scanForReEngagements(): Promise<{ count: number; linkedin?: { checked: number; created: number; message?: string } }> {
+  await AuthService.verifySession();
+  // LinkedIn first: a failure there must not stop the Apollo scan, and vice versa.
+  const li = await scanLinkedInReEngagements().catch((err) => {
+    logger.error('LinkedIn re-engagement scan failed', err);
+    return { checked: 0, created: 0, skipped: 'The LinkedIn check failed. Please try again.' } as { checked: number; created: number; skipped?: string; error?: { message: string } };
+  });
+  const linkedin = { checked: li.checked, created: li.created, message: li.error?.message || li.skipped };
+  const apollo = await scanApolloReEngagements();
+  if (li.created) safeRevalidatePath('/re-engagement');
+  return { count: apollo.count + li.created, linkedin };
+}
+
+/** Company funding / hiring signals from Apollo for contacted prospects. */
+async function scanApolloReEngagements(): Promise<{ count: number }> {
   try {
     // 1. Load contacted outreach drafts from database
     const contactedDrafts = await db.outreachDraft.findMany({
@@ -182,31 +200,16 @@ CRITICAL Guidelines:
           }
         };
 
-        let draftText = `Hi ${matchedDraft.post.authorName.split(' ')[0]},\n\nI saw ${companyName} has some recent updates. Since we last discussed, I wanted to check in.\n\nOpen to look?`;
+        // Without the AI, the draft names the real signal that was found (funding or hiring), nothing vaguer.
+        let draftText = `Hi ${matchedDraft.post.authorName.split(' ')[0]},\n\nI noticed that ${newSignal.replace(/\.$/, '')}. Since we last spoke, I wanted to check whether that changes your plans.\n\nWould it be worth a short call?`;
 
-        const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
-        if (apiKey) {
-          const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+        if (hasGeminiKey()) {
           try {
-            const response = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(requestBody)
-            });
-            if (response.ok) {
-              const data = await response.json();
-              const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (textPart) {
-                const parsed = JSON.parse(textPart.trim());
-                draftText = parsed.draft;
-              }
-            } else if (response.status === 429) {
-                throw new Error("RATE_LIMIT");
-            }
+            const result = await geminiGenerate(requestBody, { label: `re-engagement draft for ${companyName}` });
+            const parsed = JSON.parse(result.text) as { draft?: unknown };
+            if (typeof parsed.draft === 'string' && parsed.draft.trim()) draftText = parsed.draft.trim();
           } catch (err: unknown) {
-            if (err instanceof Error && err.message === "RATE_LIMIT") throw err;
-            logger.error('Failed to run Gemini for re-engagement draft. Falling back to template.', err instanceof Error ? err.message : String(err));
+            logger.warn(`Re-engagement draft for ${companyName}: AI unavailable, using the signal-based draft`, { error: err instanceof Error ? err.message : String(err) });
           }
         }
 

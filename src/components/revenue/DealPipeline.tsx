@@ -19,12 +19,10 @@ export function DealPipeline({
     { id: 'NEW_LEAD', label: 'New Lead' },
     { id: 'QUALIFIED', label: 'Qualified' },
     { id: 'DISCOVERY_CALL', label: 'Discovery Call' },
-    { id: 'TECHNICAL_DISCUSSION', label: 'Technical' },
     { id: 'PROPOSAL_SENT', label: 'Proposal Sent' },
     { id: 'NEGOTIATION', label: 'Negotiation' },
-    { id: 'CONTRACT_SENT', label: 'Contract Sent' },
-    { id: 'CONTRACT_SIGNED', label: 'Signed' },
     { id: 'WON', label: 'Won Deal' },
+    { id: 'LOST', label: 'Lost Deal' },
   ];
 
 
@@ -112,9 +110,11 @@ export function DealPipeline({
                       </div>
                     </div>
 
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: 600 }}>🌐 {deal.domain}</span>
-                    </div>
+                    {deal.domain && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 600 }}>🌐 {deal.domain}</span>
+                      </div>
+                    )}
 
                     {/* What happens next on this deal (worked in the CRM) */}
                     {deal.tasks?.[0]?.title && (
@@ -125,7 +125,12 @@ export function DealPipeline({
                     )}
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px', fontSize: '0.76rem' }}>
-                      <span style={{ color: 'var(--color-warning)', fontWeight: 800 }}>{deal.dealValueInr}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ color: 'var(--color-warning)', fontWeight: 800 }}>{deal.dealValueInr}</span>
+                        {deal.dealValueUsd && (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem', fontWeight: 600 }}>{deal.dealValueUsd}</span>
+                        )}
+                      </div>
                       <span style={{ color: 'var(--accent-indigo)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                         Open in CRM <ChevronRight size={13} />
                       </span>

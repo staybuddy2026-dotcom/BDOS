@@ -149,11 +149,17 @@ export type LinkedInCompanyResult = {
   companyType?: string;
 };
 
+/** LinkedIn people search pages hold 25 profiles; LinkedIn serves at most 100 pages (2,500 people) per search. */
+export const PROFILE_SEARCH_PAGE_SIZE = 25;
+export const PROFILE_SEARCH_MAX_PAGES = 100;
+
 export type LinkedInListResponse<T> = {
   items: T[];
   error?: LinkedInErrorInfo;
   /** True when the result came from cache and cost nothing. */
   cached?: boolean;
+  /** Total matches LinkedIn reports for the search, when the source gives one (people search pages). */
+  total?: number;
 };
 
 export type LinkedInStatus = {

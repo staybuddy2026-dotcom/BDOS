@@ -1,5 +1,6 @@
 import { Company360Profile } from '../company360/types';
-import { AccountBuyingSignal, BuyingReadinessDetails, PriorityTier } from './types';
+import type { CrmMatch } from '../crm/types';
+import { AccountBuyingSignal, BuyingReadinessDetails, PriorityTier, TIER_BANDS, TierOverride } from './types';
 import { generateNextBestActions } from './recommendations';
 
 /**
@@ -13,27 +14,32 @@ import { generateNextBestActions } from './recommendations';
  * <25    Archive
  */
 export function determinePriorityTier(score: number): PriorityTier {
-  if (score >= 80) return 'IMMEDIATE';
-  if (score >= 65) return 'HIGH';
-  if (score >= 45) return 'MEDIUM';
-  if (score >= 25) return 'MONITOR';
-  return 'ARCHIVE';
+  const tiers: PriorityTier[] = ['IMMEDIATE', 'HIGH', 'MEDIUM', 'MONITOR'];
+  return tiers.find((t) => score >= TIER_BANDS[t].min) || 'ARCHIVE';
 }
 
-/** Points of the named factor scaled to 0-100 (each factor is worth up to 20 points); 0 when not found. */
-const factorPercent = (profile: Company360Profile, name: string) =>
-  Math.min(100, (profile.opportunityScoring.scoringFactors.find((f) => f.factorName === name)?.impactScore || 0) * 5);
+const SENIORITY_RANK: Record<string, number> = { 'C-Level': 0, VP: 1, Director: 2, Lead: 3, Manager: 4 };
+// Who decides on development work: a technology leader, else the founder / CEO, else other senior people.
+const TECH_LEADER = /\b(cto|chief technology|chief technical|vp,? (of )?(engineering|technology|product)|vice president,? (of )?(engineering|technology|product)|head of (engineering|technology|product|development|software)|director of (engineering|technology|software)|engineering director|chief product|cpo|cio|chief information)\b/i;
+const FOUNDER = /\b(founder|co-?founder|ceo|chief executive|owner|managing director)\b/i;
+const relevance = (title = '') => (TECH_LEADER.test(title) ? 0 : FOUNDER.test(title) ? 1 : 2);
+
+/** Apollo masks surnames until a contact is revealed ("Dennis Wo***e"); show "Dennis W." instead. */
+const readableName = (name: string) => name.replace(/\s+([A-Za-z])[A-Za-z]*\*+[A-Za-z]*/g, ' $1.').trim();
 
 /**
  * Buying readiness for the AI Priorities page, taken from the company's Company 360 fit score so both
- * pages agree. Every number is either from that score's evidence or left at 0 / empty when unknown.
+ * pages agree. Every value is from the profile; anything not known is left out, never filled in.
  */
-export function calculateBuyingReadiness(profile: Company360Profile): BuyingReadinessDetails {
+export function calculateBuyingReadiness(
+  profile: Company360Profile,
+  options: { evaluatedAt?: Date; inCrm?: CrmMatch; override?: TierOverride } = {}
+): BuyingReadinessDetails {
   const scoring = profile.opportunityScoring;
   const score = scoring.overallScore;
-  const priorityTier = determinePriorityTier(score);
-  const topService = profile.recommendedServices?.[0];
-  const today = new Date().toISOString().split('T')[0];
+  const scoredTier = determinePriorityTier(score);
+  const priorityTier = options.override?.tier || scoredTier;
+  const evaluated = (options.evaluatedAt || new Date()).toISOString().split('T')[0];
 
   const keySignals: AccountBuyingSignal[] = scoring.scoringFactors.map((f, i) => ({
     id: `sig_${profile.companyId}_${i}`,
@@ -41,35 +47,48 @@ export function calculateBuyingReadiness(profile: Company360Profile): BuyingRead
     title: f.factorName,
     description: f.description,
     impactScore: f.impactScore,
-    detectedDate: today,
+    detectedDate: evaluated,
   }));
 
-  const contact = profile.decisionMakers?.[0];
-  const recommendedPitch = topService
-    ? `Offer ${topService.serviceName}: ${topService.reasoning}${contact ? ` Start with ${contact.name} (${contact.jobTitle}).` : ''}`
-    : contact
-      ? `Ask ${contact.name} (${contact.jobTitle}) what they need to ship this year.`
+  // Most relevant named person first (technology leader, then founder); nobody is invented when Apollo found no one.
+  const contact = [...(profile.decisionMakers || [])]
+    .filter((d) => d.name?.trim())
+    .sort((a, b) => relevance(a.jobTitle) - relevance(b.jobTitle) || (SENIORITY_RANK[a.seniority] ?? 9) - (SENIORITY_RANK[b.seniority] ?? 9))[0];
+  const primaryContact = contact
+    ? { name: readableName(contact.name), jobTitle: contact.jobTitle, linkedinUrl: contact.linkedinUrl || undefined, email: contact.email || undefined }
+    : undefined;
+
+  const service = profile.recommendedServices?.[0];
+  const matchedService = service
+    ? { name: service.serviceName, reason: service.reasoning, fromInr: service.estimatedEngagementInr, fromUsd: service.estimatedEngagementUsd, model: service.suggestedSquad, matchedBy: service.matchedBy || 'tech' }
+    : undefined;
+
+  const recommendedPitch = matchedService
+    ? `Offer ${matchedService.name}: ${matchedService.reason}${primaryContact ? ` Start with ${primaryContact.name} (${primaryContact.jobTitle}).` : ''}`
+    : primaryContact
+      ? `Ask ${primaryContact.name} (${primaryContact.jobTitle}) what they plan to build this year.`
       : 'Find a decision maker before pitching.';
 
-  return {
+  const details: BuyingReadinessDetails = {
     companyId: profile.companyId,
     domain: profile.domain,
     companyName: profile.overview.companyName,
     buyingReadinessScore: score,
     priorityTier,
-    winProbabilityPercent: score,
-    estimatedDealValueInr: topService?.estimatedEngagementInr || '',
-    estimatedDealValueUsd: topService?.estimatedEngagementUsd || '',
-    expectedSalesCycle: '',
-    technicalMatchScore: topService?.fitScore || 0,
-    budgetConfidence: scoring.confidenceScorePercent,
-    growthVelocityScore: Math.max(factorPercent(profile, 'Funding'), factorPercent(profile, 'Hiring')),
-    engineeringExpansionIndex: factorPercent(profile, 'Hiring'),
-    executiveEngagementScore: factorPercent(profile, 'Decision makers found'),
-    nextBestActions: generateNextBestActions(profile, priorityTier),
+    scoredTier,
+    tierOverride: options.override,
+    dataCoveragePercent: scoring.confidenceScorePercent,
+    dataChecklist: scoring.evidence || [],
+    primaryContact,
+    linkedinPageUrl: profile.overview.linkedinPageUrl || undefined,
+    matchedService,
+    inCrm: options.inCrm,
+    nextBestActions: [],
     keySignals,
     recommendedPitch,
-    suggestedSquad: topService?.suggestedSquad || '',
-    lastEvaluatedDate: today,
+    lastEvaluatedDate: evaluated,
+    techFundingCheckedAt: profile.apolloSignals?.enrichedAt,
   };
+  details.nextBestActions = generateNextBestActions(details);
+  return details;
 }

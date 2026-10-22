@@ -12,7 +12,7 @@ export class ApolloLeadProvider extends BaseLeadProvider {
   isLive = true;
   version = '2.4.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 380;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -57,7 +57,7 @@ export class ApolloLeadProvider extends BaseLeadProvider {
     const status = await this.getStatus();
     if (status !== 'Connected') return 'Offline';
     const errors = getLastApolloErrors();
-    if (errors.some((e) => e.code === 'INVALID_KEY')) return 'Unauthorized';
+    if (errors.some((e) => e.code === 'INVALID_KEY' || e.code === 'PLAN_RESTRICTED')) return 'Unauthorized';
     if (errors.some((e) => e.code === 'RATE_LIMIT')) return 'Rate Limited';
     if (errors.some((e) => e.code === 'CREDITS_EXHAUSTED' || e.code === 'NETWORK')) return 'Warning';
     return 'Healthy';
@@ -138,7 +138,6 @@ export class ApolloLeadProvider extends BaseLeadProvider {
         employeeCountRange: params.employees,
         techUsage: params.technology,
         hiringKeywords: params.hiringKeywords,
-        fundingStage: params.fundingStage,
         fundingPresetDays: params.fundingDays,
         page: params.page || 1,
         perPage: params.perPage || 10,

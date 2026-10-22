@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
+import { TagSearchSelect } from '@/components/ui/TagSearchSelect';
+import { JOB_TITLE_SUGGESTIONS, LOCATION_SUGGESTIONS } from './searchSuggestions';
 import {
-  AlertTriangle, CheckCircle2, ExternalLink, Flame, Inbox, Kanban, Loader2, MessageSquare, MessageSquareQuote, PlugZap, RefreshCw, ScanSearch,
-  Search, Send, Sparkles, ThumbsUp, Trash2, UserPlus, UserRound, Users, Copy, Check,
+  AlertTriangle, CheckCircle2, Compass, ExternalLink, Flame, Inbox, Kanban, Loader2, MessageSquare, PlugZap, RefreshCw, ScanSearch,
+  Search, Send, Sparkles, ThumbsUp, Trash2, UserPlus, UserRound, Users, Copy, Check, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import {
   addLinkedInPostToCrmAction,
@@ -21,12 +23,15 @@ import {
 } from '@/features/linkedin/actions';
 import type { KeywordScanResult, LinkedInInboxItem, LinkedInPostSearchItem } from '@/features/linkedin/actions';
 import type { IntentLevel, IntentSource, PostIntent } from '@/features/linkedin/intent';
-import type { LinkedInProfileResult, LinkedInStatus } from '@/features/linkedin/types';
+import { PROFILE_SEARCH_MAX_PAGES, PROFILE_SEARCH_PAGE_SIZE, type LinkedInProfileResult, type LinkedInStatus } from '@/features/linkedin/types';
 import { addLinkedInProfileToCrm, lookupCrmStatusAction } from '@/features/crm/actions';
 import { STAGE_LABELS } from '@/features/crm/types';
 import type { CrmMatch } from '@/features/crm/types';
 import s from '@/components/ui/ui.module.css';
 import { useToast } from '@/components/ui/useToast';
+import { usePageState } from '@/lib/usePageState';
+import { PostResultCard } from './PostResultCard';
+import pc from './postCard.module.css';
 
 type Tab = 'posts' | 'people' | 'inbox';
 type Window = '24h' | 'week' | 'month';
@@ -95,42 +100,49 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [checking, setChecking] = useState(false);
-  const [tab, setTab] = useState<Tab>('posts');
+  const [tab, setTab] = usePageState<Tab>('linkedin.tab', 'posts');
 
   // Posts
-  const [query, setQuery] = useState('');
-  const [timeWindow, setTimeWindow] = useState<Window>('week');
-  const [authorKeywords, setAuthorKeywords] = useState('');
-  const [posts, setPosts] = useState<LinkedInPostSearchItem[]>([]);
-  const [postsSearched, setPostsSearched] = useState(false);
-  const [postsLoading, setPostsLoading] = useState(false);
+  const [query, setQuery] = usePageState('linkedin.query', '');
+  const [timeWindow, setTimeWindow] = usePageState<Window>('linkedin.timeWindow', 'week');
+  const [authorKeywords, setAuthorKeywords] = usePageState('linkedin.authorKeywords', '');
+  const [posts, setPosts] = usePageState<LinkedInPostSearchItem[]>('linkedin.posts', []);
+  const [postsSearched, setPostsSearched] = usePageState('linkedin.postsSearched', false);
+  const [postsLoading, setPostsLoading] = usePageState('linkedin.postsLoading', false, { persist: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [savingPosts, setSavingPosts] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [scanResults, setScanResults] = useState<KeywordScanResult[] | null>(null);
+  const [savingPosts, setSavingPosts] = usePageState('linkedin.savingPosts', false, { persist: false });
+  const [scanning, setScanning] = usePageState('linkedin.scanning', false, { persist: false });
+  const [scanResults, setScanResults] = usePageState<KeywordScanResult[] | null>('linkedin.scanResults', null);
   // Buying intent per post, which results are already in the CRM, and drafted comments.
-  const [intents, setIntents] = useState<Record<string, PostIntent>>({});
-  const [intentSource, setIntentSource] = useState<IntentSource | null>(null);
-  const [scoring, setScoring] = useState(false);
-  const [levelFilter, setLevelFilter] = useState<LevelFilter>('ALL');
-  const [crmPosts, setCrmPosts] = useState<Record<string, CrmMatch>>({});
+  const [intents, setIntents] = usePageState<Record<string, PostIntent>>('linkedin.intents', {});
+  const [intentSource, setIntentSource] = usePageState<IntentSource | null>('linkedin.intentSource', null);
+  const [scoring, setScoring] = usePageState('linkedin.scoring', false, { persist: false });
+  const [levelFilter, setLevelFilter] = usePageState<LevelFilter>('linkedin.levelFilter', 'ALL');
+  const [crmPosts, setCrmPosts] = usePageState<Record<string, CrmMatch>>('linkedin.crmPosts', {});
   const [postCrmBusy, setPostCrmBusy] = useState<string | null>(null);
-  const [comments, setComments] = useState<Record<string, string>>({});
+  const [comments, setComments] = usePageState<Record<string, string>>('linkedin.comments', {});
   const [commentBusy, setCommentBusy] = useState<string | null>(null);
 
   // People
-  const [peopleQuery, setPeopleQuery] = useState('');
-  const [jobTitles, setJobTitles] = useState('');
-  const [locations, setLocations] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [people, setPeople] = useState<LinkedInProfileResult[]>([]);
-  const [peopleSearched, setPeopleSearched] = useState(false);
-  const [peopleLoading, setPeopleLoading] = useState(false);
-  const [peopleNote, setPeopleNote] = useState<string | null>(null);
+  const [peopleQuery, setPeopleQuery] = usePageState('linkedin.peopleQuery', '');
+  const [jobTitles, setJobTitles] = usePageState('linkedin.jobTitles', '');
+  const [locations, setLocations] = usePageState('linkedin.locations', '');
+  const [companyName, setCompanyName] = usePageState('linkedin.companyName', '');
+  const [people, setPeople] = usePageState<LinkedInProfileResult[]>('linkedin.people', []);
+  const [peopleSearched, setPeopleSearched] = usePageState('linkedin.peopleSearched', false);
+  const [peopleLoading, setPeopleLoading] = usePageState('linkedin.peopleLoading', false, { persist: false });
+  const [peopleNote, setPeopleNote] = usePageState<string | null>('linkedin.peopleNote', null);
+  // Paging: one LinkedIn search page (25 people) per page. Opened pages are kept, so going back is free.
+  const [peoplePage, setPeoplePage] = usePageState('linkedin.peoplePage', 1);
+  const [peopleTotal, setPeopleTotal] = usePageState<number | null>('linkedin.peopleTotal', null);
+  const [peoplePages, setPeoplePages] = usePageState<Record<number, LinkedInProfileResult[]>>('linkedin.peoplePages', {});
+  /** Filters of the search being paged, so editing the fields does not change the pages of the current results. */
+  const [peopleArgs, setPeopleArgs] = usePageState<{ query: string; jobTitles: string; locations: string; companyName: string } | null>('linkedin.peopleArgs', null);
+  const peopleResultsRef = useRef<HTMLElement>(null);
   const [crmBusy, setCrmBusy] = useState<string | null>(null);
   const [addedToCrm, setAddedToCrm] = useState<Set<string>>(new Set());
-  const [crmPeople, setCrmPeople] = useState<Record<string, CrmMatch>>({});
+  const [crmPeople, setCrmPeople] = usePageState<Record<string, CrmMatch>>('linkedin.crmPeople', {});
   const [copied, setCopied] = useState<string | null>(null);
 
   // Inbox
@@ -282,22 +294,26 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
     }
   };
 
-  const handlePeopleSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (peopleLoading) return;
-    if (!peopleQuery.trim() && !jobTitles.trim() && !companyName.trim()) {
-      notify('Add a keyword, job title or company to search people.', true);
+  /** Shows one page of people: from memory when it was opened before, otherwise from LinkedIn. */
+  const loadPeoplePage = async (page: number, args: NonNullable<typeof peopleArgs>, known: Record<number, LinkedInProfileResult[]>) => {
+    if (known[page]) {
+      setPeople(known[page]);
+      setPeoplePage(page);
+      peopleResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     setPeopleLoading(true);
     setBanner(null);
-    setPeopleNote(null);
     try {
-      const res = await searchLinkedInPeopleAction({ query: peopleQuery, jobTitles, locations, companyName, maxItems: 15 });
+      const res = await searchLinkedInPeopleAction({ ...args, page });
+      if (res.error) { setBanner(res.error.message); return; }
+      setPeoplePages({ ...known, [page]: res.items });
       setPeople(res.items);
+      setPeoplePage(page);
       setPeopleSearched(true);
-      setPeopleNote(res.note || null);
-      if (res.error) setBanner(res.error.message);
+      if (res.total !== undefined) setPeopleTotal(res.total);
+      if (page === 1) setPeopleNote(res.note || null);
+      if (page > 1) peopleResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       if (res.items.length) {
         lookupCrmStatusAction({ people: res.items.map((p) => ({ key: p.id, linkedinUrl: p.profileUrl, email: p.email })) })
           .then((found) => setCrmPeople((prev) => ({ ...prev, ...found.people })))
@@ -309,6 +325,42 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
       setPeopleLoading(false);
     }
   };
+
+  const handlePeopleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (peopleLoading) return;
+    if (!peopleQuery.trim() && !jobTitles.trim() && !companyName.trim()) {
+      notify('Add a keyword, job title or company to search people.', true);
+      return;
+    }
+    const args = { query: peopleQuery, jobTitles, locations, companyName };
+    setPeopleArgs(args);
+    setPeoplePages({});
+    setPeopleTotal(null);
+    setPeopleNote(null);
+    setPeoplePage(1);
+    setPeople([]);
+    await loadPeoplePage(1, args, {});
+  };
+
+  /** Pages LinkedIn can serve for this search: from the reported total, else "one more" while pages come back full. */
+  const peoplePageCount = peopleTotal !== null
+    ? Math.min(Math.max(1, Math.ceil(peopleTotal / PROFILE_SEARCH_PAGE_SIZE)), PROFILE_SEARCH_MAX_PAGES)
+    : people.length >= PROFILE_SEARCH_PAGE_SIZE ? peoplePage + 1 : peoplePage;
+  const goToPeoplePage = (page: number) => {
+    if (!peopleArgs || peopleLoading || page < 1 || page > peoplePageCount || page === peoplePage) return;
+    void loadPeoplePage(page, peopleArgs, peoplePages);
+  };
+  /** 1 ... 4 5 [6] 7 8 ... 40 */
+  const pageNumbers = (() => {
+    const last = peoplePageCount;
+    const set = new Set([1, last, peoplePage - 2, peoplePage - 1, peoplePage, peoplePage + 1, peoplePage + 2].filter((n) => n >= 1 && n <= last));
+    const sorted = [...set].sort((x, y) => x - y);
+    const out: (number | 'gap')[] = [];
+    sorted.forEach((n, i) => { if (i && n - sorted[i - 1] > 1) out.push('gap'); out.push(n); });
+    return out;
+  })();
+  const firstShown = (peoplePage - 1) * PROFILE_SEARCH_PAGE_SIZE + 1;
 
   const handleAddToCrm = async (p: LinkedInProfileResult) => {
     setCrmBusy(p.id);
@@ -387,6 +439,11 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
         </div>
       )}
 
+      <div className={`${s.notice} ${s.noticeInfo}`}>
+        <Compass size={16} className={s.noticeIcon} />
+        <span>Using LinkedIn Sales Navigator? <Link className={s.link} href="/linkedin/sales-navigator">Send its leads to your CRM in one click</Link>.</span>
+      </div>
+
       {/* Tabs */}
       <div className={s.chipRow} role="tablist" aria-label="LinkedIn workspace">
         {([
@@ -461,12 +518,19 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
             <div className={s.cardHeader}>
               <div>
                 <h3 className={s.cardTitle}>Results{postsSearched ? ` (${visiblePosts.length}${visiblePosts.length !== posts.length ? ` of ${posts.length}` : ''})` : ''}</h3>
-                <p className={s.cardSubtitle}>
-                  {scoring
-                    ? 'Scoring each post for buying intent…'
-                    : scoredCount > 0
-                      ? `Sorted by buying intent (${intentSource === 'AI' ? 'AI scored' : 'scored by keyword rules, AI scoring was not available'}). Add the hot ones to the CRM.`
-                      : 'Add relevant authors to the CRM, or send posts to the Review Queue to analyse them and draft outreach.'}
+                <p className={s.cardSubtitle} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {scoring ? (
+                    <><Loader2 size={13} className={s.spin} /> Scoring each post for buying intent…</>
+                  ) : scoredCount > 0 ? (
+                    <>
+                      Sorted by buying intent, best leads first.
+                      {intentSource === 'AI'
+                        ? <span className={`${s.badge} ${s.badgeIndigo} ${pc.source}`} title="Each post was read and scored by the AI model"><Sparkles size={11} /> AI scored</span>
+                        : <span className={`${s.badge} ${s.badgeAmber} ${pc.source}`} title="The AI model did not answer, so posts were scored by keyword rules. These can mistake agencies advertising their services for buyers."><AlertTriangle size={11} /> Keyword rules (AI unavailable)</span>}
+                    </>
+                  ) : (
+                    'Add relevant authors to the CRM, or send posts to the Review Queue to analyse them and draft outreach.'
+                  )}
                 </p>
                 {scoredCount > 0 && (
                   <div className={s.chipRow} role="group" aria-label="Filter by buying intent" style={{ marginTop: 10 }}>
@@ -618,75 +682,32 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {visiblePosts.map((p) => {
-                  const isLong = p.content.length > 360;
-                  const open = expanded.has(p.id);
-                  const intent = intents[p.id];
-                  const crm = crmPosts[p.id];
-                  return (
-                    <article key={p.id} className={s.contactItem} style={{ background: 'var(--o-bg)', display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 12 }}>
-                      <input type="checkbox" aria-label={`Select post by ${p.authorName}`} checked={selected.has(p.id)} disabled={p.alreadySaved} onChange={() => setSelected(toggle(selected, p.id))} style={{ marginTop: 4, width: 16, height: 16 }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div className={s.cellStrong}>
-                              {p.authorProfileUrl ? <a className={s.link} href={p.authorProfileUrl} target="_blank" rel="noopener noreferrer">{p.authorName}</a> : p.authorName}
-                              {p.authorCompany && p.authorType === 'profile' && <span className={s.chipMeta}> · {p.authorCompany}</span>}
-                            </div>
-                            {p.authorHeadline && <div className={s.cellSub} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.authorHeadline}</div>}
-                          </div>
-                          <div className={s.badgeRow}>
-                            {intent && <IntentBadge intent={intent} />}
-                            {crm && <CrmBadge match={crm} />}
-                            {p.postedAt && <span className={`${s.badge} ${s.badgeGray}`}>{formatDate(p.postedAt)}</span>}
-                            <span className={`${s.badge} ${s.badgeGray}`}><ThumbsUp size={11} /> {p.likes} · {p.comments} comments</span>
-                            {p.alreadySaved && <span className={`${s.badge} ${s.badgeGreen}`}><CheckCircle2 size={11} /> Saved</span>}
-                          </div>
-                        </div>
-                        {intent?.reason && intent.level !== 'COLD' && (
-                          <div className={s.cellSub} style={{ marginTop: 6, color: intent.level === 'HOT' ? 'var(--o-danger)' : 'var(--o-warn)', fontWeight: 600 }}>
-                            <Sparkles size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{intent.reason}
-                          </div>
-                        )}
-                        <p style={{ margin: '10px 0', fontSize: 13.5, lineHeight: 1.6, color: 'var(--o-text-2)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                          {open || !isLong ? p.content : `${p.content.slice(0, 360)}…`}
-                          {isLong && <button type="button" className={s.link} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 6px', font: 'inherit' }} onClick={() => setExpanded(toggle(expanded, p.id))}>{open ? 'Show less' : 'Show more'}</button>}
-                        </p>
-                        <div className={s.actionGroup}>
-                          {!crm && (
-                            <button type="button" className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`} disabled={postCrmBusy !== null} onClick={() => handleAddPostToCrm(p)} title="Saves the post and adds its author to your CRM pipeline">
-                              {postCrmBusy === p.id ? <Loader2 size={13} className={s.spin} /> : <UserPlus size={13} />} Add to CRM
-                            </button>
-                          )}
-                          <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} disabled={p.alreadySaved || savingPosts} onClick={() => savePosts([p])}>
-                            <Send size={13} /> {p.alreadySaved ? 'In your leads' : 'Send to Review Queue'}
-                          </button>
-                          <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} disabled={commentBusy !== null} onClick={() => handleDraftComment(p)} title="Drafts a short comment to warm up the author before you reach out">
-                            {commentBusy === p.id ? <Loader2 size={13} className={s.spin} /> : <MessageSquareQuote size={13} />} {comments[p.id] ? 'Redraft comment' : 'Draft comment'}
-                          </button>
-                          <a className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} href={p.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> Open post</a>
-                        </div>
-                        {comments[p.id] && (
-                          <div className={`${s.notice} ${s.noticeInfo}`} style={{ marginTop: 10, alignItems: 'center' }}>
-                            <span style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{comments[p.id]}</span>
-                            <button
-                              type="button"
-                              className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
-                              onClick={async () => {
-                                if (!(await copyText(comments[p.id]))) return notify('Copy failed. Select the text and copy it by hand.', true);
-                                notify('Comment copied. Paste it under the post on LinkedIn.');
-                                window.open(p.url, '_blank', 'noopener,noreferrer');
-                              }}
-                            >
-                              <Copy size={13} /> Copy &amp; open post
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
+              <div className={pc.list}>
+                {visiblePosts.map((p) => (
+                  <PostResultCard
+                    key={p.id}
+                    post={p}
+                    intent={intents[p.id]}
+                    crm={crmPosts[p.id]}
+                    selected={selected.has(p.id)}
+                    expanded={expanded.has(p.id)}
+                    comment={comments[p.id]}
+                    crmBusy={postCrmBusy === p.id}
+                    commentBusy={commentBusy === p.id}
+                    actionsLocked={postCrmBusy !== null || commentBusy !== null}
+                    savingPosts={savingPosts}
+                    onToggleSelect={() => setSelected(toggle(selected, p.id))}
+                    onToggleExpand={() => setExpanded(toggle(expanded, p.id))}
+                    onAddToCrm={() => handleAddPostToCrm(p)}
+                    onSendToReview={() => savePosts([p])}
+                    onDraftComment={() => handleDraftComment(p)}
+                    onCopyComment={async () => {
+                      if (!(await copyText(comments[p.id]))) return notify('Copy failed. Select the text and copy it by hand.', true);
+                      notify('Comment copied. Paste it under the post on LinkedIn.');
+                      window.open(p.url, '_blank', 'noopener,noreferrer');
+                    }}
+                  />
+                ))}
               </div>
             )}
           </section>
@@ -699,12 +720,12 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
           <section className={s.card} aria-label="Search LinkedIn people">
             <div>
               <h3 className={s.cardTitle}><span className={s.iconTile}><UserRound size={16} /></span> Find decision makers</h3>
-              <p className={s.cardSubtitle}>Combine any of these. Separate several job titles or locations with commas.</p>
+              <p className={s.cardSubtitle}>Combine any of these. Pick several job titles or locations from the lists, or type your own and press Enter.</p>
             </div>
-            <form onSubmit={handlePeopleSearch} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-              <input className={s.input} value={jobTitles} onChange={(e) => setJobTitles(e.target.value)} placeholder="Job titles: Founder, CTO" aria-label="Job titles" disabled={peopleLoading} />
+            <form onSubmit={handlePeopleSearch} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, alignItems: 'start' }}>
+              <TagSearchSelect value={jobTitles} onChange={setJobTitles} options={JOB_TITLE_SUGGESTIONS} placeholder="Search for a job title" label="Job titles" disabled={peopleLoading} />
               <input className={s.input} value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Company name (optional)" aria-label="Company name" disabled={peopleLoading} />
-              <input className={s.input} value={locations} onChange={(e) => setLocations(e.target.value)} placeholder="Locations: London, Berlin" aria-label="Locations" disabled={peopleLoading} />
+              <TagSearchSelect value={locations} onChange={setLocations} options={LOCATION_SUGGESTIONS} placeholder="Search for a location" label="Locations" disabled={peopleLoading} />
               <input className={s.input} value={peopleQuery} onChange={(e) => setPeopleQuery(e.target.value)} placeholder="Keyword: fintech, SaaS…" aria-label="Keyword" disabled={peopleLoading} />
               <button type="submit" className={`${s.btn} ${s.btnPrimary}`} style={{ height: 42 }} disabled={peopleLoading}>
                 {peopleLoading ? <Loader2 size={16} className={s.spin} /> : <Search size={16} />} {peopleLoading ? 'Searching…' : 'Search people'}
@@ -713,14 +734,24 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
             {peopleNote && <div className={s.cellSub}>{peopleNote}</div>}
           </section>
 
-          <section className={s.card} aria-label="People results" aria-busy={peopleLoading}>
-            <h3 className={s.cardTitle}>Results{peopleSearched ? ` (${people.length})` : ''}</h3>
+          <section ref={peopleResultsRef} className={s.card} aria-label="People results" aria-busy={peopleLoading} style={{ scrollMarginTop: 16 }}>
+            <div className={s.cardHeader}>
+              <h3 className={s.cardTitle}>
+                Results{peopleSearched && (peopleTotal !== null ? ` (${peopleTotal.toLocaleString()})` : people.length ? ` (${people.length})` : '')}
+              </h3>
+              {peopleSearched && people.length > 0 && !peopleLoading && (
+                <span className={s.cellSub}>
+                  Showing {firstShown.toLocaleString()}–{(firstShown + people.length - 1).toLocaleString()}
+                  {peopleTotal !== null && <> of {peopleTotal.toLocaleString()}</>} · page {peoplePage}{peopleTotal !== null && <> of {peoplePageCount}</>}
+                </span>
+              )}
+            </div>
             {peopleLoading ? (
               <div className={s.empty}>
                 <div className={s.emptyIconBadge}>
                   <Loader2 size={24} className={s.spin} />
                 </div>
-                <div className={s.emptyTitle}>Searching LinkedIn People…</div>
+                <div className={s.emptyTitle}>{peoplePage > 1 || Object.keys(peoplePages).length ? 'Loading the next page of people…' : 'Searching LinkedIn People…'}</div>
                 <p className={s.emptySubtitle}>
                   Scanning profiles matching your target criteria. This usually takes 10 to 40 seconds.
                 </p>
@@ -784,6 +815,38 @@ export function LinkedInWorkspace({ initialStatus, initialInbox, activeKeywordCo
                   </article>
                 ))}
               </div>
+            )}
+
+            {peopleSearched && peoplePageCount > 1 && (people.length > 0 || peopleLoading) && (
+              <nav aria-label="Result pages" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderTop: '1px solid var(--o-border)', paddingTop: 16 }}>
+                <span className={s.cellSub} style={{ marginTop: 0 }}>
+                  25 people per page. A page you have not opened yet runs a new LinkedIn search (about $0.10 on Apify); opened pages are free.
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} disabled={peopleLoading || peoplePage === 1} onClick={() => goToPeoplePage(peoplePage - 1)}>
+                    <ChevronLeft size={14} /> Previous
+                  </button>
+                  {pageNumbers.map((n, i) => n === 'gap'
+                    ? <span key={`gap-${i}`} className={s.cellSub} style={{ marginTop: 0, padding: '0 2px' }}>…</span>
+                    : (
+                      <button
+                        key={n}
+                        type="button"
+                        className={`${s.btn} ${n === peoplePage ? s.btnPrimary : s.btnGhost} ${s.btnSm}`}
+                        style={{ minWidth: 32, padding: '0 8px', fontVariantNumeric: 'tabular-nums', ...(n !== peoplePage && peoplePages[n] ? { color: 'var(--o-accent)' } : {}) }}
+                        aria-current={n === peoplePage ? 'page' : undefined}
+                        title={n === peoplePage ? 'Current page' : peoplePages[n] ? 'Opened before (free)' : 'Load this page from LinkedIn'}
+                        disabled={peopleLoading}
+                        onClick={() => goToPeoplePage(n)}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  <button type="button" className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} disabled={peopleLoading || peoplePage >= peoplePageCount} onClick={() => goToPeoplePage(peoplePage + 1)}>
+                    {peopleLoading ? <Loader2 size={14} className={s.spin} /> : null} Next <ChevronRight size={14} />
+                  </button>
+                </div>
+              </nav>
             )}
           </section>
         </>

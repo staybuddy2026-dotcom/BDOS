@@ -357,7 +357,7 @@ function DealPanel({ deal, me, team, canSeeAll, mailbox, onClose, onChanged, onM
                           {contact.phone && <a className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} href={`tel:${contact.phone}`}><Phone size={12} /> {contact.phone}</a>}
                         </div>
 
-                        <LinkedInContactActions dealId={deal.id} contact={contact} disabled={locked} connectionsToday={deal.linkedinConnectionsToday} onChanged={onChanged} notify={notify} />
+                        <LinkedInContactActions dealId={deal.id} contact={contact} companyName={deal.company.name} disabled={locked} connectionsToday={deal.linkedinConnectionsToday} onChanged={onChanged} notify={notify} />
                       </div>
                     ))}
                   </div>

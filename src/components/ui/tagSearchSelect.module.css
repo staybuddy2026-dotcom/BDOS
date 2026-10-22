@@ -1,0 +1,151 @@
+/* Searchable multi-select (TagSearchSelect). Sized to sit next to the design-system .input. */
+
+.wrap { position: relative; min-width: 0; }
+.disabled { opacity: 0.6; pointer-events: none; }
+
+.control {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 42px;
+  padding: 5px 5px 5px 8px;
+  border: 1px solid var(--o-border-strong);
+  border-radius: 10px;
+  background: var(--o-bg);
+  cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.control:hover { border-color: var(--o-subtle); }
+.controlOpen, .controlOpen:hover { border-color: var(--o-accent); box-shadow: 0 0 0 3px var(--o-accent-ring); }
+
+/* Chips and the typing field wrap here; the buttons in .actions stay on the right of the first line. */
+.values { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 30px; }
+.actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; height: 30px; }
+
+/* globals.css gives every input a border, background and radius with !important;
+   this more specific rule keeps the field inside the box plain. */
+.wrap .control input.input,
+.wrap .control input.input:hover,
+.wrap .control input.input:focus {
+  flex: 1 1 60px;
+  min-width: 60px;
+  width: auto;
+  height: 30px;
+  padding: 0 4px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  outline: none !important;
+  font: inherit;
+  font-size: 14px !important;
+  color: var(--o-text) !important;
+}
+/* At rest the field takes no room, so the chip and "+N more" stay on one line; clicking the box focuses it. */
+.wrap .control input.inputCompact { flex: 0 0 0; width: 0; min-width: 0; padding: 0; }
+.input::placeholder { color: var(--o-subtle); }
+
+.more {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--o-border);
+  border-radius: 7px;
+  background: var(--o-surface);
+  color: var(--o-text-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.more:hover { border-color: var(--o-border-strong); color: var(--o-text); }
+.more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--o-accent-ring); }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px 0 9px;
+  border-radius: 7px;
+  background: var(--o-accent-soft);
+  color: var(--o-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: tagIn 0.15s var(--o-ease) both;
+}
+.tagText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tagRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.tagRemove:hover { background: rgba(79, 70, 229, 0.15); }
+.tagRemove:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--o-accent-ring); }
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--o-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.iconBtn:hover { background: var(--o-surface-2); color: var(--o-text); }
+.chevron { transition: transform 0.2s var(--o-ease); }
+.chevronOpen { transform: rotate(180deg); }
+
+.menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--o-bg);
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  animation: menuIn 0.12s var(--o-ease) both;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  color: var(--o-text);
+  cursor: pointer;
+}
+.optionText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.optionActive { background: var(--o-surface-2); }
+.optionOn { color: var(--o-accent); font-weight: 600; }
+.optionIcon { color: var(--o-accent); flex-shrink: 0; }
+.none { padding: 10px; font-size: 12.5px; color: var(--o-muted); }
+
+@keyframes tagIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes menuIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tag, .menu { animation: none; } .chevron { transition: none; } }

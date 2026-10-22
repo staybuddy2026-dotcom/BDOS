@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { hasPageState, usePageState } from '@/lib/usePageState';
 import { useRouter } from 'next/navigation';
 import {
   User,
@@ -23,6 +24,8 @@ import {
   linkApolloEnrichmentToPost,
   checkApolloCreditWarning,
   enrichApolloPersonDirect,
+  enrichApolloCompanyAction,
+  getApolloFilterAccessAction,
 } from '@/features/apollo/actions';
 import { addToShortlistAction, getSavedPeopleAction, savePersonAction, unsavePersonAction } from '@/features/prospecting/actions';
 import { importBrowserListsOnce } from '@/features/prospecting/browserImport';
@@ -35,16 +38,14 @@ import {
   getAllProvidersList,
   searchLeadHub,
   getProviderStats,
-  getSavedSearchPresets,
   ProviderCardData,
   FrameworkStats
 } from '@/features/providers/actions';
-import { LeadItem, SavedSearchPreset } from '@/features/providers/types';
+import { LeadItem } from '@/features/providers/types';
 import { DiscoveryLeadItem } from '@/features/discovery/types';
 import { ActiveHiringFilterPanel } from '@/components/apollo/ActiveHiringFilterPanel';
 import { ApolloSearchFilters } from '@/components/apollo/ApolloSearchFilters';
 import { ProviderRegistryPanel } from '@/components/apollo/ProviderRegistryPanel';
-import { SavedSearchPresetsPanel } from '@/components/apollo/SavedSearchPresetsPanel';
 import { BdeFastStartPresets, SearchPreset } from '@/components/apollo/BdeFastStartPresets';
 import { UniversalResultRenderer } from '@/components/UniversalResultRenderer';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
@@ -54,7 +55,7 @@ import s from '@/components/ui/ui.module.css';
 
 // Helper to format Apollo masked names cleanly (e.g., "Mike Br***m" -> "Mike B.")
 function formatPersonName(rawName: string): string {
-  if (!rawName) return 'Executive Lead';
+  if (!rawName) return 'Name not listed';
   return rawName.replace(/(\b[A-Za-z]+)\s+([A-Za-z])[a-zA-Z]*\*\*\*[a-zA-Z]*/g, '$1 $2.');
 }
 
@@ -86,49 +87,67 @@ export default function ApolloSearchPage() {
   const { toast, notify } = useToast();
   const triggerNotification = useCallback((type: 'success' | 'error', message: string) => notify(message, type === 'error'), [notify]);
 
-  const [searchMode, setSearchMode] = useState<'people' | 'companies'>('people');
+  const [searchMode, setSearchMode] = usePageState<'people' | 'companies'>('apollo.searchMode', 'people');
 
   // People Search Filters State
-  const [jobTitle, setJobTitle] = useState('');
-  const [seniority, setSeniority] = useState('');
-  const [personLocation, setPersonLocation] = useState('');
-  const [orgLocation, setOrgLocation] = useState('');
-  const [keywords, setKeywords] = useState('');
-  const [domain, setDomain] = useState('');
-  const [personCompanyName, setPersonCompanyName] = useState('');
-  const [techUsage, setTechUsage] = useState('');
-  const [hiringActivity, setHiringActivity] = useState('');
-  const [page, setPage] = useState(1);
+  const [jobTitle, setJobTitle] = usePageState('apollo.jobTitle', '');
+  const [seniority, setSeniority] = usePageState('apollo.seniority', '');
+  const [personLocation, setPersonLocation] = usePageState('apollo.personLocation', '');
+  const [orgLocation, setOrgLocation] = usePageState('apollo.orgLocation', '');
+  const [keywords, setKeywords] = usePageState('apollo.keywords', '');
+  const [domain, setDomain] = usePageState('apollo.domain', '');
+  const [personCompanyName, setPersonCompanyName] = usePageState('apollo.personCompanyName', '');
+  const [techUsage, setTechUsage] = usePageState('apollo.techUsage', '');
+  const [hiringActivity, setHiringActivity] = usePageState('apollo.hiringActivity', '');
+  // People and companies each keep their own page, total, loading state and error, so switching
+  // modes never shows the other mode's numbers (or its "Searching" state).
+  const [peoplePage, setPeoplePage] = usePageState('apollo.peoplePage', 1);
+  const [companyPage, setCompanyPage] = usePageState('apollo.companyPage', 1);
   const perPage = 10;
 
   // Company Search Filters State
-  const [companyName, setCompanyName] = useState('');
-  const [companyDomain, setCompanyDomain] = useState('');
-  const [companyKeywords, setCompanyKeywords] = useState('');
-  const [companyLocation, setCompanyLocation] = useState('');
-  const [employeeCountRange, setEmployeeCountRange] = useState('');
-  const [companyTechUsage, setCompanyTechUsage] = useState('');
-  const [companyHiringKeywords, setCompanyHiringKeywords] = useState('');
-  const [fundingPresetDays, setFundingPresetDays] = useState<number | undefined>(undefined);
-  const [fundingStage, setFundingStage] = useState('');
-  const [activePresetKey, setActivePresetKey] = useState<string | null>(null);
+  const [companyName, setCompanyName] = usePageState('apollo.companyName', '');
+  const [companyDomain, setCompanyDomain] = usePageState('apollo.companyDomain', '');
+  const [companyKeywords, setCompanyKeywords] = usePageState('apollo.companyKeywords', '');
+  const [companyLocation, setCompanyLocation] = usePageState('apollo.companyLocation', '');
+  const [employeeCountRange, setEmployeeCountRange] = usePageState('apollo.employeeCountRange', '');
+  const [companyTechUsage, setCompanyTechUsage] = usePageState('apollo.companyTechUsage', '');
+  const [companyHiringKeywords, setCompanyHiringKeywords] = usePageState('apollo.companyHiringKeywords', '');
+  const [fundingPresetDays, setFundingPresetDays] = usePageState<number | undefined>('apollo.fundingPresetDays', undefined);
+  const [activePresetKey, setActivePresetKey] = usePageState<string | null>('apollo.activePresetKey', null);
   const [autoSearchTrigger, setAutoSearchTrigger] = useState(0);
 
   // Universal Provider Framework State
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('apollo');
+  const [selectedProviderId, setSelectedProviderId] = usePageState<string>('apollo.selectedProviderId', 'apollo');
   const [providersList, setProvidersList] = useState<ProviderCardData[]>([]);
   const [_hubLeadItems, setHubLeadItems] = useState<LeadItem[]>([]);
   const [frameworkStats, setFrameworkStats] = useState<FrameworkStats | null>(null);
-  const [savedPresets, setSavedPresets] = useState<SavedSearchPreset[]>([]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  // Whether the Apollo plan allows advanced filters (technology, hiring, funding date); null = not known yet.
+  const [advancedFilters, setAdvancedFilters] = usePageState<boolean | null>('apollo.advancedFilters', null, { persist: false });
+  const advancedAvailable = advancedFilters !== false;
+  // What Apollo matched a filter to, e.g. "People at Freshworks (freshworks.com)".
+  const [searchNote, setSearchNote] = usePageState<string | null>('apollo.searchNote', null);
 
   // Data Results
-  const [peopleResults, setPeopleResults] = useState<ApolloPersonMatch[]>([]);
-  const [companyResults, setCompanyResults] = useState<ApolloOrganizationMatch[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [peopleResults, setPeopleResults] = usePageState<ApolloPersonMatch[]>('apollo.peopleResults', []);
+  const [companyResults, setCompanyResults] = usePageState<ApolloOrganizationMatch[]>('apollo.companyResults', []);
+  const [peopleTotal, setPeopleTotal] = usePageState('apollo.peopleTotal', 0);
+  const [companyTotal, setCompanyTotal] = usePageState('apollo.companyTotal', 0);
+  const [peopleLoading, setPeopleLoading] = usePageState('apollo.peopleLoading', false, { persist: false });
+  const [companyLoading, setCompanyLoading] = usePageState('apollo.companyLoading', false, { persist: false });
   const [creditWarning, setCreditWarning] = useState<{ isWarning: boolean; remainingCredits: number; threshold: number; message?: string } | null>(null);
-  const [apolloError, setApolloError] = useState<string | null>(null);
+  const [peopleError, setPeopleError] = usePageState<string | null>('apollo.peopleError', null);
+  const [companyError, setCompanyError] = usePageState<string | null>('apollo.companyError', null);
+  const isPeople = searchMode === 'people';
+  const page = isPeople ? peoplePage : companyPage;
+  const totalCount = isPeople ? peopleTotal : companyTotal;
+  const loading = isPeople ? peopleLoading : companyLoading;
+  const apolloError = isPeople ? peopleError : companyError;
+  /** Sets the page of the mode on screen. */
+  const setPage = (n: number) => (isPeople ? setPeoplePage(n) : setCompanyPage(n));
+  // Only the newest search of each mode may update the screen (an older, slower answer is ignored).
+  const peopleSeq = useRef(0);
+  const companySeq = useRef(0);
 
   // Linking & Enrichment Modals
   const [reviewPosts, setReviewPosts] = useState<ReviewPostData[]>([]);
@@ -141,11 +160,17 @@ export default function ApolloSearchPage() {
   const [enrichLoading, setEnrichLoading] = useState(false);
 
   // Tab-Based Prospecting Navigation: 'saved' | 'fresh' (Default: 'fresh')
-  const [activeDataTab, setActiveDataTab] = useState<'saved' | 'fresh'>('fresh');
-  const [savedPage, setSavedPage] = useState(1);
+  const [activeDataTab, setActiveDataTab] = usePageState<'saved' | 'fresh'>('apollo.activeDataTab', 'fresh');
+  const [savedPage, setSavedPage] = usePageState('apollo.savedPage', 1);
 
   // The signed-in person's saved contacts, kept in the database (features/prospecting).
   const [savedPeopleMap, setSavedPeopleMap] = useState<Record<string, ApolloPersonMatch>>({});
+
+  // Results restored from an earlier visit: the first render must not search again (or clear them).
+  const [restoredAtMount] = useState(() => hasPageState('apollo.peopleResults') || hasPageState('apollo.companyResults'));
+  const skipAutoSearch = useRef(restoredAtMount);
+  const autoGuard = useRef({ sig: '', last: '' });
+  const alreadyShown = () => skipAutoSearch.current || autoGuard.current.sig === autoGuard.current.last;
 
   // On mount: read search filters from the URL, then load saved contacts.
   useEffect(() => {
@@ -161,6 +186,8 @@ export default function ApolloSearchPage() {
       const paramQ = params.get('q') || params.get('query') || params.get('keywords') || params.get('search');
 
       if (paramQ || paramCompany || paramName || paramDomain) hasSearchParams = true;
+      // A link with filters asks for a new search, even if older results were restored.
+      if (hasSearchParams) skipAutoSearch.current = false;
 
       if (paramQ) {
         setKeywords(paramQ);
@@ -188,7 +215,7 @@ export default function ApolloSearchPage() {
       .then((saved) => {
         if (!isMounted || !Object.keys(saved).length) return;
         setSavedPeopleMap((prev) => ({ ...saved, ...prev }));
-        if (!hasSearchParams) setActiveDataTab('saved');
+        if (!hasSearchParams && !restoredAtMount) setActiveDataTab('saved');
       })
       .catch(() => { /* the Saved tab stays empty; saving still works */ });
     return () => { isMounted = false; };
@@ -197,8 +224,8 @@ export default function ApolloSearchPage() {
   const [savingPersonId, setSavingPersonId] = useState<string | null>(null);
 
   // CRM link: which results already have a deal, row selection for bulk add, and the add in progress.
-  const [crmPeople, setCrmPeople] = useState<Record<string, CrmMatch>>({});
-  const [crmCompanies, setCrmCompanies] = useState<Record<string, CrmMatch>>({});
+  const [crmPeople, setCrmPeople] = usePageState<Record<string, CrmMatch>>('apollo.crmPeople', {});
+  const [crmCompanies, setCrmCompanies] = usePageState<Record<string, CrmMatch>>('apollo.crmCompanies', {});
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [crmBusyKey, setCrmBusyKey] = useState<string | null>(null);
 
@@ -299,18 +326,29 @@ export default function ApolloSearchPage() {
   };
 
   const hasPeopleFilters = !!(jobTitle.trim() || seniority || personLocation.trim() || orgLocation.trim() || keywords.trim() || domain.trim() || personCompanyName.trim() || techUsage.trim() || hiringActivity.trim());
-  const hasCompanyFilters = !!(companyName.trim() || companyDomain.trim() || companyKeywords.trim() || companyLocation.trim() || employeeCountRange || companyTechUsage.trim() || companyHiringKeywords.trim() || fundingPresetDays || fundingStage);
+  const hasCompanyFilters = !!(companyName.trim() || companyDomain.trim() || companyKeywords.trim() || companyLocation.trim() || employeeCountRange || companyTechUsage.trim() || companyHiringKeywords.trim() || fundingPresetDays);
+
+  // Which filters the results on screen belong to. Coming back to the page with the same filters
+  // shows those results again instead of searching (and spending quota) again.
+  const searchSig = JSON.stringify(searchMode === 'people'
+    ? [searchMode, selectedProviderId, jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity, advancedAvailable]
+    : [searchMode, selectedProviderId, companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays ?? null, advancedAvailable]);
+  const [lastPeopleSig, setLastPeopleSig] = usePageState('apollo.lastPeopleSig', '');
+  const [lastCompanySig, setLastCompanySig] = usePageState('apollo.lastCompanySig', '');
+  const lastSearchSig = isPeople ? lastPeopleSig : lastCompanySig;
 
   // Run People Search
   const executePeopleSearch = useCallback(async (targetPage = 1) => {
+    const seq = ++peopleSeq.current;
     if (!hasPeopleFilters) {
       // An unfiltered Apollo search returns random people from 200M+ profiles and wastes daily quota.
       setPeopleResults([]);
-      setTotalCount(0);
-      setApolloError(null);
+      setPeopleTotal(0);
+      setPeopleError(null);
+      setPeopleLoading(false);
       return;
     }
-    setLoading(true);
+    setPeopleLoading(true);
     try {
       const targetCompany = personCompanyName.trim() || undefined;
       const targetJobTitle = jobTitle.trim() || undefined;
@@ -323,36 +361,43 @@ export default function ApolloSearchPage() {
         keywords: keywords || undefined,
         domain: domain || undefined,
         companyName: targetCompany,
-        techUsage: techUsage || undefined,
-        hiringActivity: hiringActivity || undefined,
+        // Paid-plan filters are only sent when the plan has them (their inputs are switched off otherwise).
+        techUsage: (advancedAvailable && techUsage) || undefined,
+        hiringActivity: (advancedAvailable && hiringActivity) || undefined,
         page: targetPage,
         perPage,
       });
 
+      if (seq !== peopleSeq.current) return; // a newer search is on its way
       setPeopleResults(res.people);
-      setTotalCount(res.totalCount);
-      setPage(res.page);
-      setApolloError(res.error?.message || null);
+      setPeopleTotal(res.totalCount);
+      setPeoplePage(res.page);
+      setPeopleError(res.error?.message || null);
+      setSearchNote(res.note || null);
+      setLastPeopleSig(searchSig);
       if (res.error) triggerNotification('error', res.error.message);
 
       checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
     } catch {
-      setApolloError('Apollo people search failed. Please try again.');
+      if (seq !== peopleSeq.current) return;
+      setPeopleError('Apollo people search failed. Please try again.');
       triggerNotification('error', 'Apollo people search failed. Please try again.');
     } finally {
-      setLoading(false);
+      if (seq === peopleSeq.current) setPeopleLoading(false);
     }
-  }, [hasPeopleFilters, jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity, triggerNotification]);
+  }, [hasPeopleFilters, jobTitle, seniority, personLocation, orgLocation, keywords, domain, personCompanyName, techUsage, hiringActivity, triggerNotification, searchSig, setLastPeopleSig, advancedAvailable, setSearchNote, setPeopleResults, setPeopleTotal, setPeoplePage, setPeopleError, setPeopleLoading]);
 
   // Run Company Search
   const executeCompanySearch = useCallback(async (targetPage = 1, overrideHiringKeywords?: string) => {
+    const seq = ++companySeq.current;
     if (!hasCompanyFilters && !overrideHiringKeywords) {
       setCompanyResults([]);
-      setTotalCount(0);
-      setApolloError(null);
+      setCompanyTotal(0);
+      setCompanyError(null);
+      setCompanyLoading(false);
       return;
     }
-    setLoading(true);
+    setCompanyLoading(true);
     try {
       const res = await searchApolloOrganizations({
         name: companyName || undefined,
@@ -360,29 +405,30 @@ export default function ApolloSearchPage() {
         keywords: companyKeywords || undefined,
         location: companyLocation || undefined,
         employeeCountRange: employeeCountRange || undefined,
-        techUsage: companyTechUsage || undefined,
-        hiringKeywords: (overrideHiringKeywords !== undefined ? overrideHiringKeywords : companyHiringKeywords) || undefined,
-        fundingPresetDays,
-        fundingStage: fundingStage || undefined,
+        techUsage: (advancedAvailable && companyTechUsage) || undefined,
+        hiringKeywords: (advancedAvailable && (overrideHiringKeywords !== undefined ? overrideHiringKeywords : companyHiringKeywords)) || undefined,
+        fundingPresetDays: advancedAvailable ? fundingPresetDays : undefined,
         page: targetPage,
         perPage,
       });
 
-      // Technology filtering happens in Apollo (technology UIDs), so results are used as returned.
+      if (seq !== companySeq.current) return; // a newer search is on its way
       setCompanyResults(res.organizations);
-      setTotalCount(res.totalCount);
-      setPage(res.page);
-      setApolloError(res.error?.message || null);
+      setCompanyTotal(res.totalCount);
+      setCompanyPage(res.page);
+      setCompanyError(res.error?.message || null);
+      if (overrideHiringKeywords === undefined) setLastCompanySig(searchSig);
       if (res.error) triggerNotification('error', res.error.message);
 
       checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
     } catch {
-      setApolloError('Apollo company search failed. Please try again.');
+      if (seq !== companySeq.current) return;
+      setCompanyError('Apollo company search failed. Please try again.');
       triggerNotification('error', 'Apollo company search failed. Please try again.');
     } finally {
-      setLoading(false);
+      if (seq === companySeq.current) setCompanyLoading(false);
     }
-  }, [hasCompanyFilters, companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays, fundingStage, triggerNotification]);
+  }, [hasCompanyFilters, companyName, companyDomain, companyKeywords, companyLocation, employeeCountRange, companyTechUsage, companyHiringKeywords, fundingPresetDays, advancedAvailable, triggerNotification, searchSig, setLastCompanySig, setCompanyResults, setCompanyTotal, setCompanyPage, setCompanyError, setCompanyLoading]);
 
   // Load Providers List, Framework Statistics & Saved Search Presets on mount
   useEffect(() => {
@@ -390,16 +436,16 @@ export default function ApolloSearchPage() {
     async function loadProviders() {
       const list = await getAllProvidersList();
       const stats = await getProviderStats();
-      const presets = await getSavedSearchPresets();
       if (active) {
         setProvidersList(list);
         setFrameworkStats(stats);
-        setSavedPresets(presets);
       }
     }
     loadProviders();
+    // Checked at most once a day on the server (one small Apollo search), so this is usually instant.
+    getApolloFilterAccessAction().then((r) => { if (active) setAdvancedFilters(r.advancedFilters); }).catch(() => { });
     return () => { active = false; };
-  }, []);
+  }, [setAdvancedFilters]);
 
   // Universal Lead Hub Search Runner
   const executeHubSearch = useCallback(async (providerId: string, targetPage = 1) => {
@@ -412,7 +458,8 @@ export default function ApolloSearchPage() {
       return;
     }
 
-    setLoading(true);
+    const setHubLoading = searchMode === 'people' ? setPeopleLoading : setCompanyLoading;
+    setHubLoading(true);
     try {
       const res = await searchLeadHub({
         providerId,
@@ -431,13 +478,13 @@ export default function ApolloSearchPage() {
       });
 
       setHubLeadItems(res.items);
-      setTotalCount(res.totalCount);
-      setPage(res.page);
+      (searchMode === 'people' ? setPeopleTotal : setCompanyTotal)(res.totalCount);
+      (searchMode === 'people' ? setPeoplePage : setCompanyPage)(res.page);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Provider search failed.';
       triggerNotification('error', msg);
     } finally {
-      setLoading(false);
+      setHubLoading(false);
     }
   }, [searchMode, executePeopleSearch, executeCompanySearch, keywords, companyKeywords, companyName, personLocation, companyLocation, employeeCountRange, techUsage, companyTechUsage, hiringActivity, companyHiringKeywords, jobTitle, seniority, triggerNotification]);
 
@@ -446,6 +493,7 @@ export default function ApolloSearchPage() {
   const runSearchRef = useRef<(p: number) => void>(() => { });
   // Declared before the search effect, so the ref is current when that effect runs in the same commit.
   useEffect(() => {
+    autoGuard.current = { sig: searchSig, last: lastSearchSig };
     runSearchRef.current = (p: number) => {
       if (selectedProviderId !== 'apollo') executeHubSearch(selectedProviderId, p);
       else if (searchMode === 'people') executePeopleSearch(p);
@@ -454,8 +502,9 @@ export default function ApolloSearchPage() {
   });
 
   useEffect(() => {
+    if (alreadyShown()) return;
     runSearchRef.current(1);
-  }, [searchMode, selectedProviderId]);
+  }, [searchMode, selectedProviderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let active = true;
@@ -488,10 +537,34 @@ export default function ApolloSearchPage() {
     setCompanyTechUsage('');
     setCompanyHiringKeywords('');
     setFundingPresetDays(undefined);
-    setFundingStage('');
 
     setActivePresetKey(null);
     setPage(1);
+  };
+
+  // The Reset button: filters and the search results on screen (saved contacts are kept).
+  const handleClearSearch = () => {
+    handleResetFilters();
+    setPeopleResults([]);
+    setCompanyResults([]);
+    setPeopleTotal(0);
+    setCompanyTotal(0);
+    setPeoplePage(1);
+    setCompanyPage(1);
+    setPeopleError(null);
+    setCompanyError(null);
+    setSearchNote(null);
+    setLastPeopleSig('');
+    setLastCompanySig('');
+    // Any search still running must not refill the page afterwards.
+    peopleSeq.current++;
+    companySeq.current++;
+    setPeopleLoading(false);
+    setCompanyLoading(false);
+    setSelectedKeys(new Set());
+    setCrmPeople({});
+    setCrmCompanies({});
+    triggerNotification('success', 'Search cleared.');
   };
 
   // BDE Saved Prospecting Presets Handlers
@@ -516,7 +589,7 @@ export default function ApolloSearchPage() {
     if (preset.filters.employeeCountRange !== undefined) setEmployeeCountRange(preset.filters.employeeCountRange);
     if (preset.filters.companyHiringKeywords !== undefined) setCompanyHiringKeywords(preset.filters.companyHiringKeywords);
     if (preset.filters.companyTechUsage !== undefined) setCompanyTechUsage(preset.filters.companyTechUsage);
-    if (preset.filters.fundingStage !== undefined) setFundingStage(preset.filters.fundingStage);
+    if (preset.filters.companyLocation !== undefined) setCompanyLocation(preset.filters.companyLocation);
 
     triggerNotification('success', preset.notification);
 
@@ -526,7 +599,7 @@ export default function ApolloSearchPage() {
 
   // Auto-trigger search when a preset is applied (state must settle first, so we use an effect)
   useEffect(() => {
-    if (activePresetKey) {
+    if (activePresetKey && !alreadyShown()) {
       if (searchMode === 'people') {
         executePeopleSearch(1);
       } else {
@@ -544,6 +617,9 @@ export default function ApolloSearchPage() {
       }
     }
   }, [autoSearchTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After the first render, mode and preset changes search as usual.
+  useEffect(() => { skipAutoSearch.current = false; }, []);
 
 
   // Company-First to People-First Workflow: "Find Decision Makers"
@@ -571,6 +647,35 @@ export default function ApolloSearchPage() {
       triggerNotification('error', 'Could not add to the CRM. Please try again.');
     } finally {
       setCrmBusyKey(null);
+    }
+  };
+
+  // Company search has no tech stack or funding; this fetches them for one company (1 Apollo credit).
+  const [enrichingOrgKey, setEnrichingOrgKey] = useState<string | null>(null);
+  const handleEnrichCompany = async (org: ApolloOrganizationMatch) => {
+    if (enrichingOrgKey) return;
+    if (!window.confirm(`Look up the tech stack, funding and description of ${org.name}? This uses 1 Apollo credit.`)) return;
+    const key = companyKey(org);
+    setEnrichingOrgKey(key);
+    try {
+      const res = await enrichApolloCompanyAction({ domain: org.domain, apolloOrganizationId: org.apolloOrganizationId, name: org.name });
+      if (res.error || !res.organization) return triggerNotification('error', res.error || 'Apollo has no details for this company.');
+      const details = res.organization;
+      // Keep what the search returned (keywords, growth) and add what enrichment found.
+      setCompanyResults((prev) => prev.map((o) => (companyKey(o) === key ? {
+        ...o,
+        ...Object.fromEntries(Object.entries(details).filter(([, v]) => v !== undefined && v !== '')),
+        apolloOrganizationId: o.apolloOrganizationId,
+        keywords: o.keywords?.length ? o.keywords : details.keywords,
+        enriched: true,
+      } : o)));
+      const found = [details.technologies?.length && `${details.technologies.length} technologies`, details.latestFundingStage && `funding (${details.latestFundingStage})`, details.description && 'description'].filter(Boolean);
+      triggerNotification('success', found.length ? `${org.name}: found ${found.join(', ')}.` : `Apollo has no tech stack or funding on file for ${org.name}.`);
+      checkApolloCreditWarning().then(setCreditWarning).catch(() => { });
+    } catch {
+      triggerNotification('error', 'Apollo company lookup failed. Please try again.');
+    } finally {
+      setEnrichingOrgKey(null);
     }
   };
 
@@ -748,10 +853,10 @@ export default function ApolloSearchPage() {
       subtitle="Find decision makers and target companies, then save them or add them to the CRM"
       actions={
         <div className={s.tabs} role="tablist" aria-label="Search for">
-          <button type="button" role="tab" aria-selected={searchMode === 'people'} className={`${s.tab} ${searchMode === 'people' ? s.tabActive : ''}`} onClick={() => { setSearchMode('people'); setPage(1); }}>
+          <button type="button" role="tab" aria-selected={searchMode === 'people'} className={`${s.tab} ${searchMode === 'people' ? s.tabActive : ''}`} onClick={() => setSearchMode('people')}>
             <Users size={14} /> People
           </button>
-          <button type="button" role="tab" aria-selected={searchMode === 'companies'} className={`${s.tab} ${searchMode === 'companies' ? s.tabActive : ''}`} onClick={() => { setSearchMode('companies'); setPage(1); }}>
+          <button type="button" role="tab" aria-selected={searchMode === 'companies'} className={`${s.tab} ${searchMode === 'companies' ? s.tabActive : ''}`} onClick={() => setSearchMode('companies')}>
             <Building2 size={14} /> Companies
           </button>
         </div>
@@ -778,19 +883,6 @@ export default function ApolloSearchPage() {
           </div>
         )}
 
-        <SavedSearchPresetsPanel
-          savedPresets={savedPresets}
-          selectedPresetId={selectedPresetId}
-          setSelectedPresetId={setSelectedPresetId}
-          setSelectedProviderId={setSelectedProviderId}
-          setCompanyKeywords={setCompanyKeywords}
-          setCompanyTechUsage={setCompanyTechUsage}
-          setCompanyHiringKeywords={setCompanyHiringKeywords}
-          setCompanyLocation={setCompanyLocation}
-          setEmployeeCountRange={setEmployeeCountRange}
-          triggerNotification={triggerNotification}
-        />
-
         <ProviderRegistryPanel
           providersList={providersList}
           selectedProviderId={selectedProviderId}
@@ -803,6 +895,7 @@ export default function ApolloSearchPage() {
           searchMode={searchMode}
           activePresetKey={activePresetKey}
           onApplyPreset={applyBdePreset}
+          advancedAvailable={advancedAvailable}
         />
 
         <ActiveHiringFilterPanel
@@ -814,26 +907,24 @@ export default function ApolloSearchPage() {
               setCompanyHiringKeywords(val);
             }
           }}
-          onApplyHiringFilter={(keyword) => {
+          onApplyHiringFilter={() => {
             if (selectedProviderId !== 'apollo') {
               triggerNotification('error', 'Switch to Apollo.io to run a live search.');
               return;
             }
             setPage(1);
-            if (searchMode === 'people') {
-              executePeopleSearch(1);
-            } else {
-              executeCompanySearch(1, keyword);
-            }
-            triggerNotification('success', `Hiring filter applied: "${keyword || 'All openings'}"`);
+            setActiveDataTab('fresh');
+            // Search after the new value is stored (searching here would use the previous one).
+            setAutoSearchTrigger((n) => n + 1);
           }}
           searchMode={searchMode}
+          available={advancedAvailable}
         />
 
         <div className="apollo-grid-layout">
           <ApolloSearchFilters
             searchMode={searchMode}
-            handleResetFilters={handleResetFilters}
+            handleResetFilters={handleClearSearch}
             jobTitle={jobTitle} setJobTitle={setJobTitle}
             seniority={seniority} setSeniority={setSeniority}
             personLocation={personLocation} setPersonLocation={setPersonLocation}
@@ -848,12 +939,12 @@ export default function ApolloSearchPage() {
             companyLocation={companyLocation} setCompanyLocation={setCompanyLocation}
             employeeCountRange={employeeCountRange} setEmployeeCountRange={setEmployeeCountRange}
             companyTechUsage={companyTechUsage} setCompanyTechUsage={setCompanyTechUsage}
-            fundingStage={fundingStage} setFundingStage={setFundingStage}
             companyHiringKeywords={companyHiringKeywords} setCompanyHiringKeywords={setCompanyHiringKeywords}
             fundingPresetDays={fundingPresetDays} setFundingPresetDays={setFundingPresetDays}
             executeCompanySearch={executeCompanySearch}
             loading={loading}
             selectedProviderId={selectedProviderId}
+            advancedAvailable={advancedAvailable}
           />
 
           <section className="apollo-results-workspace" aria-label="Results">
@@ -863,6 +954,7 @@ export default function ApolloSearchPage() {
                   <h3 className={s.cardTitle}>{searchMode === 'people' ? 'People found' : 'Companies found'}</h3>
                   <p className={s.cardSubtitle}>
                     <strong className={s.good}>{(selectedProviderId === 'apollo' ? totalCount : 0).toLocaleString()}</strong> {searchMode === 'people' ? 'people match these filters' : 'companies match these filters'}
+                    {searchMode === 'people' && searchNote && <> · <span>{searchNote}</span></>}
                   </p>
                 </div>
                 <div className={s.badgeRow}>
@@ -936,7 +1028,7 @@ export default function ApolloSearchPage() {
                           ? 'Add a job title, company domain, location or keyword, then press Search. Empty searches are skipped to save your Apollo quota.'
                           : (peopleResults.length > 0
                             ? `All ${peopleResults.length} contacts on this page are already in Saved.`
-                            : 'Try a broader job title, location or keyword.'),
+                            : searchNote || 'Try a broader job title, location or keyword.'),
                     activeDataTab === 'fresh' && savedPeopleList.length > 0
                       ? <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setActiveDataTab('saved')}>View {savedPeopleList.length} saved contacts <ChevronRight size={14} /></button>
                       : undefined,
@@ -1030,7 +1122,7 @@ export default function ApolloSearchPage() {
                         <tr>
                           <th style={{ width: '22%', textAlign: 'left', paddingLeft: '20px' }}>Company</th>
                           <th style={{ width: '18%', textAlign: 'left' }}>Size</th>
-                          <th style={{ width: '18%', textAlign: 'left' }}>Technology</th>
+                          <th style={{ width: '18%', textAlign: 'left' }}>Technology / focus</th>
                           <th style={{ width: '26%', textAlign: 'left' }}>Growth signals</th>
                           <th style={{ width: '16%', textAlign: 'right', paddingRight: '20px' }}>Actions</th>
                         </tr>
@@ -1046,6 +1138,8 @@ export default function ApolloSearchPage() {
                             crmMatch={crmCompanies[companyKey(org)]}
                             isAddingToCrm={crmBusyKey === companyKey(org)}
                             onAddCompanyToCrm={handleAddCompanyToCrm}
+                            onEnrichCompany={handleEnrichCompany}
+                            isEnrichingCompany={enrichingOrgKey === companyKey(org)}
                           />
                         ))}
                       </tbody>
@@ -1081,7 +1175,8 @@ export default function ApolloSearchPage() {
           }
         >
           <p className={s.modalText}>
-            This reveals the verified work email and phone number of <strong>{formatPersonName(personToEnrich.personName)}</strong> ({personToEnrich.jobTitle || 'Executive'} at {personToEnrich.organizationName || 'Company'}).
+            This asks Apollo for the work email of <strong>{formatPersonName(personToEnrich.personName)}</strong>{personToEnrich.jobTitle ? ` (${personToEnrich.jobTitle}${personToEnrich.organizationName ? ` at ${personToEnrich.organizationName}` : ''})` : ''}, plus a personal email or phone if those are turned on in Settings.
+            {personToEnrich.hasEmailAvailable === false && <> Apollo shows no email on file for this person, so it may find nothing.</>}
           </p>
           <div className={`${s.notice} ${s.noticeWarn}`}>
             <AlertTriangle size={15} className={s.noticeIcon} />

@@ -1,15 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ExternalLink, FileText, Loader2, Search, X } from 'lucide-react';
+import { Check, Compass, ExternalLink, FileText, Loader2, Search, X } from 'lucide-react';
 import { findContactOnLinkedIn, logLinkedInTouch, setContactLinkedIn } from '@/features/crm/actions';
 import { LINKEDIN_DAILY_CONNECTION_LIMIT } from '@/features/crm/types';
+import { salesNavPeopleSearchUrl } from '@/features/linkedin/salesnav';
 import type { CrmContact, LinkedInTouch } from '@/features/crm/types';
 
 const TOUCHES: { id: LinkedInTouch; label: string }[] = [
   { id: 'CONNECTION_SENT', label: 'Connection sent' },
   { id: 'CONNECTION_ACCEPTED', label: 'Accepted' },
   { id: 'MESSAGE_SENT', label: 'DM sent' },
+  { id: 'INMAIL_SENT', label: 'InMail sent' },
   { id: 'REPLY_RECEIVED', label: 'Reply received' },
 ];
 
@@ -28,6 +30,7 @@ const pill: React.CSSProperties = {
 export function LinkedInContactActions({
   dealId,
   contact,
+  companyName,
   disabled = false,
   connectionsToday,
   onChanged,
@@ -35,6 +38,8 @@ export function LinkedInContactActions({
 }: {
   dealId: string;
   contact: CrmContact;
+  /** The deal's company, to find the contact in Sales Navigator when their lead page is not known. */
+  companyName?: string;
   /** True when the user cannot edit this deal (an unassigned lead that has not been claimed). */
   disabled?: boolean;
   /** Connection requests the signed-in user has logged today (all deals), for the daily safety limit. */
@@ -116,6 +121,15 @@ export function LinkedInContactActions({
             <button type="button" style={pill} onClick={() => setEditing(true)} disabled={disabled || busy !== null}>Paste URL</button>
           </>
         )}
+        <a
+          href={contact.salesNavUrl || salesNavPeopleSearchUrl(contact.name, companyName)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ ...pill, textDecoration: 'none' }}
+          title={contact.salesNavUrl ? 'Open their lead page in Sales Navigator' : 'Search for this person in Sales Navigator'}
+        >
+          <Compass size={12} /> Sales Navigator
+        </a>
         {contact.sourcePostUrl && (
           <a href={contact.sourcePostUrl} target="_blank" rel="noopener noreferrer" style={{ ...pill, textDecoration: 'none' }} title="The LinkedIn post this lead was discovered from">
             <FileText size={12} /> Source post

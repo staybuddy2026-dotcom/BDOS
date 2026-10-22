@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx tests/smoke-test.ts"
+    "test": "npx tsx tests/smoke-test.ts",
+    "test:linkedin": "npx tsx tests/linkedin-test.ts && npx tsx tests/salesnav-test.ts",
+    "test:apollo": "npx tsx tests/apollo-credit-test.ts && npx tsx tests/apollo-search-test.ts",
+    "test:pages": "npx tsx tests/page-state-test.ts",
+    "test:priorities": "npx tsx tests/priorities-test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

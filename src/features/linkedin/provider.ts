@@ -6,6 +6,7 @@ import type {
   LinkedInPostResult,
   LinkedInProfileResult,
 } from './types';
+import { PROFILE_SEARCH_MAX_PAGES, PROFILE_SEARCH_PAGE_SIZE } from './types';
 
 /**
  * Live LinkedIn data client.
@@ -142,8 +143,12 @@ function classifyError(operation: string, status: number, body: unknown): Linked
   if (status === 403 || status === 404 || /actor-is-not-rented|not-found|actor-disabled/i.test(type)) {
     return { code: 'ACTOR_UNAVAILABLE', operation, at, message: `The scraper for ${label.toLowerCase()} is not available to your Apify account${raw ? ` (${raw})` : ''}. Open it once in the Apify store to enable it, or set a different actor in .env.` };
   }
-  if (status === 408 || /timeout|timed-out/i.test(type)) {
+  if (status === 408 || /timeout|timed-out/i.test(type + raw)) {
     return { code: 'TIMEOUT', operation, at, message: `${label} took too long. Try a narrower search.` };
+  }
+  // run-sync reports a crashed or aborted scraper run as "run-failed" with the run status in the message.
+  if (/run-failed/i.test(type)) {
+    return { code: 'HTTP_ERROR', operation, at, message: `${label} did not finish on Apify${raw ? ` (${raw})` : ''}. Please try again; if it keeps failing, check the run log in the Apify console.` };
   }
   if (status === 400) {
     return { code: 'BAD_REQUEST', operation, at, message: `${label} was rejected${raw ? `: ${raw}` : '.'}` };
@@ -185,6 +190,31 @@ async function authedFetch(operation: string, url: string, init: RequestInit, ti
   return data;
 }
 
+/**
+ * Apify can end a run without results and without an HTTP error, e.g. "Free users are limited to 10 runs"
+ * on the free plan. The run's status message says so; turn that into an error instead of "no matches".
+ */
+async function failIfRunWasBlocked(operation: keyof typeof ACTORS, actorId: string) {
+  let statusMessage: string | undefined;
+  try {
+    const last = await authedFetch(operation, `${getBaseUrl()}/acts/${encodeURIComponent(actorId)}/runs/last`, { method: 'GET' }, 15000);
+    statusMessage = str(obj(obj(last).data).statusMessage);
+  } catch {
+    return; // The check is best effort; the empty result stands.
+  }
+  if (!statusMessage || !/limit|upgrade|paid plan|free user|not enough|insufficient/i.test(statusMessage)) return;
+  const label = OPERATION_LABELS[operation] || operation;
+  const info: LinkedInErrorInfo = {
+    code: 'ACTOR_UNAVAILABLE',
+    operation,
+    at: new Date().toISOString(),
+    message: `Apify stopped ${label.toLowerCase()} without searching LinkedIn: "${statusMessage}". The Apify account's plan has used up what this LinkedIn scraper allows (the free plan allows 10 runs). Upgrade the Apify plan, or save a paid Apify account's API token under Settings > LinkedIn, then search again.`,
+  };
+  lastError = info;
+  logger.warn(`LinkedIn ${operation} blocked by Apify: ${statusMessage}`);
+  throw new LinkedInApiError(info);
+}
+
 /** Runs one actor synchronously and returns its dataset items. */
 async function runActor(operation: keyof typeof ACTORS, input: Record<string, unknown>, ttl: number): Promise<{ items: Record<string, unknown>[]; cached: boolean }> {
   const actorId = ACTORS[operation]().replace('/', '~');
@@ -201,6 +231,8 @@ async function runActor(operation: keyof typeof ACTORS, input: Record<string, un
     const url = `${getBaseUrl()}/acts/${encodeURIComponent(actorId)}/run-sync-get-dataset-items?timeout=110&clean=true`;
     const data = await authedFetch(operation, url, { method: 'POST', body }, 120000);
     const items = (Array.isArray(data) ? data : []).filter((x): x is Record<string, unknown> => !!x && typeof x === 'object');
+    // An empty list can also mean Apify stopped the run (e.g. a plan's free-run limit), so check before caching it.
+    if (!items.length) await failIfRunWasBlocked(operation, actorId);
     cacheSet(cacheKey, items, ttl);
     return items;
   })();
@@ -217,6 +249,13 @@ const toErrorInfo = (err: unknown, operation: string): LinkedInErrorInfo =>
   err instanceof LinkedInApiError
     ? err.info
     : { code: 'HTTP_ERROR', operation, at: new Date().toISOString(), message: 'LinkedIn request failed unexpectedly.' };
+
+/** Called after a key is saved on the Settings page, so the new key is used right away. */
+export function resetLinkedInKeyCache() {
+  settingsKeyCache = null;
+  lastError = undefined;
+  cache.delete('account');
+}
 
 // ---------------------------------------------------------------------------
 // Mapping (field names follow the actors' documented output)
@@ -264,7 +303,14 @@ export function mapPost(item: Record<string, unknown>): LinkedInPostResult | nul
   };
 }
 
-export function mapProfile(item: Record<string, unknown>): LinkedInProfileResult | null {
+/** "https://www.linkedin.com/company/microsoft/" -> "microsoft" (also works for numeric ids). */
+const companySlug = (url?: string) => cleanLinkedInUrl(url)?.match(/linkedin\.com\/company\/([^/?#]+)/i)?.[1]?.toLowerCase();
+
+/**
+ * People can hold several current jobs. With `preferCompanyUrl` (a people-at-company search) the
+ * role at that company is shown; otherwise the first current role is.
+ */
+export function mapProfile(item: Record<string, unknown>, preferCompanyUrl?: string): LinkedInProfileResult | null {
   const profileUrl = cleanLinkedInUrl(str(item.linkedinUrl)) || (str(item.publicIdentifier) ? `https://www.linkedin.com/in/${str(item.publicIdentifier)}` : undefined);
   const firstName = str(item.firstName);
   const lastName = str(item.lastName);
@@ -274,9 +320,16 @@ export function mapProfile(item: Record<string, unknown>): LinkedInProfileResult
   const location = obj(item.location);
   const parsedLoc = obj(location.parsed);
   const experience = arr(item.experience).map(obj);
-  const current = obj(arr(item.currentPosition)[0]);
+  const isCurrent = (e: Record<string, unknown>) => !e.endDate || obj(e.endDate).text === 'Present';
+  const wanted = companySlug(preferCompanyUrl);
+  const atWanted = (e: Record<string, unknown>) =>
+    !!wanted && [companySlug(str(e.companyLinkedinUrl)), str(e.companyUniversalName)?.toLowerCase(), str(e.companyId)].includes(wanted);
+  const positions = arr(item.currentPosition).map(obj);
+  // A current role at the wanted company may be listed only under experience; otherwise the first current role.
+  const preferred = positions.find(atWanted) || experience.find((e) => isCurrent(e) && atWanted(e));
+  const current = preferred || positions[0] || {};
   // The current role is the experience entry without an end date (or simply the first one).
-  const currentExp = experience.find((e) => !e.endDate || obj(e.endDate).text === 'Present') || experience[0] || {};
+  const currentExp = preferred || experience.find(isCurrent) || experience[0] || {};
   const emails = arr(item.emails).map((e) => (typeof e === 'string' ? e : str(obj(e).email)));
 
   return {
@@ -345,7 +398,8 @@ export function mapCompany(item: Record<string, unknown>): LinkedInCompanyResult
 }
 
 const mapList = <T>(items: Record<string, unknown>[], mapper: (i: Record<string, unknown>) => T | null): T[] =>
-  items.map(mapper).filter((x): x is T => x !== null);
+  // Called with the item only: Array.map would also pass the index as a second argument.
+  items.map((i) => mapper(i)).filter((x): x is T => x !== null);
 
 const clampInt = (value: number | undefined, fallback: number, max: number) => Math.min(Math.max(Math.round(value || fallback), 1), max);
 
@@ -386,8 +440,12 @@ export const linkedinProvider = {
     }
   },
 
-  /** People search by keyword, job title, location and current company (company LinkedIn URLs). */
-  async searchProfiles(params: { query?: string; jobTitles?: string[]; locations?: string[]; companyUrls?: string[]; maxItems?: number }): Promise<LinkedInListResponse<LinkedInProfileResult>> {
+  /**
+   * People search by keyword, job title, location and current company (company LinkedIn URLs).
+   * With `page`, returns exactly that LinkedIn search page (25 people, one paid page on Apify) and the
+   * total number of matches; without it, the first `maxItems` people.
+   */
+  async searchProfiles(params: { query?: string; jobTitles?: string[]; locations?: string[]; companyUrls?: string[]; maxItems?: number; page?: number }): Promise<LinkedInListResponse<LinkedInProfileResult>> {
     const jobTitles = (params.jobTitles || []).map((t) => t.trim()).filter(Boolean);
     const locations = (params.locations || []).map((t) => t.trim()).filter(Boolean);
     const companyUrls = (params.companyUrls || []).map((t) => t.trim()).filter(Boolean);
@@ -399,10 +457,15 @@ export const linkedinProvider = {
         currentJobTitles: jobTitles.length ? jobTitles : undefined,
         locations: locations.length ? locations : undefined,
         currentCompanies: companyUrls.length ? companyUrls : undefined,
-        maxItems: clampInt(params.maxItems, 10, 50),
+        ...(params.page
+          ? { startPage: clampInt(params.page, 1, PROFILE_SEARCH_MAX_PAGES), takePages: 1, maxItems: PROFILE_SEARCH_PAGE_SIZE }
+          : { maxItems: clampInt(params.maxItems, 10, 50) }),
         profileScraperMode: process.env.LINKEDIN_PROFILE_SEARCH_MODE || undefined,
       }, TTL.search);
-      return { items: mapList(items, mapProfile), cached };
+      // Each profile carries the search's pagination info: _meta.pagination.totalElements.
+      const meta = (items[0]?._meta as { pagination?: { totalElements?: unknown } } | undefined)?.pagination;
+      const total = typeof meta?.totalElements === 'number' ? meta.totalElements : undefined;
+      return { items: mapList(items, (i) => mapProfile(i, companyUrls.length === 1 ? companyUrls[0] : undefined)), cached, total };
     } catch (err) {
       if (!(err instanceof LinkedInApiError)) logger.error('LinkedIn searchProfiles failed', err);
       return { items: [], error: toErrorInfo(err, 'profileSearch') };
@@ -467,7 +530,7 @@ export const linkedinProvider = {
         maxItems: clampInt(params.maxItems, 5, 25),
         profileScraperMode: process.env.LINKEDIN_COMPANY_PEOPLE_MODE || undefined,
       }, TTL.search);
-      return { items: mapList(items, mapProfile), cached };
+      return { items: mapList(items, (i) => mapProfile(i, companyUrl)), cached };
     } catch (err) {
       if (!(err instanceof LinkedInApiError)) logger.error('LinkedIn getCompanyPeople failed', err);
       return { items: [], error: toErrorInfo(err, 'companyEmployees') };

@@ -17,7 +17,7 @@ export class CrunchbaseLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '2.4.0';
   apiVersion = 'v4';
-  avgResponseTimeMs = 380;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {

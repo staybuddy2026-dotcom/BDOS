@@ -121,10 +121,20 @@ export async function getSavedPeople(user: UserSession): Promise<Record<string, 
 }
 
 /** Saves (or updates) people for one user. Returns how many were written. */
+/**
+ * Placeholder contacts made by an early version of the app (ids "apollo-fb-...", US "(555) 123-4567"
+ * fiction numbers). They can still arrive from old browser storage, so they are refused wherever
+ * contacts are saved.
+ */
+const FICTION_PHONE = /^\s*(\+?1[\s.-]*)?\(?555\)?[\s.-]*\d{3}[\s.-]*\d{4}\s*$/;
+export const isPlaceholderContact = (p: Pick<ApolloPersonMatch, 'apolloPersonId' | 'phone'>) =>
+  /^apollo-fb-/i.test(p.apolloPersonId || '') || FICTION_PHONE.test(p.phone || '');
+
 export async function savePeople(userId: string, people: ApolloPersonMatch[]): Promise<number> {
   let written = 0;
   for (const person of people) {
     if (!person || typeof person !== 'object' || !person.personName) continue;
+    if (isPlaceholderContact(person)) continue;
     const key = personKey(person);
     if (!key) continue;
     const data = person as unknown as Prisma.InputJsonValue;

@@ -51,11 +51,12 @@ export async function analyzeProjectOpportunity(
       opportunityScore,
       qualification,
       revenuePotential: context?.budget || 'Not specified',
-      technologyMatchScore: techStack.length > 0 ? Math.min(96, 70 + techStack.length * 5) : 60,
+      // Not measured against the service catalog, so no number is invented.
+      technologyMatchScore: 0,
       estimatedTimeline: complexity === 'Enterprise' ? '8 to 12 Weeks' : complexity === 'High' ? '6 to 8 Weeks' : complexity === 'Medium' ? '4 to 6 Weeks' : '2 to 4 Weeks',
       complexity,
       requiredTeam: complexity === 'Enterprise' ? '1 Tech Lead, 2 Senior Full-Stack Engineers, 1 QA Engineer' : complexity === 'High' ? '1 Tech Lead, 1 Senior Engineer' : '1 Full-Stack Engineer',
-      confidenceScore: techStack.length > 0 ? 85 : 60,
+      confidenceScore: 0,
       winningStrategy: techStack.length > 0
         ? `Position Tiny Script's ${techStack.slice(0, 2).join(' & ')} expertise directly against the stated requirements.`
         : 'Request a technical scoping call to clarify requirements before proposing.',
@@ -91,24 +92,23 @@ export async function generateMarketplaceProposal(params: {
 
     if (params.type === 'short' || params.type === 'discovery') {
       proposalText = `Hi ${params.clientName} Team,\n\n` +
-        `I read your requirements for "${params.projectTitle}". At Tiny Script, our senior engineering team specializes in ${techString}.\n\n` +
-        `We have delivered similar enterprise web applications and can deploy a dedicated squad immediately with clean TypeScript architecture and robust test coverage.\n\n` +
-        `Are you open for a quick 10-minute discovery call to review our past case studies and architecture proposal?\n\n` +
+        `I read your requirements for "${params.projectTitle}". Our senior engineers work with ${techString}.\n\n` +
+        `I'd like to ask a few questions about scope and timing, then send you a concrete plan and estimate.\n\n` +
+        `Would a 15-minute call this week work for you?\n\n` +
         `Best regards,\n` +
         `${sender.name} — ${sender.company}`;
     } else if (params.type === 'technical') {
       proposalText = `Technical Proposal: ${params.projectTitle}\n` +
         `Prepared by: Tiny Script Soft Tech\n\n` +
-        `1. ARCHITECTURE OVERVIEW:\n` +
-        `- Frontend: React 19 / Next.js with modular design system tokens.\n` +
-        `- Backend: Node.js / TypeScript microservices with PostgreSQL & Redis caching.\n` +
-        `- DevOps: Dockerized CI/CD pipelines with automated unit & smoke testing.\n\n` +
-        `2. IMPLEMENTATION TIMELINE:\n` +
-        `- Phase 1 (Weeks 1-2): Core Data Schema & Authentication.\n` +
-        `- Phase 2 (Weeks 3-5): Business Logic & Feature Modules.\n` +
-        `- Phase 3 (Weeks 6-7): Performance Hardening & QA Audit.\n` +
-        `- Phase 4 (Week 8): Production Launch & Handover.\n\n` +
-        `We are ready to start immediately upon project award.`;
+        // Only the stack the listing asks for; timeline and team are left for the BDE to fill in after scoping.
+        `1. TECHNOLOGY:\n` +
+        `- ${techString}\n\n` +
+        `2. APPROACH:\n` +
+        `- Phase 1: Discovery and technical design [duration to confirm]\n` +
+        `- Phase 2: Build in short sprints with a demo after each [duration to confirm]\n` +
+        `- Phase 3: Testing, launch and handover [duration to confirm]\n\n` +
+        `3. TEAM: [roles and seniority to confirm]\n\n` +
+        `We can confirm the start date once scope is agreed.`;
     } else {
       proposalText = `Dear ${params.clientName} Leadership,\n\n` +
         `Thank you for taking the time to review our proposal for "${params.projectTitle}".\n\n` +

@@ -31,10 +31,8 @@ import {
 import { z } from 'zod';
 import {
   getMarketplaceConnectors,
-  getMarketplaceSettings,
   testConnectorConnection,
   ConnectorCardItem,
-  MarketplaceSettingsConfig
 } from '@/features/connectors/actions';
 import { PageShell } from '@/components/ui/PageShell';
 import { Modal } from '@/components/ui/Modal';
@@ -85,6 +83,8 @@ export default function SettingsPage() {
   // Other Providers State
   const [linkedinEnabled, setLinkedinEnabled] = useState('true');
   const [linkedinApiKey, setLinkedinApiKey] = useState('');
+  const [linkedinNightlyScan, setLinkedinNightlyScan] = useState('false');
+  const [linkedinNightlyLastRun, setLinkedinNightlyLastRun] = useState('');
   const [crunchbaseEnabled, setCrunchbaseEnabled] = useState('false');
   const [crunchbaseApiKey, setCrunchbaseApiKey] = useState('');
   const [githubEnabled, setGithubEnabled] = useState('false');
@@ -116,7 +116,6 @@ export default function SettingsPage() {
 
   // Connector Manager State
   const [connectors, setConnectors] = useState<ConnectorCardItem[]>([]);
-  const [, setMarketplaceSettings] = useState<MarketplaceSettingsConfig | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -146,6 +145,8 @@ export default function SettingsPage() {
       
       setLinkedinEnabled(String(data.linkedinEnabled ?? 'true'));
       setLinkedinApiKey(data.linkedinApiKey || '');
+      setLinkedinNightlyScan(String(data.linkedinNightlyScan ?? 'false'));
+      setLinkedinNightlyLastRun(data.linkedinNightlyLastRun || '');
       setCrunchbaseEnabled(String(data.crunchbaseEnabled ?? 'false'));
       setCrunchbaseApiKey(data.crunchbaseApiKey || '');
       setGithubEnabled(String(data.githubEnabled ?? 'false'));
@@ -157,8 +158,6 @@ export default function SettingsPage() {
       const connList = await getMarketplaceConnectors();
       setConnectors(connList);
 
-      const mSettings = await getMarketplaceSettings();
-      setMarketplaceSettings(mSettings);
       
       const catalog = await getServiceCatalog();
       setServices(catalog);
@@ -216,6 +215,7 @@ export default function SettingsPage() {
         apolloApiKey,
         linkedinEnabled,
         linkedinApiKey,
+        linkedinNightlyScan,
         crunchbaseEnabled,
         crunchbaseApiKey,
         githubEnabled,
@@ -565,6 +565,17 @@ export default function SettingsPage() {
               keyHint: <>Used only when LINKEDIN_SCRAPER_API_KEY is not set in .env. Check the live connection on the <Link className={s.link} href="/linkedin">LinkedIn page</Link>.</>,
               enabled: linkedinEnabled,
               setEnabled: setLinkedinEnabled,
+              extra: (
+                <div className={s.field}>
+                  <label className={s.label} htmlFor="linkedin-nightly">Scan every night</label>
+                  {enabledSelect('linkedin-nightly', linkedinNightlyScan, setLinkedinNightlyScan)}
+                  <span className={s.fieldHint}>
+                    Off by default because every night uses Apify credit: up to 10 keyword searches (15 posts each) and up to 10 contacted-lead profile checks.
+                    When off, LinkedIn only runs when you click a search or scan button.
+                    {linkedinNightlyLastRun ? ` ${linkedinNightlyLastRun}` : ' Has not run yet.'}
+                  </span>
+                </div>
+              ),
             })}
 
             {activeTab === 'crunchbase' && providerTab({

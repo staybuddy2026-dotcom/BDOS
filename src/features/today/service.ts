@@ -77,7 +77,7 @@ export async function getTodaySummary(user: UserSession, now = new Date()): Prom
   const staleBefore = new Date(now.getTime() - STALE_AFTER_DAYS * DAY_MS);
 
   const [tasks, nextActions, followUps, meetings, staleDeals, unassignedLeads, upTasks, upActions, upFollowUps, upMeetings] = await Promise.all([
-    db.task.findMany({ where: { ...openTask(user.id), dueDate: { lte: end } }, orderBy: [{ dueDate: 'asc' }], take: 100, include: { deal: { select: { id: true, company: { select: { name: true } } } } } }),
+    db.task.findMany({ where: openTask(user.id), orderBy: [{ dueDate: 'asc' }], take: 100, include: { deal: { select: { id: true, company: { select: { name: true } } } } } }),
     db.deal.findMany({ where: { ...openDeal(user.id), nextActionDate: { lte: end } }, orderBy: { nextActionDate: 'asc' }, take: 100, include: { company: { select: { name: true } } } }),
     db.followUp.findMany({
       where: dueFollowUp(user, end),
@@ -130,7 +130,8 @@ export async function getTodaySummary(user: UserSession, now = new Date()): Prom
     actionCount: 0,
   };
   // Automatic emails that are simply waiting for their time need nothing from the person.
-  data.actionCount = data.tasks.length + data.nextActions.length + data.followUps.filter((f) => f.mode === 'MANUAL' || f.status === FollowUpStatus.FAILED).length;
+  const dueTasksCount = tasks.filter((t) => t.dueDate <= end).length;
+  data.actionCount = dueTasksCount + data.nextActions.length + data.followUps.filter((f) => f.mode === 'MANUAL' || f.status === FollowUpStatus.FAILED).length;
   return data;
 }
 

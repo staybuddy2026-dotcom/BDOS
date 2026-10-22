@@ -8,6 +8,7 @@ import { LeadDiscoveryData, DiscoveryLeadItem, SavedSearch, WatchlistItem, Provi
 import { apolloProvider, getLastApolloErrors } from '@/features/apollo/provider';
 import { getPostMetaMap } from '@/features/linkedin/store';
 import { getShortlist } from '@/features/prospecting/service';
+import { SettingsService } from '@/lib/settings';
 
 
 /**
@@ -34,8 +35,8 @@ function scoreLead(evidence: { title?: string; hasEmail?: boolean; hiring?: stri
  * Sanitizes and guarantees verified, clean, non-generic contact info for any lead.
  */
 function sanitizeDiscoveryLead(lead: DiscoveryLeadItem): DiscoveryLeadItem {
-  const rawName = (lead.recommendedContactName || 'Executive Lead').trim();
-  const rawTitle = (lead.recommendedContactTitle || 'Technology Executive').trim();
+  const rawName = (lead.recommendedContactName || 'Name not listed').trim();
+  const rawTitle = (lead.recommendedContactTitle || 'Title not listed').trim();
 
   return {
     ...lead,
@@ -95,13 +96,13 @@ export async function getUniversalLeadDiscoveryDataAction(
 
     let liveLeads: DiscoveryLeadItem[] = validDbPosts.map((post) => {
       const enrichment = post.apolloEnrichment;
-      const orgName = enrichment?.organizationName || post.companyName || 'Target Account';
+      const orgName = enrichment?.organizationName || post.companyName || 'Company not listed';
       // A real LinkedIn post has no known company domain: leave it empty rather than guess one.
       const isLinkedInPost = !enrichment && /linkedin\.com\/(posts|feed)\//i.test(post.postUrl || '');
       // Only a domain we actually know: guessing "<name>.io" would point outreach at the wrong company.
       const domain = enrichment?.organizationDomain || '';
       const contactName = enrichment?.personName || post.authorName;
-      const contactTitle = enrichment?.jobTitle || post.authorHeadline || 'Technology Executive';
+      const contactTitle = enrichment?.jobTitle || post.authorHeadline || 'Title not listed';
       const { score, reasons } = scoreLead({ aiScore: post.opportunityScore || post.analysis?.opportunityScore, title: contactTitle, hasEmail: !!enrichment?.workEmail });
 
       const actualSources: ("apollo" | "github" | "crunchbase" | "linkedin")[] = [];
@@ -163,9 +164,9 @@ export async function getUniversalLeadDiscoveryDataAction(
 
           const apolloMapped: DiscoveryLeadItem[] = apolloRes.people.map((p, idx) => {
             // Apollo masks surnames ("Br***n"); show "Tyler B." instead of a mangled "Tyler Brn".
-            const cleanName = (p.personName || 'Decision Maker').replace(/\s+([A-Za-z])[A-Za-z]*\*+[A-Za-z]*/g, ' $1.').trim();
-            const cleanTitle = (p.jobTitle || 'Executive').trim();
-            const rawOrg = (p.organizationName || 'Target Account').trim();
+            const cleanName = (p.personName || 'Name not listed').replace(/\s+([A-Za-z])[A-Za-z]*\*+[A-Za-z]*/g, ' $1.').trim();
+            const cleanTitle = (p.jobTitle || 'Title not listed').trim();
+            const rawOrg = (p.organizationName || 'Company not listed').trim();
             const rawDomain = (p.organizationDomain || '').trim().toLowerCase();
 
             const hiring = p.searchMatches?.find(m => m.type === 'hiring')?.label || '';
@@ -388,6 +389,7 @@ export async function getMigratedCompaniesFromDbAction(): Promise<{
 export async function enrichDiscoveryLeadContactAction(lead: DiscoveryLeadItem): Promise<{ email?: string; phone?: string; linkedinUrl?: string; error?: string }> {
   try {
     await AuthService.verifySession();
+    if ((await SettingsService.get('apolloEnabled', 'true')) !== 'true') return { error: 'Apollo is turned off in Settings.' };
     const result = await revealDiscoveryContact(lead);
     if (result.email || result.phone) return result;
     // Pass Apollo's real reason (no credits, daily limit, no match) back to the page.
@@ -401,15 +403,20 @@ export async function enrichDiscoveryLeadContactAction(lead: DiscoveryLeadItem):
 
 async function revealDiscoveryContact(lead: DiscoveryLeadItem): Promise<{ email?: string; phone?: string; linkedinUrl?: string }> {
   {
+    // Personal emails and phone numbers cost extra Apollo credits: only when allowed in Settings.
+    const [allowPersonalEmail, allowPhone] = await Promise.all([
+      SettingsService.get('apolloAllowPersonalEmail', 'false').then((v) => v === 'true'),
+      SettingsService.get('apolloAllowPhone', 'false').then((v) => v === 'true'),
+    ]);
     const personId = lead.companyId.startsWith('apollo_live_') ? lead.companyId.replace('apollo_live_', '') : undefined;
     if (personId && !personId.startsWith('apollo-p-')) {
       const enriched = await apolloProvider.enrichPerson({
         apolloPersonId: personId,
-        name: lead.recommendedContactName,
+        name: / not listed$/.test(lead.recommendedContactName || '') ? undefined : lead.recommendedContactName,
         domain: lead.domain,
         organizationName: lead.companyName,
-        revealPersonalEmail: true,
-        revealPhone: true,
+        revealPersonalEmail: allowPersonalEmail,
+        revealPhone: allowPhone,
       });
       if (enriched && (enriched.workEmail || enriched.phone)) {
         return {
@@ -422,12 +429,15 @@ async function revealDiscoveryContact(lead: DiscoveryLeadItem): Promise<{ email?
 
     // No Apollo id yet: find the person at this company first. Skipped when a known Apollo id already
     // failed (no credits / limit), since a second lookup would only spend more quota for the same answer.
-    if (!personId && lead.domain && lead.recommendedContactName) {
-      const firstName = lead.recommendedContactName.split(/\s+/)[0];
+    // "Name not listed" / "Title not listed" are labels for the page, never search terms.
+    const knownName = lead.recommendedContactName && !/ not listed$/.test(lead.recommendedContactName) ? lead.recommendedContactName : '';
+    const knownTitle = lead.recommendedContactTitle && !/ not listed$/.test(lead.recommendedContactTitle) ? lead.recommendedContactTitle : undefined;
+    if (!personId && lead.domain && knownName) {
+      const firstName = knownName.split(/\s+/)[0];
       const searchRes = await apolloProvider.searchPeopleAdvanced({
         domain: lead.domain,
         keywords: firstName,
-        jobTitle: lead.recommendedContactTitle,
+        jobTitle: knownTitle,
         perPage: 1,
       });
       const match = searchRes.people?.[0];
@@ -440,8 +450,8 @@ async function revealDiscoveryContact(lead: DiscoveryLeadItem): Promise<{ email?
           name: match.personName || lead.recommendedContactName,
           domain: match.organizationDomain || lead.domain,
           organizationName: match.organizationName || lead.companyName,
-          revealPersonalEmail: true,
-          revealPhone: true,
+          revealPersonalEmail: allowPersonalEmail,
+          revealPhone: allowPhone,
         });
         if (enriched) {
           return { email: enriched.workEmail || enriched.personalEmail, phone: enriched.phone, linkedinUrl: enriched.linkedinUrl };

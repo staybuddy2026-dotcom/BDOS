@@ -44,7 +44,7 @@ export function ProviderRegistryPanel({
 
           let IconStr = "A";
           let iconBg = "#6366f1"; // Matches sidebar accent
-          let iconColor = "#ffffff";
+          const iconColor = "#ffffff";
 
           if (p.id === 'linkedin') { IconStr = "in"; iconBg = "#0284c7"; }
           if (p.id === 'crunchbase') { IconStr = "cb"; iconBg = "#1d4ed8"; }

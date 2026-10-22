@@ -57,7 +57,7 @@ export function RevenueDashboard({
       {/* Enterprise Multi-Stage Kanban Pipeline */}
       <div>
         <div style={{ fontSize: '0.94rem', fontWeight: 900, color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Enterprise Revenue Pipeline ({deals.length} Active Deals)</span>
+          <span>Enterprise Revenue Pipeline ({deals.length} Deals)</span>
           <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Click a deal to open it in the CRM</span>
         </div>
 

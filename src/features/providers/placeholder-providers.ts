@@ -11,7 +11,7 @@ export class LinkedInLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.2.0';
   apiVersion = 'v2';
-  avgResponseTimeMs = 450;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -38,7 +38,7 @@ export class UpworkLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 320;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -65,7 +65,7 @@ export class FiverrLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 290;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -92,7 +92,7 @@ export class FreelancerLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.1.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 310;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -119,7 +119,7 @@ export class GuruLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 330;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -146,7 +146,7 @@ export class PeoplePerHourLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 350;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -173,7 +173,7 @@ export class ToptalLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v2';
-  avgResponseTimeMs = 270;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -200,7 +200,7 @@ export class ContraLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 260;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -227,7 +227,7 @@ export class WellfoundLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v2';
-  avgResponseTimeMs = 410;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -254,7 +254,7 @@ export class RemoteOKLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 240;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -281,7 +281,7 @@ export class WeWorkRemotelyLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 280;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -308,7 +308,7 @@ export class CrunchbaseLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '2.1.0';
   apiVersion = 'v4';
-  avgResponseTimeMs = 520;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -335,7 +335,7 @@ export class ClutchLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 380;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -362,7 +362,7 @@ export class GoodFirmsLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 360;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -389,7 +389,7 @@ export class GitHubLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '3.0.0';
   apiVersion = 'v3';
-  avgResponseTimeMs = 280;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -416,7 +416,7 @@ export class RedditLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 340;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -443,7 +443,7 @@ export class ProductHuntLeadProvider extends BaseLeadProvider {
   isLive = false;
   version = '2.0.0';
   apiVersion = 'v2';
-  avgResponseTimeMs = 390;
+  avgResponseTimeMs = 0; // not measured
 
   getCapabilities(): ProviderCapabilities {
     return {
@@ -470,7 +470,7 @@ export class RssFeedLeadProvider extends BaseLeadProvider {
   isLive = true;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 45;
+  avgResponseTimeMs = 0; // not measured
 
   async getStatus() {
     return 'Connected' as const;
@@ -501,7 +501,7 @@ export class ManualLeadProvider extends BaseLeadProvider {
   isLive = true;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 15;
+  avgResponseTimeMs = 0; // not measured
 
   async getStatus() {
     return 'Connected' as const;
@@ -532,7 +532,7 @@ export class WebhookLeadProvider extends BaseLeadProvider {
   isLive = true;
   version = '1.0.0';
   apiVersion = 'v1';
-  avgResponseTimeMs = 85;
+  avgResponseTimeMs = 0; // not measured
 
   async getStatus() {
     return 'Connected' as const;

@@ -1,5 +1,6 @@
 /** Main navigation, shared by the sidebar and the command palette (Ctrl+K). */
 import {
+  Compass,
   Search,
   Settings,
   Home,
@@ -56,6 +57,7 @@ export const navSections: NavSection[] = [
     items: [
       { name: 'Apollo Search', href: '/apollo-search', icon: UserSearch, alsoActiveFor: ['/lead-hub'] },
       { name: 'LinkedIn', href: '/linkedin', icon: Share2 },
+      { name: 'Sales Navigator', href: '/linkedin/sales-navigator', icon: Compass },
       { name: 'Universal Search', href: '/discovery', icon: Search },
       { name: 'Company 360', href: '/company', icon: Building2 },
       { name: 'Keywords', href: '/keywords', icon: Tags },

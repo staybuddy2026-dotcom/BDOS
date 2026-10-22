@@ -14,45 +14,49 @@ export function generateOutreachMessage(
 ): OutreachMessageDraft {
   logger.info(`AI Outreach Engine: Generating personalized ${channel} outreach for '${profile.overview.companyName}' with tone '${tone}'...`);
 
-  // No invented contact details: when nobody was found, email/LinkedIn stay empty.
+  // No invented contact details: when nobody was found, the greeting stays generic and email/LinkedIn empty.
+  const known = profile.decisionMakers.find((d) => d.name && !/decision maker|engineering lead|^executive$/i.test(d.name));
   const contact: { name: string; jobTitle: string; email?: string; emailStatus?: 'Verified' | 'Unverified' | 'Extrapolated'; linkedinUrl?: string } =
-    profile.decisionMakers.length > 0
-      ? profile.decisionMakers[0]
-      : { name: 'Engineering Lead', jobTitle: 'Chief Technology Officer' };
-
-  const isGeneric = !contact.name || contact.name === 'Engineering Lead' || contact.name === 'Executive' || contact.name.includes('Decision Maker');
-  const firstName = isGeneric ? 'there' : contact.name.split(' ')[0];
+    known || { name: '', jobTitle: '' };
+  const firstName = known ? known.name.split(' ')[0] : 'there';
   const company = profile.overview.companyName;
-  const techStack = profile.engineering?.primaryLanguages?.slice(0, 3)?.join(', ') || 'React 19, Next.js & Node.js';
 
-  let subject = `Accelerating ${company}'s Engineering Velocity`;
-  let body = `Hi ${firstName},\n\nI noticed ${company}'s active tech expansion and your use of ${techStack}.\n\nAt Tiny Script Soft Tech, we deploy senior engineering squads within 48 hours to help tech leaders release high-impact features faster.\n\nWould you be open to a 10-minute intro call this week?\n\nBest regards,\nBDE Lead | Tiny Script Soft Tech`;
+  // Only facts from the company profile. Unknown facts are left out, never filled with a default stack,
+  // a "growth" claim or a client result: a template is a starting point the BDE edits, not a promise.
+  const stack = profile.engineering?.primaryLanguages?.slice(0, 3) || [];
+  const tech = stack.length ? stack.join(', ') : '';
+  const techLine = tech ? ` I can see your team works with ${tech}.` : '';
+  const sign = 'Best regards,\nTiny Script Soft Tech';
+
+  let subject = `${company} and your engineering plans`;
+  let body = `Hi ${firstName},\n\nI'm reaching out about ${company}'s engineering plans.${techLine}\n\nWe provide dedicated senior developers who join your team and work in your sprints.\n\nWould a short call to see if that is useful for you make sense?\n\n${sign}`;
 
   if (tone === 'EXECUTIVE') {
-    subject = `Executive Briefing: ${company} Engineering Scaling & Delivery`;
-    body = `Hi ${firstName},\n\nBrief note regarding ${company}'s engineering expansion.\n\nWe provide senior dedicated engineering squads (${techStack}) that integrate directly into your sprints within 48 hours, reducing ramp-up time to zero.\n\nKey Outcome: 40% faster sprint delivery with 0 recruitment overhead.\n\nAre you open to a brief 10-minute briefing Thursday at 10:00 AM?\n\nBest regards,\nBDE Lead | Tiny Script Soft Tech`;
+    subject = `${company}: engineering capacity`;
+    body = `Hi ${firstName},\n\nA short note about ${company}'s engineering capacity.${techLine}\n\nWe provide senior developers who join your team directly, so new work does not wait on hiring.\n\nWould a 15-minute call to compare notes on your roadmap be useful?\n\n${sign}`;
   } else if (tone === 'TECHNICAL') {
-    subject = `Architecture & Tech Stack Acceleration for ${company} (${techStack})`;
-    body = `Hi ${firstName},\n\nI reviewed ${company}'s technology footprint (${techStack}).\n\nOur engineering team specializes in high-throughput microservices, cloud optimization, and modern React 19 / Node.js architectures.\n\nWe can plug senior engineers directly into your backlog within 48 hours to accelerate key sprint deliverables.\n\nWould you like me to send over our engineering case study for review?\n\nBest regards,\nSolutions Architect | Tiny Script Soft Tech`;
+    subject = tech ? `${tech} work at ${company}` : `Engineering work at ${company}`;
+    body = `Hi ${firstName},\n\n${tech ? `I looked at ${company}'s stack (${tech}).` : `I'm reaching out about ${company}'s engineering work.`}\n\nOur developers work on web and mobile products, cloud infrastructure and AI features, and join your existing codebase and review process.\n\nIs there a part of your backlog where extra senior hands would help?\n\n${sign}`;
   } else if (tone === 'FRIENDLY') {
-    subject = `Quick question regarding ${company}'s roadmap goals 🚀`;
-    body = `Hi ${firstName}!\n\nHope you're having a great week.\n\nI came across ${company} recently and was really impressed by your product growth in the ${profile.overview.industry || 'software'} space.\n\nWe help teams build & scale web applications smoothly using ${techStack}. Would love to connect and learn more about your team's sprint priorities!\n\nDo you have 5 minutes for a casual coffee chat?\n\nWarmly,\nBDE Team | Tiny Script Soft Tech`;
+    subject = `A question about ${company}'s roadmap`;
+    body = `Hi ${firstName},\n\nI came across ${company}${profile.overview.industry ? ` in the ${profile.overview.industry} space` : ''} and wanted to say hello.${techLine}\n\nWe help product teams build and scale web and mobile apps. I'd be glad to hear what your team is working on this year.\n\nOpen to a short chat?\n\n${sign}`;
   } else if (tone === 'CONSULTATIVE') {
-    subject = `Diagnostic Review: Eliminating Bottlenecks in ${company}'s Release Pipeline`;
-    body = `Hi ${firstName},\n\nMany technology leaders scaling teams using ${techStack} report sprint delays caused by bandwidth bottlenecks.\n\nWe conduct 1-day engineering architecture audits and supply dedicated senior developers to unblock critical roadmaps.\n\nWould you be open to a 15-minute diagnostic call to review your current sprint velocity?\n\nBest regards,\nConsultative Advisory Lead | Tiny Script Soft Tech`;
+    subject = `Your release pipeline at ${company}`;
+    body = `Hi ${firstName},\n\nWhen a team is short on senior engineers, releases tend to slip.${techLine}\n\nWe can review where work is getting stuck and add experienced developers where it helps most.\n\nWould you be open to a short call to talk through your current priorities?\n\n${sign}`;
   } else if (tone === 'PAS_FRAMEWORK') {
-    subject = `Scaling engineering at ${company} without hiring delay risks`;
-    body = `Hi ${firstName},\n\nPROBLEM: Recruiting senior ${techStack} engineers takes 60–90 days, slowing down product releases.\n\nAGITATE: Delayed feature rollouts cost market position, strain internal teams, and burn budget.\n\nSOLVE: Tiny Script Soft Tech embeds pre-vetted senior engineering squads into ${company}'s workflow in under 48 hours.\n\nCan we discuss your roadmap capacity for Q1?\n\nBest regards,\nGrowth Team | Tiny Script Soft Tech`;
+    subject = `Engineering capacity at ${company}`;
+    body = `Hi ${firstName},\n\nHiring senior engineers${tech ? ` for ${tech}` : ''} takes time, and roadmap work waits in the meantime.\n\nThat delay puts pressure on the team you already have.\n\nWe add vetted senior developers to your team, working in your process, so the roadmap keeps moving while you hire.\n\nCould we talk about your capacity for next quarter?\n\n${sign}`;
   } else if (tone === 'ROI_FOCUSED') {
-    subject = `45% Cost Reduction & 2X Sprint Speed for ${company}`;
-    body = `Hi ${firstName},\n\nHere is what dedicated ${techStack} engineering squads delivered for our clients last quarter:\n\n• 45% reduction in overall engineering cost per deliverable\n• 2X acceleration in release frequency\n• 100% SLA uptime and code review compliance\n\nWe can deliver identical ROI metrics for ${company}.\n\nLet's schedule a 10-minute ROI calculation call this Wednesday.\n\nBest regards,\nRevenue & Value Operations | Tiny Script Soft Tech`;
+    subject = `Engineering cost and speed at ${company}`;
+    body = `Hi ${firstName},\n\nIf cost per feature and release speed matter to ${company} this year, it may be worth comparing a dedicated team with hiring.${techLine}\n\nI can walk you through how our engagements are priced and staffed, so you can compare it with your own numbers.\n\nWould a short call help?\n\n${sign}`;
   } else if (tone === 'CHALLENGER') {
-    subject = `Rethinking ${company}'s Engineering Delivery Model`;
-    body = `Hi ${firstName},\n\nTraditional hiring models for ${techStack} developers are failing modern software teams. In-house recruitment is too slow, while freelancers introduce security risks.\n\nThe most agile tech companies are moving to instant, SLA-backed engineering squads that scale up or down on demand.\n\nAre you open to challenging the standard hiring model at ${company}?\n\nBest regards,\nEngineering Strategist | Tiny Script Soft Tech`;
+    subject = `Another way to staff engineering at ${company}`;
+    body = `Hi ${firstName},\n\nMany teams only consider two options: hire in-house or use freelancers.${techLine}\n\nA third option is a dedicated team that works in your process and scales with your roadmap.\n\nWould you be open to comparing the options for ${company}?\n\n${sign}`;
   }
 
-  if (profile.growth) {
-    body += `\n\nP.S. Congrats on your recent ${profile.growth.latestRoundName} funding round (${profile.growth.latestRoundAmountUsd})!`;
+  // Only a funding round that is actually on record.
+  if (profile.growth?.latestRoundName) {
+    body += `\n\nP.S. Congratulations on the ${profile.growth.latestRoundName} round${profile.growth.latestRoundAmountUsd ? ` (${profile.growth.latestRoundAmountUsd})` : ''}.`;
   }
 
   return {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import {
   Briefcase, Building2, DollarSign, Download, Globe, Hand, Info, Kanban, List, Loader2, Mail, MapPin, Phone, Plus, Search, Trash2, Trophy, User, UserPlus, Users, X,
 } from 'lucide-react';
@@ -43,11 +44,11 @@ export function CrmWorkspace({ initialBoard, mailbox, initialDealId }: { initial
   const [board, setBoard] = useState(initialBoard);
   const { me, team, canSeeAll, kpis } = board;
 
-  const [view, setView] = useState<View>('board');
-  const [search, setSearch] = useState('');
-  const [owner, setOwner] = useState('');
-  const [source, setSource] = useState<LeadSource | ''>('');
-  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [view, setView] = usePageState<View>('crm.view', 'board');
+  const [search, setSearch] = usePageState('crm.search', '');
+  const [owner, setOwner] = usePageState('crm.owner', '');
+  const [source, setSource] = usePageState<LeadSource | ''>('crm.source', '');
+  const [attentionOnly, setAttentionOnly] = usePageState('crm.attentionOnly', false);
 
   const [selectedId, setSelectedId] = useState<string | null>(initialDealId || null);
   const [detail, setDetail] = useState<DealDetail | null>(null);

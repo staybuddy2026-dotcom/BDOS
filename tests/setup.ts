@@ -18,5 +18,16 @@ export function setupTestEnvironment() {
   process.env.APOLLO_MOCK_MODE = 'true';
   process.env.AI_MOCK_MODE = 'true';
 
+  // Paid APIs are never called from tests, even when a real key is in .env or saved in Settings.
+  // Tests that need Apify/Apollo answers install their own fetch mock on top of this one.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (/api\.apify\.com|api\.apollo\.io/i.test(url)) {
+      return new Response(JSON.stringify({ error: { type: 'blocked-in-tests', message: 'Paid APIs are blocked in tests.' } }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+
   logger.info('Test environment safety checks passed. Running isolated test suite...');
 }

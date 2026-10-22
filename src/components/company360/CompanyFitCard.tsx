@@ -10,7 +10,9 @@ function watchOuts(profile: Company360Profile): string[] {
   const list: string[] = [];
   if (o.employeeCount > 2000) list.push(`Large company (about ${o.employeeCount.toLocaleString('en-US')} employees): expect procurement and an existing vendor list.`);
   if (o.employeeCount > 0 && o.employeeCount < 10) list.push('Very small team: budget may be limited; start with a small, fixed-scope piece of work.');
-  if (!profile.linkedin?.activeJobOpeningsCount) list.push('No open jobs found, so there is no visible hiring pressure.');
+  // Apollo company search has no open jobs or (often) headcount growth: unknown is not the same as "not hiring".
+  const growthKnown = !!profile.linkedin?.activeJobOpeningsCount || profile.apolloSignals?.headcountGrowth12m !== undefined || profile.apolloSignals?.headcountGrowth6m !== undefined;
+  if (!growthKnown) list.push('Hiring and headcount growth are not available in Apollo for this company, so growth cannot be judged yet. Ask about their plans.');
   if (!profile.decisionMakers?.some((d) => d.name)) list.push('No decision maker found yet.');
   if (!profile.engineering.primaryLanguages.length) list.push('Tech stack unknown, so service fit cannot be checked yet.');
   return list;

@@ -2,6 +2,9 @@
 
 import { SettingsService } from '@/lib/settings';
 import { isLinkedInEnabledSetting, saveLinkedInEnabledSetting } from '@/features/linkedin/settings';
+import { getLastNightlySummary, isNightlyScanEnabled, NIGHTLY_SETTING } from '@/features/linkedin/nightly';
+import { resetLinkedInKeyCache } from '@/features/linkedin/provider';
+import { resetApolloKeyCache } from '@/features/apollo/provider';
 import { AILearningService, StylePatternsReport } from './service';
 import { safeRevalidatePath } from '@/lib/revalidate';
 import { logger } from '@/lib/logger';
@@ -22,6 +25,10 @@ export type AppConfigData = {
   apolloApiKey?: string;
   linkedinEnabled?: string;
   linkedinApiKey?: string;
+  /** 'true' / 'false': the overnight LinkedIn keyword scan and re-engagement check. */
+  linkedinNightlyScan?: string;
+  /** Read-only: what the last overnight LinkedIn run did (empty before the first run). */
+  linkedinNightlyLastRun?: string;
   crunchbaseEnabled?: string;
   crunchbaseApiKey?: string;
   githubEnabled?: string;
@@ -113,6 +120,13 @@ export async function getAppSettings(): Promise<AppConfigData> {
     // Effective value: on by default; only an explicit user choice turns LinkedIn off.
     const linkedinEnabled = String(await isLinkedInEnabledSetting());
     const linkedinApiKey = await SettingsService.get('linkedinApiKey', '');
+    const linkedinNightlyScan = String(await isNightlyScanEnabled());
+    const lastNightly = await getLastNightlySummary();
+    const linkedinNightlyLastRun = lastNightly
+      ? `Last run ${new Date(lastNightly.ranAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}: ` +
+        `${lastNightly.postsFound} new post${lastNightly.postsFound === 1 ? '' : 's'} from ${lastNightly.keywordsScanned} keyword${lastNightly.keywordsScanned === 1 ? '' : 's'}, ` +
+        `${lastNightly.reEngagements} re-engagement${lastNightly.reEngagements === 1 ? '' : 's'}${lastNightly.error ? `. ${lastNightly.error}` : '.'}`
+      : '';
     const crunchbaseEnabled = await SettingsService.get('crunchbaseEnabled', 'false');
     const crunchbaseApiKey = await SettingsService.get('crunchbaseApiKey', '');
     const githubEnabled = await SettingsService.get('githubEnabled', 'false');
@@ -137,6 +151,8 @@ export async function getAppSettings(): Promise<AppConfigData> {
       apolloApiKey,
       linkedinEnabled,
       linkedinApiKey,
+      linkedinNightlyScan,
+      linkedinNightlyLastRun,
       crunchbaseEnabled,
       crunchbaseApiKey,
       githubEnabled,
@@ -195,6 +211,7 @@ export async function updateAppSettings(config: AppConfigData) {
     if (config.apolloApiKey !== undefined) await SettingsService.set('apolloApiKey', config.apolloApiKey);
     if (config.linkedinEnabled !== undefined) await saveLinkedInEnabledSetting(config.linkedinEnabled);
     if (config.linkedinApiKey !== undefined) await SettingsService.set('linkedinApiKey', config.linkedinApiKey);
+    if (config.linkedinNightlyScan !== undefined) await SettingsService.set(NIGHTLY_SETTING, config.linkedinNightlyScan === 'true' ? 'true' : 'false');
     if (config.crunchbaseEnabled !== undefined) await SettingsService.set('crunchbaseEnabled', config.crunchbaseEnabled);
     if (config.crunchbaseApiKey !== undefined) await SettingsService.set('crunchbaseApiKey', config.crunchbaseApiKey);
     if (config.githubEnabled !== undefined) await SettingsService.set('githubEnabled', config.githubEnabled);
@@ -202,6 +219,10 @@ export async function updateAppSettings(config: AppConfigData) {
     if (config.immediateActionThreshold !== undefined) await SettingsService.set('immediateActionThreshold', config.immediateActionThreshold);
     if (config.defaultSignature !== undefined) await SettingsService.set('defaultSignature', config.defaultSignature);
     if (config.annualSalesTargetInr !== undefined) await SettingsService.set('annualSalesTargetInr', config.annualSalesTargetInr.replace(/[^0-9]/g, ''));
+
+    // Providers cache the saved key for a minute; drop it so "Test connection" uses the new one.
+    if (config.apolloApiKey !== undefined) await resetApolloKeyCache();
+    if (config.linkedinApiKey !== undefined || config.linkedinEnabled !== undefined) resetLinkedInKeyCache();
 
     logger.info('App Settings updated successfully.');
     safeRevalidatePath('/settings');

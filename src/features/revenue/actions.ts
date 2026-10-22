@@ -46,8 +46,8 @@ function toRevenueDeal(deal: DealRow): RevenueDeal {
     companyName: deal.company.name,
     domain: deal.company.domain || '',
     stage,
-    dealValueInr: `₹${(usd * USD_TO_INR).toLocaleString('en-IN')}`,
-    dealValueUsd: `$${usd.toLocaleString('en-US')}`,
+    dealValueInr: usd > 0 ? `₹${(usd * USD_TO_INR).toLocaleString('en-IN')}` : 'Unestimated',
+    dealValueUsd: usd > 0 ? `$${usd.toLocaleString('en-US')}` : '',
     buyingScore: deal.probability,
     winProbability: {
       currentWinPercent: deal.probability,

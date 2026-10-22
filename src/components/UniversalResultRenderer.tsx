@@ -46,7 +46,13 @@ interface UniversalResultRendererProps {
   isAddingToCrm?: boolean;
   onAddToCrm?: (person: ApolloPersonMatch) => void;
   onAddCompanyToCrm?: (org: ApolloOrganizationMatch) => void;
+  /** Looks up tech stack, funding and description for one company (1 Apollo credit; the page confirms first). */
+  onEnrichCompany?: (org: ApolloOrganizationMatch) => void;
+  isEnrichingCompany?: boolean;
 }
+
+/** 0.123 -> "+12%" */
+const pct = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
 
 /** "In CRM" marker: who owns the deal and how far it is, so nobody works the same lead twice. */
 function CrmBadge({ match }: { match: CrmMatch }) {
@@ -82,6 +88,8 @@ export function UniversalResultRenderer({
   isAddingToCrm = false,
   onAddToCrm,
   onAddCompanyToCrm,
+  onEnrichCompany,
+  isEnrichingCompany = false,
 }: UniversalResultRendererProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -137,7 +145,7 @@ export function UniversalResultRenderer({
               )}
             </div>
             <div style={{ fontSize: '0.76rem', color: '#0284c7', marginTop: '2px', fontWeight: 600 }}>
-              {person.jobTitle || 'Executive Lead'}
+              {person.jobTitle || 'Title not listed'}
             </div>
             {person.location && (
               <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -178,9 +186,7 @@ export function UniversalResultRenderer({
               ))}
             </div>
           ) : (
-            <span style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 600 }}>
-              ✓ Verified
-            </span>
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>None found</span>
           )}
         </td>
 
@@ -239,8 +245,12 @@ export function UniversalResultRenderer({
                 </button>
               </div>
             ) : (
-              <span style={{ fontSize: '0.72rem', color: '#0369a1', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <Mail size={11} style={{ flexShrink: 0 }} /> Business Email Available
+              // Apollo's search says whether it holds an email; it is only shown after a reveal.
+              <span
+                style={{ fontSize: '0.72rem', color: person.hasEmailAvailable ? '#0369a1' : '#94a3b8', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                title={person.hasEmailAvailable ? 'Apollo has an email for this person. Reveal it with Enrich (1 credit).' : 'Apollo has no email on file for this person.'}
+              >
+                <Mail size={11} style={{ flexShrink: 0 }} /> {person.hasEmailAvailable ? 'Email on file (reveal to see)' : 'No email in Apollo'}
               </span>
             )}
 
@@ -330,7 +340,7 @@ export function UniversalResultRenderer({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const fullText = `Executive Lead: ${formatPersonName(person.personName)}\nTitle: ${person.jobTitle || 'N/A'}\nCompany: ${person.organizationName || 'N/A'}\nWork Email: ${person.workEmail || 'N/A'}\nPhone: ${person.phone || 'N/A'}\nLinkedIn: ${person.linkedinUrl || 'N/A'}`;
+                  const fullText = `Name: ${formatPersonName(person.personName)}\nTitle: ${person.jobTitle || 'N/A'}\nCompany: ${person.organizationName || 'N/A'}\nWork Email: ${person.workEmail || 'N/A'}\nPhone: ${person.phone || 'N/A'}\nLinkedIn: ${person.linkedinUrl || 'N/A'}`;
                   handleCopyText(fullText, `full-${person.apolloPersonId || person.personName}`, e);
                 }}
                 style={{
@@ -585,7 +595,7 @@ export function UniversalResultRenderer({
                 </a>
               )}
               <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>
-                Industry: <span style={{ color: '#334155', fontWeight: 600 }}>{organization.industry || 'Software & Technology'}</span>
+                Industry: <span style={{ color: '#334155', fontWeight: 600 }}>{organization.industry || 'Not listed'}</span>
               </div>
               {organization.location && (
                 <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -602,37 +612,92 @@ export function UniversalResultRenderer({
           <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>
             👥 {organization.employeeCount ? `${organization.employeeCount.toLocaleString()} Employees` : 'Size Not Listed'}
           </div>
-          <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '3px' }}>
-            💵 Revenue: <span style={{ color: '#334155', fontWeight: 600 }}>{organization.revenuePrinted || 'N/A'}</span>
-          </div>
+          {organization.revenuePrinted && (
+            <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '3px' }}>
+              💵 Revenue: <span style={{ color: '#334155', fontWeight: 600 }}>{organization.revenuePrinted}</span>
+            </div>
+          )}
+          {organization.foundedYear && (
+            <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '3px' }}>Founded {organization.foundedYear}</div>
+          )}
         </td>
 
-        {/* TECHNOLOGY STACK Column */}
+        {/* TECHNOLOGY / FOCUS Column. Company search has no tech stack; it comes from enrichment (1 credit). */}
         <td>
           {organization.technologies && organization.technologies.length > 0 ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-              {organization.technologies.slice(0, 5).map((tech, idx) => (
+              {organization.technologies.slice(0, 6).map((tech, idx) => (
                 <span key={idx} style={{ fontSize: '0.68rem', padding: '2px 7px', borderRadius: '4px', background: '#f1f5f9', color: '#0369a1', border: '1px solid #cbd5e1', fontWeight: 600 }}>
                   {tech}
                 </span>
               ))}
             </div>
           ) : (
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>Web & Cloud Stack</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {organization.keywords && organization.keywords.length > 0 && (
+                <div title={`What ${organization.name} does, from Apollo: ${organization.keywords.join(', ')}`}>
+                  <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Focus</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {organization.keywords.slice(0, 4).map((k) => (
+                      <span key={k} style={{ fontSize: '0.68rem', padding: '2px 7px', borderRadius: '999px', background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' }}>{k}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {organization.enriched ? (
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>No tech stack in Apollo</span>
+              ) : onEnrichCompany && (
+                <button
+                  type="button"
+                  onClick={() => onEnrichCompany(organization)}
+                  disabled={isEnrichingCompany}
+                  title="Apollo company search does not include technologies or funding. This looks them up for this company (1 Apollo credit)."
+                  style={{ alignSelf: 'flex-start', fontSize: '0.7rem', fontWeight: 700, padding: '4px 9px', borderRadius: 6, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: isEnrichingCompany ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                >
+                  {isEnrichingCompany ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={11} />} Get tech &amp; funding · 1 credit
+                </button>
+              )}
+            </div>
           )}
         </td>
 
-        {/* GROWTH SIGNALS & WHY THIS COMPANY? Column */}
+        {/* GROWTH SIGNALS Column: only what Apollo returned for this company. */}
         <td>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {(organization.latestFundingStage || organization.latestFundingAmount) && (
-              <span className="funding-badge">
-                💰 {organization.latestFundingStage || organization.latestFundingAmount} Round
+            {organization.headcountGrowth12m !== undefined && organization.headcountGrowth12m !== null && (
+              <span
+                title={[
+                  organization.headcountGrowth6m != null && `6 months: ${pct(organization.headcountGrowth6m)}`,
+                  `12 months: ${pct(organization.headcountGrowth12m)}`,
+                  organization.headcountGrowth24m != null && `24 months: ${pct(organization.headcountGrowth24m)}`,
+                ].filter(Boolean).join(' · ')}
+                style={{ fontSize: '0.72rem', fontWeight: 700, width: 'fit-content', padding: '2px 7px', borderRadius: 4, ...(organization.headcountGrowth12m >= 0 ? { color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0' } : { color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca' }) }}
+              >
+                👥 Headcount {pct(organization.headcountGrowth12m)} in 12 months
               </span>
             )}
-            <div className="why-company-box">
-              🎯 High ICP Account: Active technology adoption & decision maker presence.
-            </div>
+            {organization.latestFundingStage && (
+              <span className="funding-badge">
+                💰 {organization.latestFundingStage}{organization.latestFundingDate ? ` · ${new Date(organization.latestFundingDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}
+                {organization.totalFundingPrinted ? ` · ${organization.totalFundingPrinted} raised` : ''}
+              </span>
+            )}
+            {organization.openJobsCount ? (
+              <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 600 }}>Hiring for {organization.openJobsCount} role{organization.openJobsCount === 1 ? '' : 's'}</span>
+            ) : null}
+            {organization.publicSymbol && (
+              <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 600 }}>📈 Public company ({organization.publicSymbol})</span>
+            )}
+            {organization.description && (
+              <div className="why-company-box" title={organization.description}>
+                {organization.description.length > 140 ? `${organization.description.slice(0, 140)}…` : organization.description}
+              </div>
+            )}
+            {organization.headcountGrowth12m == null && !organization.latestFundingStage && !organization.openJobsCount && !organization.publicSymbol && !organization.description && (
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                {organization.enriched ? 'No growth signals in Apollo' : 'No growth data in search results'}
+              </span>
+            )}
           </div>
         </td>
 
@@ -689,9 +754,9 @@ export function UniversalResultRenderer({
           <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0f172a' }}>{item.name}</div>
           <div style={{ fontSize: '0.74rem', color: '#0284c7' }}>{item.subtitle || item.domain}</div>
         </td>
-        <td><span style={{ fontSize: '0.76rem', color: '#334155' }}>{item.location || 'Global'}</span></td>
+        <td><span style={{ fontSize: '0.76rem', color: '#334155' }}>{item.location || '—'}</span></td>
         <td><span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: '#f1f5f9', color: '#4338ca' }}>{item.providerId}</span></td>
-        <td><span style={{ fontSize: '0.74rem', color: '#047857' }}>{item.opportunityScore || 85}/100 Intent</span></td>
+        <td><span style={{ fontSize: '0.74rem', color: '#047857' }}>{item.opportunityScore ? `${item.opportunityScore}/100 Intent` : '—'}</span></td>
         <td style={{ textAlign: 'right' }}>
           <button className="btn-primary" style={{ padding: '4px 10px', fontSize: '0.72rem', background: 'linear-gradient(135deg, #00d09c, #0052ff)', color: '#ffffff' }}>View Lead</button>
         </td>

@@ -98,7 +98,10 @@ export default function ReEngagementPage() {
     setScanLoading(true);
     try {
       const res = await scanForReEngagements();
-      triggerNotification('success', `Scan complete. Found ${res.count} potential buying signal opportunities.`);
+      // Say what LinkedIn did too: checked profiles, or why it was skipped (not connected, no credit...).
+      const li = res.linkedin;
+      const liNote = li ? (li.checked ? ` LinkedIn: ${li.checked} profile${li.checked === 1 ? '' : 's'} checked, ${li.created} new post signal${li.created === 1 ? '' : 's'}.` : li.message ? ` LinkedIn: ${li.message}` : '') : '';
+      triggerNotification('success', `Scan complete. Found ${res.count} potential buying signal opportunities.${liNote}`);
       await loadData(false);
     } catch (err: any) {
       if (err.message === 'APOLLO_RATE_LIMIT') {

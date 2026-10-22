@@ -169,7 +169,7 @@ export async function getDealDetail(dealId: string): Promise<DealDetail | null> 
   if (!deal) return null;
 
   const [touches, linkedinConnectionsToday] = await Promise.all([
-    db.crmActivity.findMany({ where: { dealId: deal.id, type: 'LINKEDIN', contactId: { not: null } }, select: { contactId: true, title: true } }),
+    db.crmActivity.findMany({ where: { dealId: deal.id, type: 'LINKEDIN', contactId: { not: null } }, select: { contactId: true, title: true, details: true } }),
     countConnectionRequestsToday(user.id),
   ]);
   // The furthest LinkedIn touch logged for a contact is their status.
@@ -177,11 +177,14 @@ export async function getDealDetail(dealId: string): Promise<DealDetail | null> 
     const mine = touches.filter((t) => t.contactId === contactId).map((t) => t.title);
     const has = (touch: LinkedInTouch) => mine.some((title) => title.startsWith(LINKEDIN_TOUCH_TITLES[touch]));
     if (has('REPLY_RECEIVED')) return 'REPLIED';
-    if (has('MESSAGE_SENT')) return 'MESSAGED';
+    if (has('MESSAGE_SENT') || has('INMAIL_SENT')) return 'MESSAGED';
     if (has('CONNECTION_ACCEPTED')) return 'CONNECTED';
     if (has('CONNECTION_SENT')) return 'REQUEST_SENT';
     return 'NOT_CONNECTED';
   };
+  // The Sales Navigator lead page saved when the contact was imported from Sales Navigator.
+  const salesNavUrl = (contactId: string): string | null =>
+    touches.find((t) => t.contactId === contactId && t.title.startsWith('Imported from Sales Navigator') && /linkedin\.com\/sales\//i.test(t.details || ''))?.details || null;
 
   const summary = toSummary(deal);
   return {
@@ -195,7 +198,7 @@ export async function getDealDetail(dealId: string): Promise<DealDetail | null> 
       tags: deal.company.tags,
     },
     contacts: deal.company.contacts.map((c) => ({
-      id: c.id, name: c.name, title: c.title, email: c.email, phone: c.phone, linkedinUrl: c.linkedinUrl, sourcePostUrl: c.sourcePostUrl,
+      id: c.id, name: c.name, title: c.title, email: c.email, phone: c.phone, linkedinUrl: c.linkedinUrl, salesNavUrl: salesNavUrl(c.id), sourcePostUrl: c.sourcePostUrl,
       apolloLinked: !!c.apolloPersonId,
       linkedinStatus: linkedinStatus(c.id),
     })),
@@ -754,7 +757,7 @@ export async function logLinkedInTouch(dealId: string, contactId: string, touch:
     await db.$transaction(async (tx) => {
       await logActivity(tx, { dealId: deal.id, type: 'LINKEDIN', title: `${LINKEDIN_TOUCH_TITLES[touch]}: ${contact.name}`, details: note?.trim(), userId: user.id, contactId: contact.id });
       // A message or a reply means the conversation has started.
-      if (touch === 'MESSAGE_SENT' || touch === 'REPLY_RECEIVED') await advanceDealStage(tx, deal, 'CONTACTED', { userId: user.id, reason: LINKEDIN_TOUCH_TITLES[touch] });
+      if (touch === 'MESSAGE_SENT' || touch === 'INMAIL_SENT' || touch === 'REPLY_RECEIVED') await advanceDealStage(tx, deal, 'CONTACTED', { userId: user.id, reason: LINKEDIN_TOUCH_TITLES[touch] });
       // They answered: scheduled follow-ups must not keep going out.
       if (touch === 'REPLY_RECEIVED') await markDealReplied(tx, deal.id, `${contact.name} replied on LinkedIn`, user.id);
     });
@@ -912,6 +915,10 @@ export async function enrichContactWithApolloAction(dealId: string, contactId: s
     }
 
     const [allowPersonalEmail, allowPhone] = await Promise.all([SettingsService.get('apolloAllowPersonalEmail', 'false'), SettingsService.get('apolloAllowPhone', 'false')]);
+    // Apollo could only return what we already have: do not spend a credit on it.
+    if (contact.email && contact.linkedinUrl && !isMaskedName(contact.name) && (contact.phone || allowPhone !== 'true')) {
+      return { message: `${contact.name} already has an email and LinkedIn profile. No Apollo credit used.` };
+    }
     const found = await apolloProvider.enrichPerson({
       apolloPersonId: contact.apolloPersonId || '',
       name: contact.name,

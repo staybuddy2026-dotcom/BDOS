@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { clearPageState } from '@/lib/usePageState';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -25,8 +26,12 @@ export function Sidebar({ user, todayCount = 0 }: { user?: UserSession | null; t
   const showManagerItems = !!user && canSeeAllDeals(user.role);
   const isAdmin = user?.role === 'ADMIN';
   const visible = (item: NavItem) => (!item.managersOnly || showManagerItems) && (!item.adminOnly || isAdmin);
-  const isItemActive = (item: NavItem) =>
+  const matchesPath = (item: NavItem) =>
     pathname === item.href || (item.href !== '/' && !!pathname?.startsWith(item.href)) || !!item.alsoActiveFor?.some((prefix) => pathname?.startsWith(prefix));
+  // A page with its own menu entry (e.g. /linkedin/sales-navigator) does not also light up its parent (/linkedin).
+  const isItemActive = (item: NavItem) =>
+    matchesPath(item) &&
+    !navSections.some((section) => section.items.some((other) => other !== item && other.href.startsWith(`${item.href}/`) && !!pathname?.startsWith(other.href)));
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -240,6 +245,8 @@ export function Sidebar({ user, todayCount = 0 }: { user?: UserSession | null; t
                 setIsMenuOpen(false);
                 setIsLoggingOut(true);
                 await fetch('/api/auth/logout', { method: 'POST' });
+                // Saved searches and results must not be shown to whoever signs in next in this tab.
+                clearPageState();
                 setTimeout(() => {
                   window.location.href = '/';
                 }, 1200);

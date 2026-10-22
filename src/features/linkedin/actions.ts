@@ -1,6 +1,6 @@
 'use server';
 
-import { KeywordStatus, PostStatus } from '@prisma/client';
+import { PostStatus } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
@@ -11,6 +11,8 @@ import { findLinkedInCompany, getLinkedInCompanyData, getLinkedInRateLimit } fro
 import { analyzeLinkedInOrganicIntelligence } from './intelligence';
 import { getLastLinkedInError, isLinkedInConfigured, linkedinProvider, LINKEDIN_SETUP_HINT, PostedLimit } from './provider';
 import { getPostMetaMap, savePostMeta } from './store';
+import { cleanIntent, persistPosts, runKeywordScan } from './scan';
+import type { KeywordScanResult } from './scan';
 import { draftComment, hasAiKey, intentLevelFromScore, scorePosts } from './intent';
 import type { IntentSource, PostIntent } from './intent';
 import { createLead, ignorePostForCrmSync, lookupCrmMatches } from '@/features/crm/service';
@@ -84,66 +86,6 @@ export async function searchLinkedInPostsAction(params: {
   return { items: res.items.map((p) => ({ ...p, alreadySaved: saved.has(p.url) })), error: res.error, cached: res.cached };
 }
 
-/** Intent scores sent back by the browser are only trusted as far as "a number between 0 and 100". */
-function cleanIntent(intent?: PostIntent): PostIntent | undefined {
-  const score = Math.round(Number(intent?.score));
-  if (!intent || !Number.isFinite(score)) return undefined;
-  const bounded = Math.max(0, Math.min(100, score));
-  return { score: bounded, level: intentLevelFromScore(bounded), reason: String(intent.reason || '').slice(0, 200) };
-}
-
-async function persistPosts(
-  posts: LinkedInPostResult[],
-  options: { matchedKeyword: string; keywordCategory?: string; status: PostStatus; intents?: Record<string, PostIntent> }
-): Promise<{ created: number; skipped: number; ids: string[] }> {
-  let created = 0;
-  let skipped = 0;
-  const ids: string[] = [];
-  const meta: Parameters<typeof savePostMeta>[0] = {};
-
-  for (const post of posts) {
-    try {
-      const existing = await db.linkedInPost.findUnique({ where: { postUrl: post.url }, select: { id: true, status: true } });
-      if (existing) {
-        // Promote an already-discovered post when the BDE explicitly sends it to review.
-        if (options.status === PostStatus.REVIEW_QUEUE && existing.status === PostStatus.DISCOVERED) {
-          await db.linkedInPost.update({ where: { id: existing.id }, data: { status: PostStatus.REVIEW_QUEUE } });
-          ids.push(existing.id);
-        }
-        skipped++;
-        continue;
-      }
-      const intent = cleanIntent(options.intents?.[post.id]);
-      const row = await db.linkedInPost.create({
-        data: {
-          postUrl: post.url,
-          authorName: post.authorName,
-          authorHeadline: post.authorHeadline,
-          companyName: post.authorCompany,
-          postPreview: post.content.slice(0, 600),
-          postContent: post.content,
-          postedAt: post.postedAt ? new Date(post.postedAt) : null,
-          matchedKeyword: options.matchedKeyword.slice(0, 120),
-          keywordCategory: options.keywordCategory,
-          engagementCount: post.likes + post.comments + post.shares,
-          opportunityScore: intent?.score,
-          status: options.status,
-        },
-      });
-      ids.push(row.id);
-      meta[post.url] = {
-        authorProfileUrl: post.authorProfileUrl, authorType: post.authorType, likes: post.likes, comments: post.comments, shares: post.shares,
-        intentScore: intent?.score, intentReason: intent?.reason,
-      };
-      created++;
-    } catch (err) {
-      logger.error(`Could not save LinkedIn post ${post.url}`, err);
-    }
-  }
-  await savePostMeta(meta);
-  return { created, skipped, ids };
-}
-
 /** Saves selected search results as leads: into the Review Queue (default) or just as discovered posts. */
 export async function saveLinkedInPostsAction(
   posts: LinkedInPostResult[],
@@ -164,15 +106,7 @@ export async function saveLinkedInPostsAction(
   return result;
 }
 
-const TIMEFRAME_TO_LIMIT: Record<string, PostedLimit> = { '1h': '1h', '24h': '24h', '7d': 'week', week: 'week', '30d': 'month', month: 'month' };
-
-export type KeywordScanResult = {
-  keyword: string;
-  found: number;
-  created: number;
-  skipped: number;
-  error?: string;
-};
+export type { KeywordScanResult } from './scan';
 
 /**
  * Scans active keywords from the keyword library on LinkedIn and stores new posts as discovered leads.
@@ -185,42 +119,10 @@ export async function scanLinkedInKeywordsAction(options: {
 } = {}): Promise<{ results: KeywordScanResult[]; created: number; scanned: number; totalActive: number; error?: LinkedInErrorInfo }> {
   await AuthService.verifySession();
   if (!(await isEnabled())) return { results: [], created: 0, scanned: 0, totalActive: 0, error: disabledError('postSearch') };
-
-  const totalActive = await db.keyword.count({ where: { status: KeywordStatus.ACTIVE } });
-  const keywords = await db.keyword.findMany({
-    where: { status: KeywordStatus.ACTIVE },
-    orderBy: [{ lastSearchedAt: { sort: 'asc', nulls: 'first' } }, { priority: 'desc' }],
-    take: Math.min(Math.max(options.maxKeywords || 5, 1), 15),
-  });
-  if (!keywords.length) return { results: [], created: 0, scanned: 0, totalActive };
-
-  const postedLimit = TIMEFRAME_TO_LIMIT[options.timeframe || '7d'] || 'week';
-  const results: KeywordScanResult[] = [];
-  let created = 0;
-  let blocking: LinkedInErrorInfo | undefined;
-
-  for (const kw of keywords) {
-    const res = await linkedinProvider.searchPosts({ query: kw.keyword, postedLimit, maxPosts: options.maxPostsPerKeyword || 15, sortBy: 'date' });
-    if (res.error) {
-      results.push({ keyword: kw.keyword, found: 0, created: 0, skipped: 0, error: res.error.message });
-      // Key/credit problems affect every keyword: stop instead of failing each one.
-      if (['NOT_CONFIGURED', 'INVALID_KEY', 'NO_CREDITS', 'ACTOR_UNAVAILABLE'].includes(res.error.code)) {
-        blocking = res.error;
-        break;
-      }
-      continue;
-    }
-    // Score before saving, so the inbox opens sorted by buying intent.
-    const { scores } = await scorePosts(res.items);
-    const saved = await persistPosts(res.items, { matchedKeyword: kw.keyword, keywordCategory: kw.category, status: PostStatus.DISCOVERED, intents: scores });
-    created += saved.created;
-    results.push({ keyword: kw.keyword, found: res.items.length, created: saved.created, skipped: saved.skipped });
-    await db.keyword.update({ where: { id: kw.id }, data: { lastSearchedAt: new Date(), matchesFound: { increment: saved.created } } }).catch(() => null);
-  }
-
+  const result = await runKeywordScan(options);
   safeRevalidatePath('/discovery');
   safeRevalidatePath('/keywords');
-  return { results, created, scanned: results.filter((r) => !r.error).length, totalActive, error: blocking };
+  return result;
 }
 
 export type LinkedInInboxItem = {
@@ -398,7 +300,9 @@ export async function searchLinkedInPeopleAction(params: {
   companyName?: string;
   companyUrl?: string;
   maxItems?: number;
-}): Promise<{ items: LinkedInProfileResult[]; error?: LinkedInErrorInfo; note?: string; cached?: boolean }> {
+  /** LinkedIn search page to fetch (25 people each). */
+  page?: number;
+}): Promise<{ items: LinkedInProfileResult[]; error?: LinkedInErrorInfo; note?: string; cached?: boolean; total?: number }> {
   await AuthService.verifySession();
   if (!(await isEnabled())) return { items: [], error: disabledError('profileSearch') };
 
@@ -419,8 +323,9 @@ export async function searchLinkedInPeopleAction(params: {
     locations: splitList(params.locations),
     companyUrls: companyUrl ? [companyUrl] : undefined,
     maxItems: params.maxItems,
+    page: params.page,
   });
-  return { items: res.items, error: res.error, note, cached: res.cached };
+  return { items: res.items, error: res.error, note, cached: res.cached, total: res.total };
 }
 
 export type LinkedInCompanyInsights = {

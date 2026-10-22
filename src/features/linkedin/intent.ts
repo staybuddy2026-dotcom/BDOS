@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { geminiGenerate } from '@/lib/gemini';
 
 /**
  * Buying-intent scoring for LinkedIn posts: how likely is the author to need a software
@@ -40,18 +41,25 @@ const WARM_PATTERNS: [RegExp, string][] = [
 ];
 
 const JOB_SEEKER = /\b(open to work|#opentowork|looking for (?:a |my )?(?:new )?(?:job|role|opportunit(?:y|ies)|position)|available for (?:hire|freelance|work)|actively seeking)\b/i;
-const SELLING = /\b(we (?:offer|provide|build|deliver|help)|our (?:services|agency|team (?:builds|can))|hire (?:us|our)|book a (?:free )?(?:call|consultation)|get a free quote|contact us (?:today|now))\b/i;
+const SELLING = new RegExp([
+  /\b(?:we (?:offer|provide|build|deliver|help|speciali[sz]e)|our (?:services|agency|team (?:builds|can)|(?:technology |tech |development )?(?:capabilities|expertise|solutions))|hire (?:us|our))\b/.source,
+  // Not "contact us" / "DM us": buyers write those too ("Agencies, DM us").
+  /\b(?:book a (?:free )?(?:call|consultation|demo)|get a free (?:quote|audit|consultation)|contact us (?:today|now)|let'?s connect us)\b/.source,
+  // Pitches aimed at the reader: "Looking for a technical partner for your agency?"
+  /\b(?:looking for|need)\b[^.!?\n]{0,60}\bfor your (?:agency|business|startup|company|team|brand|clients?)\b/.source,
+  /\b(?:(?:technology|tech|development|white[- ]label) partner for (?:agencies|businesses|startups)|expand your (?:delivery|team|capabilities)|without (?:building|hiring) (?:every|an? )?(?:in-house|technical|dev))/.source,
+  /\b(?:happy to be working with|proud to (?:support|partner with)|supporting their team with)\b/.source,
+].join('|'), 'i');
 
 /** Keyword-rule scoring. A job seeker is never a buyer; an explicit request for help outranks everything else. */
 export function scorePostByRules(post: ScorablePost): PostIntent {
   const text = `${post.content || ''}`.slice(0, 4000);
   if (JOB_SEEKER.test(text)) return { level: 'COLD', score: 10, reason: 'Job seeker, not a buyer' };
 
-  const selling = SELLING.test(text);
+  // A vendor's ad often reads like a request ("Looking for a tech partner? Let's connect"), so selling wins.
+  if (SELLING.test(text)) return { level: 'COLD', score: 15, reason: 'Promoting their own services, not looking to buy' };
   const hot = HOT_PATTERNS.find(([re]) => re.test(text));
-  // A request for help inside a post that also sells is weaker evidence.
-  if (hot) return { level: 'HOT', score: selling ? 72 : 85, reason: hot[1] };
-  if (selling) return { level: 'COLD', score: 15, reason: 'Promoting their own services' };
+  if (hot) return { level: 'HOT', score: 85, reason: hot[1] };
 
   const warm = WARM_PATTERNS.filter(([re]) => re.test(text));
   if (warm.length) {
@@ -65,27 +73,13 @@ export function scorePostByRules(post: ScorablePost): PostIntent {
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
 
+/** One JSON answer from Gemini, through the shared helper (tries the next model when one is busy). */
 async function callGemini(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
-  if (!apiKey) throw new Error('NO_AI_KEY');
-  const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-  const request = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }),
-  });
-  // The model is sometimes briefly overloaded (503) or rate limited (429): wait and try twice more.
-  let response = await request();
-  for (const waitMs of [1200, 3000]) {
-    if (![429, 500, 503].includes(response.status)) break;
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    response = await request();
-  }
-  if (!response.ok) throw new Error(`Gemini HTTP Error: ${response.status}`);
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no text');
-  return String(text).trim();
+  const result = await geminiGenerate(
+    { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } },
+    { label: 'LinkedIn intent', timeoutMs: 25000 },
+  );
+  return result.text;
 }
 
 export const hasAiKey = () => !!(process.env.GEMINI_API_KEY || process.env.AI_API_KEY) && process.env.AI_MOCK_MODE !== 'true';
@@ -150,4 +144,87 @@ Output ONLY JSON: {"comment": "..."}`;
   const comment = String(parsed.comment || '').trim();
   if (!comment) throw new Error('Empty comment');
   return comment;
+}
+
+/** LinkedIn caps connection-request notes at 300 characters (200 on some free accounts). */
+const NOTE_LIMIT = 280;
+
+/**
+ * The short note sent with a LinkedIn connection request alongside an email sequence. Uses the AI
+ * model when a key is set; otherwise a plain, honest note built from the email's own subject.
+ */
+export async function draftConnectionNote(params: {
+  contactName?: string;
+  contactTitle?: string;
+  companyName: string;
+  emailSubject?: string;
+  emailBody?: string;
+  senderName: string;
+}): Promise<{ note: string; source: IntentSource }> {
+  const firstName = (params.contactName || '').trim().split(/\s+/)[0] || '';
+  const fallback = clip(
+    `Hi${firstName ? ` ${firstName}` : ''}, I came across ${params.companyName}${params.emailSubject ? ` while looking into ${params.emailSubject.replace(/^(re|fwd?):\s*/i, '').toLowerCase()}` : ''} and would like to connect. ${params.senderName.split(/\s+/)[0]}`,
+    NOTE_LIMIT
+  );
+  if (!hasAiKey()) return { note: fallback, source: 'RULES' };
+
+  const prompt = `Write the note for a LinkedIn connection request from ${params.senderName} (software development agency) to ${params.contactName || 'a decision maker'}${params.contactTitle ? `, ${params.contactTitle}` : ''} at ${params.companyName}.
+An email was sent to them as well; the note must not repeat the email or pitch services.
+
+Rules:
+- At most ${NOTE_LIMIT - 30} characters in total, greeting included. One or two short sentences.
+- Mention one specific, true reason to connect, taken from the email below. Do not invent facts.
+- No links, no hashtags, no emojis, no "I'd love to pick your brain".
+- Sign off with the sender's first name.
+
+EMAIL SUBJECT: ${clip(params.emailSubject || '', 160)}
+EMAIL: ${clip((params.emailBody || '').replace(/\s+/g, ' '), 900)}
+
+Output ONLY JSON: {"note": "..."}`;
+  try {
+    const parsed = JSON.parse(await callGemini(prompt)) as { note?: unknown };
+    const note = String(parsed.note || '').trim();
+    if (!note) throw new Error('Empty note');
+    return { note: clip(note, NOTE_LIMIT), source: 'AI' };
+  } catch (err) {
+    logger.warn('AI connection note failed; using a plain note', { error: String(err) });
+    return { note: fallback, source: 'RULES' };
+  }
+}
+
+/**
+ * A follow-up for a contacted lead who just posted something relevant on LinkedIn. Refers to the
+ * new post and the earlier outreach, never claims anything the post does not say.
+ */
+export async function draftReEngagementMessage(params: {
+  prospectName: string;
+  postContent: string;
+  previousMessage: string;
+  senderName?: string;
+}): Promise<string> {
+  const firstName = params.prospectName.trim().split(/\s+/)[0] || 'there';
+  const fallback = `Hi ${firstName},\n\nI saw your recent post on LinkedIn and it reminded me of my earlier note. If it is still on your radar, happy to share how we approached something similar.\n\nOpen to a quick chat?`;
+  if (!hasAiKey()) return fallback;
+
+  const prompt = `Write a short re-engagement message to ${params.prospectName}. We contacted them before without a reply, and they just posted on LinkedIn.
+
+Rules:
+- 3 to 4 sentences, at most 80 words, in the language of their post.
+- Open by referring to one specific point from their new post (quote at most 8 words).
+- Link it to the earlier message in one sentence; do not repeat it.
+- End with a low-pressure question. No links, no emojis, no invented facts.
+${params.senderName ? `- Sign off as ${params.senderName.split(/\s+/)[0]}.` : ''}
+
+THEIR NEW POST: ${clip(params.postContent.replace(/\s+/g, ' '), 1200)}
+OUR EARLIER MESSAGE: ${clip(params.previousMessage.replace(/\s+/g, ' '), 700)}
+
+Output ONLY JSON: {"message": "..."}`;
+  try {
+    const parsed = JSON.parse(await callGemini(prompt)) as { message?: unknown };
+    const message = String(parsed.message || '').trim();
+    return message || fallback;
+  } catch (err) {
+    logger.warn('AI re-engagement draft failed; using a plain message', { error: String(err) });
+    return fallback;
+  }
 }

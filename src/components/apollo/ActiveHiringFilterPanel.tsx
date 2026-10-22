@@ -1,252 +1,112 @@
 'use client';
 
-import { useState } from 'react';
-import { Briefcase, Flame, Sparkles, Filter, Check, TrendingUp } from 'lucide-react';
+import { Briefcase, Check, Lock, Search, X } from 'lucide-react';
 
 interface ActiveHiringFilterPanelProps {
   currentHiringValue: string;
   onHiringChange: (value: string) => void;
-  onApplyHiringFilter: (keyword: string) => void;
+  /** Runs the search with this hiring filter ('' clears it). */
+  onApplyHiringFilter: (jobTitles: string) => void;
   searchMode: 'people' | 'companies';
+  /** false when the Apollo plan has no advanced filters; the filter is then shown but switched off. */
+  available: boolean;
 }
 
-export function ActiveHiringFilterPanel({
-  currentHiringValue,
-  onHiringChange,
-  onApplyHiringFilter,
-  searchMode,
-}: ActiveHiringFilterPanelProps) {
-  const [selectedRoleCategory, setSelectedRoleCategory] = useState<string | null>(null);
+/**
+ * "Hiring for" filter: companies with open job postings for these roles (Apollo's job-posting data).
+ * Each group is a list of real job titles; nothing here is a count or a claim, the results show what matches.
+ */
+const ROLE_GROUPS: { id: string; label: string; titles: string }[] = [
+  { id: 'web', label: 'Web & full-stack developers', titles: 'Full Stack Developer, React Developer, Node.js Developer, Frontend Developer' },
+  { id: 'backend', label: 'Backend & cloud', titles: 'Backend Developer, Python Developer, Java Developer, Golang Developer' },
+  { id: 'mobile', label: 'Mobile apps', titles: 'Android Developer, iOS Developer, Flutter Developer, React Native Developer' },
+  { id: 'ai', label: 'AI & data', titles: 'Machine Learning Engineer, AI Engineer, Data Engineer, Data Scientist' },
+  { id: 'devops', label: 'DevOps & infrastructure', titles: 'DevOps Engineer, Site Reliability Engineer, Cloud Engineer' },
+  { id: 'leaders', label: 'Engineering leaders', titles: 'CTO, VP Engineering, Engineering Manager, Head of Engineering' },
+];
 
-  const roleCategories = [
-    {
-      id: 'fullstack',
-      label: 'Full-Stack & React 19 Squads',
-      query: 'Hiring React, Node.js, Next.js Engineers',
-      badge: '🔥 Highest Demand',
-      openRolesCount: 14,
-    },
-    {
-      id: 'backend',
-      label: 'Backend & Cloud Microservices',
-      query: 'Hiring Python, FastAPI, Golang Developers',
-      badge: '⚡ High Intent',
-      openRolesCount: 10,
-    },
-    {
-      id: 'ai_ml',
-      label: 'AI & LLM Integration Engineers',
-      query: 'Hiring AI Engineers, PyTorch, OpenAI Experts',
-      badge: '🤖 AI Boom',
-      openRolesCount: 8,
-    },
-    {
-      id: 'devops',
-      label: 'DevOps, Kubernetes & Infra',
-      query: 'Hiring DevOps, AWS, Kubernetes Architects',
-      badge: '☁️ Cloud Infra',
-      openRolesCount: 6,
-    },
-    {
-      id: 'tech_lead',
-      label: 'CTO & Engineering Leadership',
-      query: 'Hiring CTO, VP Engineering, Tech Lead',
-      badge: '👑 Executive Lead',
-      openRolesCount: 4,
-    },
-  ];
+export function ActiveHiringFilterPanel({ currentHiringValue, onHiringChange, onApplyHiringFilter, searchMode, available }: ActiveHiringFilterPanelProps) {
+  const active = ROLE_GROUPS.find((g) => g.titles === currentHiringValue)?.id;
 
-  const hiringPresets = [
-    'Hiring Developers',
-    'Scaling Engineering Team',
-    'Hiring React & Node.js',
-    'Hiring AI Specialists',
-    '10+ Tech Roles Open',
-  ];
-
-  const handleSelectPreset = (preset: string) => {
-    onHiringChange(preset);
-    onApplyHiringFilter(preset);
-  };
-
-  const handleSelectRole = (category: typeof roleCategories[0]) => {
-    if (selectedRoleCategory === category.id) {
-      setSelectedRoleCategory(null);
-      onHiringChange('');
-      onApplyHiringFilter('');
-    } else {
-      setSelectedRoleCategory(category.id);
-      onHiringChange(category.query);
-      onApplyHiringFilter(category.query);
-    }
+  const pick = (titles: string) => {
+    const next = currentHiringValue === titles ? '' : titles;
+    onHiringChange(next);
+    onApplyHiringFilter(next);
   };
 
   return (
-    <div style={{
-      background: '#ffffff',
-      border: '1px solid #e2e8f0',
-      borderLeft: '4px solid #6366f1',
-      borderRadius: '8px',
-      padding: '20px',
-      boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-    }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
-            color: '#ffffff',
-            padding: '8px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-          }}>
-            <Briefcase size={20} />
-          </div>
+    <div className="apollo-section-card" style={{ display: 'flex', flexDirection: 'column', gap: 12, opacity: available ? 1 : 0.85 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Briefcase size={18} style={{ color: '#6366f1' }} />
           <div>
-            <h4 style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Active Hiring & Job Openings Intelligence <Flame size={16} style={{ color: '#f59e0b' }} />
-            </h4>
-            <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>
-              Filter {searchMode === 'people' ? 'decision makers' : 'target companies'} by active open engineering roles and hiring velocity signals
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Hiring for</h3>
+            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+              {searchMode === 'people' ? 'People at companies' : 'Companies'} with open job postings for these roles (from Apollo job data)
             </span>
           </div>
         </div>
-
-        <span style={{ fontSize: '0.78rem', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '6px 12px', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <TrendingUp size={14} /> Live Hiring Signals Active
-        </span>
+        {!available && (
+          <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <Lock size={12} /> Needs a paid Apollo plan
+          </span>
+        )}
       </div>
 
-      {/* Quick Hiring Keyword Search Input */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <input
-            type="text"
-            value={currentHiringValue}
-            onChange={(e) => onHiringChange(e.target.value)}
-            placeholder="Search open roles e.g. Hiring React Developers, Scaling Backend, Hiring CTO..."
-            style={{
-              width: '100%',
-              padding: '10px 14px 10px 38px',
-              fontSize: '0.88rem',
-              borderRadius: '10px',
-              border: '1px solid #cbd5e1',
-              background: '#f8fafc',
-              color: '#0f172a',
-              outline: 'none',
-              fontWeight: 600,
-              transition: 'all 0.2s ease'
-            }}
-            onFocus={(e) => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.15)'; }}
-            onBlur={(e) => { e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
-          />
-          <Filter size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onApplyHiringFilter(currentHiringValue)}
-          style={{
-            padding: '10px 18px',
-            fontSize: '0.85rem',
-            fontWeight: 800,
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #6366f1, #3b82f6)',
-            color: '#ffffff',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-            whiteSpace: 'nowrap',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.4)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)'; }}
-        >
-          Apply Hiring Filter
-        </button>
-      </div>
-
-      {/* Active Role Categories Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
-        {roleCategories.map((cat) => {
-          const isSelected = selectedRoleCategory === cat.id || currentHiringValue === cat.query;
-          return (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => handleSelectRole(cat)}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                padding: '12px 14px',
-                borderRadius: '12px',
-                border: isSelected ? '2px solid #6366f1' : '1px solid #e2e8f0',
-                background: isSelected ? '#e0e7ff' : '#f8fafc',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.2s ease',
-                boxShadow: isSelected ? '0 4px 12px rgba(99, 102, 241, 0.15)' : 'none',
-              }}
-              onMouseEnter={(e) => { if (!isSelected) { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.03)'; } }}
-              onMouseLeave={(e) => { if (!isSelected) { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; } }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: isSelected ? '#4f46e5' : '#0f172a' }}>
-                  {cat.label}
-                </span>
-                <span style={{ fontSize: '0.7rem', background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '2px 6px', borderRadius: '6px', fontWeight: 700 }}>
-                  {cat.openRolesCount} Openings
-                </span>
-              </div>
-              <div style={{ fontSize: '0.74rem', color: isSelected ? '#4338ca' : '#64748b', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                <Sparkles size={12} style={{ color: isSelected ? '#4f46e5' : '#f59e0b' }} /> {cat.badge}
-              </div>
+      {available ? (
+        <>
+          <form
+            onSubmit={(e) => { e.preventDefault(); onApplyHiringFilter(currentHiringValue); }}
+            style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+          >
+            <input
+              type="text"
+              value={currentHiringValue}
+              onChange={(e) => onHiringChange(e.target.value)}
+              placeholder="Job titles, comma separated, e.g. React Developer, DevOps Engineer"
+              aria-label="Hiring for job titles"
+              style={{ flex: 1, padding: '9px 12px', fontSize: '0.86rem', borderRadius: 10, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a' }}
+            />
+            <button type="submit" className="btn-primary" style={{ padding: '9px 16px', fontSize: '0.84rem', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Search size={14} /> Apply
             </button>
-          );
-        })}
-      </div>
+            {currentHiringValue && (
+              <button type="button" className="btn-secondary" onClick={() => pick(currentHiringValue)} style={{ padding: '9px 12px', fontSize: '0.84rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <X size={14} /> Clear
+              </button>
+            )}
+          </form>
 
-      {/* Quick Hiring Preset Pills */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748b' }}>Quick Hiring Keywords:</span>
-        {hiringPresets.map((preset) => {
-          const isActive = currentHiringValue === preset;
-          return (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => handleSelectPreset(preset)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '20px',
-                fontSize: '0.76rem',
-                fontWeight: 700,
-                border: isActive ? '1px solid #6366f1' : '1px solid #e2e8f0',
-                background: isActive ? '#6366f1' : '#f8fafc',
-                color: isActive ? '#ffffff' : '#475569',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                boxShadow: isActive ? '0 4px 10px rgba(99, 102, 241, 0.2)' : 'none',
-              }}
-              onMouseEnter={(e) => { if(!isActive) { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = '#f1f5f9'; } }}
-              onMouseLeave={(e) => { if(!isActive) { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; } }}
-            >
-              {isActive && <Check size={12} />}
-              {preset}
-            </button>
-          );
-        })}
-      </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {ROLE_GROUPS.map((g) => {
+              const isActive = active === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => pick(g.titles)}
+                  title={g.titles}
+                  aria-pressed={isActive}
+                  style={{
+                    padding: '6px 12px', borderRadius: 20, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                    border: isActive ? '1px solid #6366f1' : '1px solid #e2e8f0',
+                    background: isActive ? '#6366f1' : '#f8fafc',
+                    color: isActive ? '#ffffff' : '#334155',
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  {isActive && <Check size={12} />} {g.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b', lineHeight: 1.5 }}>
+          Your Apollo plan does not include job-posting filters, so this filter is off. Search by job title, location, size and keywords instead.
+          It switches on by itself within a day of upgrading Apollo.
+        </p>
+      )}
     </div>
   );
 }

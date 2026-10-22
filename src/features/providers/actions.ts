@@ -12,7 +12,6 @@ import {
   ProviderFilterKey, 
   ProviderStatus, 
   HealthStatus,
-  SavedSearchPreset 
 } from './types';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
@@ -107,102 +106,6 @@ export async function getProviderStats(): Promise<FrameworkStats> {
   } catch {
     return { totalProviders: 0, connectedProviders: 0, liveProviders: 0, comingSoonProviders: 0, avgResponseTimeMs: 0, totalSearchesToday: 0, searchSuccessRate: 0 };
   }
-}
-
-/**
- * Return saved BDE prospecting search presets.
- */
-export async function getSavedSearchPresets(): Promise<SavedSearchPreset[]> {
-  return [
-    {
-      id: 'preset_funded_saas',
-      name: 'Recently Funded SaaS',
-      description: 'Series A/B SaaS companies funded in the last 90 days hiring engineers',
-      providerId: 'apollo',
-      iconName: 'TrendingUp',
-      badgeLabel: 'Funding Alert',
-      filters: {
-        providerId: 'apollo',
-        searchType: 'companies',
-        industry: 'Software',
-        fundingStage: 'series_a,series_b',
-        fundingDays: 90,
-      },
-    },
-    {
-      id: 'preset_react_orgs',
-      name: 'React.js Target Companies',
-      description: 'Companies with React.js in tech stack hiring frontend engineers',
-      providerId: 'apollo',
-      iconName: 'Code',
-      badgeLabel: 'Tech Stack',
-      filters: {
-        providerId: 'apollo',
-        searchType: 'companies',
-        technology: 'React',
-        hiringKeywords: 'React Engineer',
-      },
-    },
-    {
-      id: 'preset_node_orgs',
-      name: 'Node.js Backend Companies',
-      description: 'Mid-market companies running Node.js / TypeScript backends',
-      providerId: 'apollo',
-      iconName: 'Server',
-      badgeLabel: 'Backend Dev',
-      filters: {
-        providerId: 'apollo',
-        searchType: 'companies',
-        technology: 'Node.js',
-        hiringKeywords: 'Backend Engineer',
-      },
-    },
-    {
-      id: 'preset_ai_startups',
-      name: 'AI & ML Startups',
-      description: 'High-growth AI startups hiring Python & LLM fine-tuning engineers',
-      providerId: 'apollo',
-      iconName: 'Sparkles',
-      badgeLabel: 'AI / ML Intent',
-      filters: {
-        providerId: 'apollo',
-        searchType: 'companies',
-        keywords: 'Artificial Intelligence',
-        technology: 'Python',
-        hiringKeywords: 'AI Engineer',
-      },
-    },
-    {
-      id: 'preset_healthcare_saas',
-      name: 'Healthcare SaaS',
-      description: 'US-based Healthcare & HealthTech SaaS companies with 11-200 employees',
-      providerId: 'apollo',
-      iconName: 'HeartPulse',
-      badgeLabel: 'Healthcare',
-      filters: {
-        providerId: 'apollo',
-        searchType: 'companies',
-        industry: 'Healthcare',
-        country: 'United States',
-        employees: '11,200',
-      },
-    },
-    {
-      id: 'preset_fintech_usa',
-      name: 'USA FinTech Scaleups',
-      description: 'FinTech scaleups in the US with open CTO or VP Engineering roles',
-      providerId: 'apollo',
-      iconName: 'Building',
-      badgeLabel: 'FinTech',
-      filters: {
-        providerId: 'apollo',
-        searchType: 'companies',
-        industry: 'Financial Technology',
-        country: 'United States',
-        hiringKeywords: 'CTO',
-      },
-    },
-  ];
 }
 
 /**

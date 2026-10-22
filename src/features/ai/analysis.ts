@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { AiUnavailableError, geminiGenerate } from '@/lib/gemini';
 import { AppError } from '@/lib/errors';
 import { z } from 'zod';
 
@@ -76,9 +77,6 @@ class GeminiAiProvider implements IAiAnalysisProvider {
       throw new AppError('Cannot analyze empty post content.', 400);
     }
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
     const systemPrompt = `You are a Lead Scoring AI assistant. Analyze the following LinkedIn post content and metadata from ${authorName} to assess the opportunity score (0 to 100) indicating if they are a candidate for targeted software growth and consulting solutions.
 High score factors: active issues with scaling software, SaaS client retention/churn, automation pipeline difficulties, custom AI agent latency bottlenecks, software stack upgrades, or seeking professional software engineers.
 Low score factors: casual personal news, generic memes, non-technical hiring, updates unrelated to software or product workflows.
@@ -137,71 +135,22 @@ Post Content:
       },
     };
 
-    // Retry variables
-    const maxRetries = 3;
-    let attempt = 0;
-    let lastError: Error | null = null;
-
-    while (attempt < maxRetries) {
-      attempt++;
-      try {
-        logger.info(`Sending Gemini REST API request (Attempt ${attempt}/${maxRetries}) for: ${authorName}`);
-        
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(`Gemini API HTTP ${response.status}: ${body}`);
-        }
-
-        const data = await response.json();
-        
-        const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!candidateText) {
-          throw new Error('Malformed Gemini response: missing candidate text parts.');
-        }
-
-        // JSON Parsing
-        const parsedJson = JSON.parse(candidateText.trim());
-        
-        // Zod validation
-        const validated = analysisZodSchema.parse(parsedJson);
-
-        // Tokens audit
-        const promptTokens = data.usageMetadata?.promptTokenCount || 0;
-        const completionTokens = data.usageMetadata?.candidatesTokenCount || 0;
-
-        logger.info(`Gemini analysis succeeded on attempt ${attempt}. Tokens: Prompt ${promptTokens}, Completion ${completionTokens}`);
-        
-        return {
-          ...validated,
-          promptTokens,
-          completionTokens,
-        };
-      } catch (error) {
-        const errInstance = error instanceof Error ? error : new Error(String(error));
-        lastError = errInstance;
-        logger.warn(`Gemini analysis attempt ${attempt} failed: ${errInstance.message}`);
-        
-        if (attempt < maxRetries) {
-          // Exponential Backoff: 1s, 2s
-          const delay = attempt * 1000;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      }
+    try {
+      const result = await geminiGenerate(requestBody, { label: `post analysis for ${authorName}` });
+      const validated = analysisZodSchema.parse(JSON.parse(result.text));
+      logger.info(`Gemini analysis done with ${result.model}. Tokens: prompt ${result.promptTokens}, completion ${result.completionTokens}`);
+      return { ...validated, promptTokens: result.promptTokens, completionTokens: result.completionTokens };
+    } catch (error) {
+      if (error instanceof AiUnavailableError) throw new AppError(error.message, 503);
+      // The model answered, but not in the requested shape.
+      logger.warn(`Gemini analysis answer could not be read: ${error instanceof Error ? error.message : String(error)}`);
+      throw new AppError('The AI returned an unreadable analysis. Please try again.', 502);
     }
-
-    throw new AppError(`AI Analysis provider failed after ${maxRetries} attempts. Last error: ${lastError?.message || 'Unknown error'}`, 500);
   }
 }
 
-// Fallback Provider: Mock analysis simulator
+// Test-only provider (AI_MOCK_MODE=true in tests/setup.ts). Never used as a fallback for real posts:
+// its fixed wording would be saved as if the AI had read the post.
 class MockAiAnalysisProvider implements IAiAnalysisProvider {
   public readonly name = 'mock';
 
@@ -263,16 +212,8 @@ export class AiAnalysisService {
     companyName?: string,
     providerName?: string
   ): Promise<AnalysisResult> {
-    try {
-      const provider = getAiProvider(providerName);
-      return await provider.analyzePost(authorName, postText, authorHeadline, companyName);
-    } catch (err: unknown) {
-      logger.warn(`Primary AI Provider failed: ${err instanceof Error ? err.message : String(err)}. Invoking fallback AI Analysis Engine.`);
-      const mockProvider = providersRegistry['mock'];
-      if (mockProvider) {
-        return await mockProvider.analyzePost(authorName, postText || 'Target software engineering opportunity', authorHeadline, companyName);
-      }
-      throw err;
-    }
+    // No made-up fallback: when the AI cannot answer, the caller shows that and the user retries.
+    const provider = getAiProvider(providerName);
+    return provider.analyzePost(authorName, postText, authorHeadline, companyName);
   }
 }

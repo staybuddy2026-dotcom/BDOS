@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { clearPageState } from '@/lib/usePageState';
 import Image from 'next/image';
 import { ArrowRight, Lock, Mail, EyeOff, Eye, User } from 'lucide-react';
 import logo from '@/assets/Logo.png';
@@ -19,6 +20,8 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+  // Also covers an expired session: the next person to sign in here starts with empty pages.
+  useEffect(() => { clearPageState(); }, []);
 
   useEffect(() => {
     fetch('/api/auth/signup')

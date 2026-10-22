@@ -164,6 +164,8 @@ async function runTestSuite() {
       assert(updated.editedDraft === 'User Edited Message Text.', 'editedDraft must reflect user modifications.');
 
       await db.linkedInPost.delete({ where: { id: testPost.id } });
+      // Saving an edit records a writing-style example; the test's own example must not teach the real AI.
+      await db.aILearningData.deleteMany({ where: { originalDraft: 'Original AI Generated Message Text.' } });
     }
   });
 
@@ -199,6 +201,7 @@ async function runTestSuite() {
       assert(history !== null, 'OutreachHistory record must be logged.');
 
       await db.linkedInPost.delete({ where: { id: testPost.id } });
+      await db.aILearningData.deleteMany({ where: { originalDraft: 'Hello, saw your post regarding software partners.' } });
     }
   });
 
@@ -312,28 +315,15 @@ async function runTestSuite() {
     assert(matches.length === 0, 'Apollo provider must not fabricate matches when no live API key is configured.');
   });
 
-  // 12. Production Mock Safety Guards
-  await runTest('Production Mock Safety Guards Rejection', async () => {
-    const originalEnv = process.env.NODE_ENV;
-    const originalApiKey = process.env.APOLLO_API_KEY;
-    const originalMockFlag = process.env.APOLLO_MOCK_MODE;
-
-    try {
-      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
-      delete process.env.APOLLO_API_KEY;
-      delete process.env.APOLLO_MOCK_MODE;
-
-      const provider = new DefaultApolloProvider();
-      await provider.searchPeople({ name: 'Test' });
-      assert(false, 'Apollo provider must throw production error when API key is missing and mock mode is not true.');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      assert(msg.includes('Production Configuration Error'), 'Error message must specify Production Configuration Error.');
-    } finally {
-      (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
-      if (originalApiKey) process.env.APOLLO_API_KEY = originalApiKey;
-      if (originalMockFlag) process.env.APOLLO_MOCK_MODE = originalMockFlag;
-    }
+  // 12. Missing Apollo key: never fake data, never crash, tell the user what to fix
+  await runTest('Apollo Missing Key Reported Clearly', async () => {
+    const provider = new DefaultApolloProvider();
+    const people = await provider.searchPeopleAdvanced({ jobTitle: 'CTO' });
+    assert(people.people.length === 0, 'No people may be returned without a live Apollo key.');
+    assert(people.error?.code === 'NOT_CONFIGURED', 'People search must report NOT_CONFIGURED.');
+    const orgs = await provider.searchOrganizationsAdvanced({ keywords: 'saas' });
+    assert(orgs.organizations.length === 0 && orgs.error?.code === 'NOT_CONFIGURED', 'Company search must report NOT_CONFIGURED.');
+    assert((await provider.checkHealth()).ok === false, 'Health check must fail without a key.');
   });
 
   // 13. Database Integrity & Relations

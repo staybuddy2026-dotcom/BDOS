@@ -1032,6 +1032,71 @@
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 
+/* ---------- Task Date Filter ---------- */
+.taskFilterBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  margin-top: 10px;
+}
+
+.taskFilterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.taskFilterLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.taskFilterChips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.taskFilterPicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clearFilterBtn {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  background: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 7px;
+  padding: 4px 9px;
+  height: 32px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.clearFilterBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
 /* ---------- Meeting timeline ---------- */
 .timeline {
   display: flex;

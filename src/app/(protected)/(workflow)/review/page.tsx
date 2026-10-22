@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import Link from 'next/link';
 import {
   Archive,
@@ -38,6 +39,8 @@ import {
   ApolloEnrichmentData
 } from '@/features/apollo/actions';
 import { getPlaybooks, PlaybookData } from '@/features/playbooks/actions';
+import { getKeywords } from '@/features/keywords/actions';
+import { CustomDropdown, DropdownOption } from '@/components/CustomDropdown';
 import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { DraftStatus } from '@prisma/client';
 import { WorkflowGuide } from '@/components/WorkflowGuide';
@@ -63,9 +66,10 @@ export default function ReviewPage() {
   const [isOriginalCollapsed, setIsOriginalCollapsed] = useState(true);
 
   // Filters & Sorting
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [sortBy, setSortBy] = useState<string>('newest');
+  const [searchQuery, setSearchQuery] = usePageState('review.searchQuery', '');
+  const [categoryFilter, setCategoryFilter] = usePageState('review.categoryFilter', '');
+  const [sortBy, setSortBy] = usePageState<string>('review.sortBy', 'newest');
+  const [dbCategories, setDbCategories] = useState<string[]>([]);
 
   // Sub-modules loaders & editors
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -92,10 +96,16 @@ export default function ReviewPage() {
   // Load Review Queue items
   const loadData = useCallback(async () => {
     try {
-      const data = await getReviewPosts();
+      const [data, pbs, kwList] = await Promise.all([
+        getReviewPosts(),
+        getPlaybooks(),
+        getKeywords().catch(() => []),
+      ]);
       setPosts(data);
+      setDbCategories(
+        Array.from(new Set(kwList.map((k) => k.category).filter(Boolean) as string[]))
+      );
 
-      const pbs = await getPlaybooks();
       const activePbs = pbs.filter(p => p.status === 'ACTIVE');
       setPlaybooks(activePbs);
       if (activePbs.length > 0) {
@@ -135,7 +145,7 @@ export default function ReviewPage() {
   // Active Post selection
   const activePost = posts.find(p => p.id === selectedPostId) || null;
 
-  const handleSelectPost = (postId: string) => {
+  const handleSelectPost = useCallback((postId: string) => {
     setSelectedPostId(postId);
     const post = posts.find(p => p.id === postId);
     if (post) {
@@ -152,7 +162,7 @@ export default function ReviewPage() {
       setDraftText('');
       setApolloEnrichment(null);
     }
-  };
+  }, [posts]);
 
   // Apollo handlers
   const handleOpenApolloModal = async () => {
@@ -486,36 +496,266 @@ export default function ReviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posts, selectedPostId, activePost, analysisLoading, outreachLoading]);
 
-  // Categories list
-  const categoriesList = Array.from(new Set(posts.map(p => p.keywordCategory).filter(Boolean))) as string[];
+  // Categories list computed from posts and saved keywords
+  const categoriesList = useMemo(() => {
+    const map = new Map<string, { label: string; count: number }>();
+
+    posts.forEach((post) => {
+      // 1. From keywordCategory
+      if (post.keywordCategory && post.keywordCategory.trim()) {
+        const key = post.keywordCategory.trim();
+        const existing = map.get(key.toLowerCase());
+        if (existing) {
+          existing.count += 1;
+        } else {
+          const label = key.charAt(0).toUpperCase() + key.slice(1);
+          map.set(key.toLowerCase(), { label, count: 1 });
+        }
+      }
+
+      // 2. From matchedKeyword
+      if (post.matchedKeyword && post.matchedKeyword.trim()) {
+        const key = post.matchedKeyword.trim();
+        if (!post.keywordCategory || post.keywordCategory.toLowerCase() !== key.toLowerCase()) {
+          const existing = map.get(key.toLowerCase());
+          if (existing) {
+            existing.count += 1;
+          } else {
+            const label = key.charAt(0).toUpperCase() + key.slice(1);
+            map.set(key.toLowerCase(), { label, count: 1 });
+          }
+        }
+      }
+    });
+
+    // 3. Include any configured keyword categories that don't have posts yet
+    dbCategories.forEach((cat) => {
+      if (cat && cat.trim()) {
+        const key = cat.trim();
+        if (!map.has(key.toLowerCase())) {
+          const label = key.charAt(0).toUpperCase() + key.slice(1);
+          map.set(key.toLowerCase(), { label, count: 0 });
+        }
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [posts, dbCategories]);
+
+  // Aggregate counts for quick filter groups
+  const filterCounts = useMemo(() => {
+    let highScore = 0;
+    let mediumScore = 0;
+    let lowScore = 0;
+    let waiting = 0;
+    let approved = 0;
+    let hasDraft = 0;
+    let noDraft = 0;
+    let apolloEnriched = 0;
+    let favorites = 0;
+
+    posts.forEach((p) => {
+      if (p.opportunityScore !== null && p.opportunityScore >= 85) highScore++;
+      else if (p.opportunityScore !== null && p.opportunityScore >= 70) mediumScore++;
+      else lowScore++;
+
+      if (p.status === 'REVIEW_QUEUE') waiting++;
+      else if (p.status === 'APPROVED') approved++;
+
+      if (p.drafts && p.drafts.length > 0) hasDraft++;
+      else noDraft++;
+
+      if (p.apolloEnrichment) apolloEnriched++;
+      if (p.isFavorite) favorites++;
+    });
+
+    return {
+      highScore,
+      mediumScore,
+      lowScore,
+      waiting,
+      approved,
+      hasDraft,
+      noDraft,
+      apolloEnriched,
+      favorites,
+    };
+  }, [posts]);
+
+  // Options for modern CustomDropdown components
+  const filterDropdownOptions: DropdownOption[] = useMemo(() => {
+    const list: DropdownOption[] = [
+      { value: '', label: 'All categories', count: posts.length },
+    ];
+
+    if (categoriesList.length > 0) {
+      categoriesList.forEach((cat) => {
+        list.push({
+          value: `cat:${cat.label}`,
+          label: cat.label,
+          group: 'Categories & Keywords',
+          count: cat.count,
+        });
+      });
+    }
+
+    if (posts.length > 0) {
+      list.push(
+        { value: 'score:high', label: 'High Score (85+)', group: 'Lead Score', count: filterCounts.highScore },
+        { value: 'score:medium', label: 'Medium Score (70–84)', group: 'Lead Score', count: filterCounts.mediumScore },
+        { value: 'score:low', label: 'Low / Unscored', group: 'Lead Score', count: filterCounts.lowScore },
+        { value: 'status:REVIEW_QUEUE', label: 'Waiting for Review', group: 'Review Status', count: filterCounts.waiting },
+        { value: 'status:APPROVED', label: 'Approved', group: 'Review Status', count: filterCounts.approved },
+        { value: 'draft:has', label: 'Has Outreach Draft', group: 'Workflow', count: filterCounts.hasDraft },
+        { value: 'draft:none', label: 'Needs Draft', group: 'Workflow', count: filterCounts.noDraft },
+        { value: 'enrichment:apollo', label: 'Apollo Enriched', group: 'Data & Flags', count: filterCounts.apolloEnriched },
+        { value: 'flag:favorite', label: 'Starred / Favorites', group: 'Data & Flags', count: filterCounts.favorites }
+      );
+    }
+
+    return list;
+  }, [posts.length, categoriesList, filterCounts]);
+
+  const sortDropdownOptions: DropdownOption[] = useMemo(() => [
+    { value: 'newest', label: 'Newest first' },
+    { value: 'oldest', label: 'Oldest first' },
+    { value: 'score', label: 'Highest score' },
+    { value: 'score-asc', label: 'Lowest score' },
+    { value: 'engagements', label: 'Most engagement' },
+    { value: 'name-asc', label: 'Name (A–Z)' },
+    { value: 'name-desc', label: 'Name (Z–A)' },
+  ], []);
 
   // Filters computation
-  const filteredPosts = posts.filter((post) => {
-    const matchesSearch =
-      post.authorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.postPreview.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.matchedKeyword.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredPosts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
 
-    const matchesCategory = categoryFilter === '' || post.keywordCategory === categoryFilter;
+    return posts.filter((post) => {
+      const matchesSearch =
+        !q ||
+        post.authorName.toLowerCase().includes(q) ||
+        post.postPreview.toLowerCase().includes(q) ||
+        post.matchedKeyword.toLowerCase().includes(q) ||
+        (post.companyName ? post.companyName.toLowerCase().includes(q) : false) ||
+        (post.authorHeadline ? post.authorHeadline.toLowerCase().includes(q) : false) ||
+        (post.apolloEnrichment?.personName ? post.apolloEnrichment.personName.toLowerCase().includes(q) : false) ||
+        (post.apolloEnrichment?.organizationName ? post.apolloEnrichment.organizationName.toLowerCase().includes(q) : false);
 
-    return matchesSearch && matchesCategory;
-  });
+      if (!matchesSearch) return false;
+
+      if (!categoryFilter) return true;
+
+      if (categoryFilter.startsWith('score:')) {
+        const scoreType = categoryFilter.split(':')[1];
+        if (scoreType === 'high') {
+          return post.opportunityScore !== null && post.opportunityScore >= 85;
+        }
+        if (scoreType === 'medium') {
+          return post.opportunityScore !== null && post.opportunityScore >= 70 && post.opportunityScore < 85;
+        }
+        if (scoreType === 'low') {
+          return post.opportunityScore === null || post.opportunityScore < 70;
+        }
+        return true;
+      }
+
+      if (categoryFilter.startsWith('status:')) {
+        const targetStatus = categoryFilter.split(':')[1];
+        return post.status === targetStatus;
+      }
+
+      if (categoryFilter.startsWith('draft:')) {
+        const draftType = categoryFilter.split(':')[1];
+        if (draftType === 'has') {
+          return Boolean(post.drafts && post.drafts.length > 0);
+        }
+        if (draftType === 'none') {
+          return !post.drafts || post.drafts.length === 0;
+        }
+        return true;
+      }
+
+      if (categoryFilter.startsWith('enrichment:')) {
+        const enrichType = categoryFilter.split(':')[1];
+        if (enrichType === 'apollo') {
+          return Boolean(post.apolloEnrichment);
+        }
+        if (enrichType === 'none') {
+          return !post.apolloEnrichment;
+        }
+        return true;
+      }
+
+      if (categoryFilter.startsWith('flag:')) {
+        const flagType = categoryFilter.split(':')[1];
+        if (flagType === 'favorite') {
+          return Boolean(post.isFavorite);
+        }
+        return true;
+      }
+
+      // Specific Category / Keyword match
+      const targetCat = (categoryFilter.startsWith('cat:') ? categoryFilter.slice(4) : categoryFilter).toLowerCase().trim();
+      const postCat = (post.keywordCategory || '').toLowerCase().trim();
+      const postKw = (post.matchedKeyword || '').toLowerCase().trim();
+
+      return postCat === targetCat || postKw === targetCat;
+    });
+  }, [posts, searchQuery, categoryFilter]);
 
   // Sorting
-  const sortedPosts = [...filteredPosts].sort((a, b) => {
-    if (sortBy === 'newest') {
-      return new Date(b.discoveredAt).getTime() - new Date(a.discoveredAt).getTime();
+  const sortedPosts = useMemo(() => {
+    return [...filteredPosts].sort((a, b) => {
+      if (sortBy === 'newest') {
+        const timeA = new Date(a.discoveredAt || a.createdAt).getTime();
+        const timeB = new Date(b.discoveredAt || b.createdAt).getTime();
+        return timeB - timeA;
+      }
+      if (sortBy === 'oldest') {
+        const timeA = new Date(a.discoveredAt || a.createdAt).getTime();
+        const timeB = new Date(b.discoveredAt || b.createdAt).getTime();
+        return timeA - timeB;
+      }
+      if (sortBy === 'score') {
+        const scoreA = a.opportunityScore ?? -1;
+        const scoreB = b.opportunityScore ?? -1;
+        return scoreB - scoreA;
+      }
+      if (sortBy === 'score-asc') {
+        const scoreA = a.opportunityScore ?? 999;
+        const scoreB = b.opportunityScore ?? 999;
+        return scoreA - scoreB;
+      }
+      if (sortBy === 'engagements') {
+        return (b.engagementCount || 0) - (a.engagementCount || 0);
+      }
+      if (sortBy === 'name-asc') {
+        const nameA = a.apolloEnrichment?.personName || a.authorName || '';
+        const nameB = b.apolloEnrichment?.personName || b.authorName || '';
+        return nameA.localeCompare(nameB);
+      }
+      if (sortBy === 'name-desc') {
+        const nameA = a.apolloEnrichment?.personName || a.authorName || '';
+        const nameB = b.apolloEnrichment?.personName || b.authorName || '';
+        return nameB.localeCompare(nameA);
+      }
+      return 0;
+    });
+  }, [filteredPosts, sortBy]);
+
+  // Auto-sync active selected post with the filtered queue
+  useEffect(() => {
+    if (sortedPosts.length > 0) {
+      const isStillInList = sortedPosts.some((p) => p.id === selectedPostId);
+      if (!isStillInList) {
+        handleSelectPost(sortedPosts[0].id);
+      }
+    } else if (selectedPostId !== null && posts.length > 0) {
+      setSelectedPostId(null);
+      setDraftText('');
+      setApolloEnrichment(null);
     }
-    if (sortBy === 'score') {
-      const scoreA = a.opportunityScore || 0;
-      const scoreB = b.opportunityScore || 0;
-      return scoreB - scoreA;
-    }
-    if (sortBy === 'engagements') {
-      return b.engagementCount - a.engagementCount;
-    }
-    return 0;
-  });
+  }, [sortedPosts, selectedPostId, posts.length, handleSelectPost]);
 
   const scoreBadge = (score: number | null) =>
     score === null
@@ -548,21 +788,26 @@ export default function ReviewPage() {
         <div className={r.workspace}>
           {/* Queue */}
           <aside className={r.queue} aria-label="Review queue">
-            <div className={s.card} style={{ padding: 14, gap: 10 }}>
+            <div className={s.card} style={{ padding: 14, gap: 10, position: 'relative', zIndex: 30 }}>
               <div style={{ position: 'relative' }}>
                 <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--o-subtle)' }} />
                 <input type="search" className={s.input} style={{ paddingLeft: 36 }} placeholder="Search the queue" aria-label="Search the queue" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <select className={s.select} aria-label="Filter by category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                  <option value="">All categories</option>
-                  {categoriesList.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-                <select className={s.select} aria-label="Sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                  <option value="newest">Newest first</option>
-                  <option value="score">Highest score</option>
-                  <option value="engagements">Most engagement</option>
-                </select>
+                <CustomDropdown
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  options={filterDropdownOptions}
+                  placeholder="All categories"
+                  align="left"
+                />
+                <CustomDropdown
+                  value={sortBy}
+                  onChange={setSortBy}
+                  options={sortDropdownOptions}
+                  placeholder="Newest first"
+                  align="right"
+                />
               </div>
             </div>
 
@@ -573,7 +818,24 @@ export default function ReviewPage() {
                 <div className={s.empty}>
                   <Zap size={24} style={{ color: 'var(--o-accent)' }} />
                   <div className={s.emptyTitle}>{posts.length ? 'Nothing matches these filters' : 'The queue is empty'}</div>
-                  {posts.length ? 'Clear the search or category filter.' : 'Posts you send from LinkedIn or the Outreach generator appear here.'}
+                  {posts.length ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <span>Clear your search or category filter.</span>
+                      <button
+                        type="button"
+                        className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+                        onClick={() => {
+                          setSearchQuery('');
+                          setCategoryFilter('');
+                          setSortBy('newest');
+                        }}
+                      >
+                        Reset filters
+                      </button>
+                    </div>
+                  ) : (
+                    'Posts you send from LinkedIn or the Outreach generator appear here.'
+                  )}
                 </div>
               ) : (
                 sortedPosts.map((post) => (

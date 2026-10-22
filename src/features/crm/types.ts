@@ -41,6 +41,8 @@ export type CrmContact = {
   email: string | null;
   phone: string | null;
   linkedinUrl: string | null;
+  /** Their Sales Navigator lead page, when they were imported from Sales Navigator. */
+  salesNavUrl?: string | null;
   /** LinkedIn post this lead was discovered from (kept separate from the profile link). */
   sourcePostUrl: string | null;
   /** True when Apollo knows this person, so their email can be looked up (uses 1 Apollo credit). */
@@ -193,13 +195,14 @@ export type CrmAiBriefing = {
   suggestedServices: string[];
 };
 
-export type LinkedInTouch = 'CONNECTION_SENT' | 'CONNECTION_ACCEPTED' | 'MESSAGE_SENT' | 'REPLY_RECEIVED' | 'POST_ENGAGED';
+export type LinkedInTouch = 'CONNECTION_SENT' | 'CONNECTION_ACCEPTED' | 'MESSAGE_SENT' | 'INMAIL_SENT' | 'REPLY_RECEIVED' | 'POST_ENGAGED';
 
 /** Timeline titles for LinkedIn touches. The contact's LinkedIn status is read back from these. */
 export const LINKEDIN_TOUCH_TITLES: Record<LinkedInTouch, string> = {
   CONNECTION_SENT: 'LinkedIn connection request sent',
   CONNECTION_ACCEPTED: 'LinkedIn connection accepted',
   MESSAGE_SENT: 'LinkedIn message sent',
+  INMAIL_SENT: 'Sales Navigator InMail sent',
   REPLY_RECEIVED: 'LinkedIn reply received',
   POST_ENGAGED: 'Engaged with their LinkedIn post',
 };

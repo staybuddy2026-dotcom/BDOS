@@ -1,5 +1,7 @@
 import { logger } from '@/lib/logger';
 import { getSenderIdentity } from '@/lib/sender';
+import { AppError } from '@/lib/errors';
+import { AiUnavailableError, geminiGenerate } from '@/lib/gemini';
 import { z } from 'zod';
 
 export const outreachZodSchema = z.object({
@@ -31,16 +33,9 @@ export class OutreachService {
     };
     userInstructions?: string;
   }): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
-
-    // Rule: Fallback to mock generator if API key is missing
-    if (!apiKey) {
-      logger.warn('GEMINI_API_KEY is not defined. Falling back to mock outreach generator.');
-      return this.generateMockDraft(params, (await getSenderIdentity()).name);
-    }
-
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    // The fill-in template is only for the test suite. For real prospects a template would be saved and
+    // sent as if the AI had written it for them, so a failed AI call is reported instead.
+    if (process.env.AI_MOCK_MODE === 'true') return this.generateMockDraft(params, (await getSenderIdentity()).name);
 
     const promptTones = [
       params.settingsTones.primary,
@@ -118,39 +113,16 @@ User Custom Instructions Override:
     };
 
     try {
-      logger.info(`Sending Gemini API request for outreach draft to prospect: ${params.authorName}`);
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Gemini API HTTP ${response.status}: ${text}`);
-      }
-
-      const data = await response.json();
-      const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!textPart) {
-        throw new Error('Malformed Gemini response: missing candidates parts.');
-      }
-
-      const parsed = JSON.parse(textPart.trim());
-      const validated = outreachZodSchema.parse(parsed);
-
-      return validated.draft;
+      const result = await geminiGenerate(requestBody, { label: `outreach draft for ${params.authorName}` });
+      return outreachZodSchema.parse(JSON.parse(result.text)).draft;
     } catch (error) {
       logger.error(`Outreach generation failed for ${params.authorName}`, error);
-      // Fallback to mock instead of crashing if the API has transient issues
-      logger.warn('Falling back to mock outreach generator due to API error.');
-      return this.generateMockDraft(params, (await getSenderIdentity()).name);
+      if (error instanceof AiUnavailableError) throw new AppError(error.message, 503);
+      throw new AppError('The AI returned an unreadable draft. Please try again.', 502);
     }
   }
 
-  /**
-   * Generates a conversational mock outreach draft if API is unavailable.
-   */
+  /** Test-only draft (AI_MOCK_MODE=true), built from the post itself. */
   private static generateMockDraft(params: {
     authorName: string;
     authorHeadline?: string;

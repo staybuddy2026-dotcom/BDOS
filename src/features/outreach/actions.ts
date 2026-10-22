@@ -13,6 +13,7 @@ import { DraftStatus, FollowUpStatus, PostStatus, Prisma } from '@prisma/client'
 import { getCompany360Profile } from '@/features/company360/actions';
 import { generateOutreachMessage } from './generator';
 import { generateAiSequence } from './sequenceAi';
+import { scheduleLinkedInConnectStep } from './linkedinStep';
 import { OutreachMessageDraft, OutreachChannel, OutreachCategory, ToneSetting, EngagementTelemetry, FollowupStage } from './types';
 import { safeRevalidatePath } from '@/lib/revalidate';
 
@@ -146,7 +147,7 @@ async function upsertDbDraft(draft: OutreachMessageDraft, status: DraftStatus, u
 export async function scheduleOutreachSequenceAction(
   draft: OutreachMessageDraft,
   startAt?: string,
-  options: { autoSend?: boolean } = {}
+  options: { autoSend?: boolean; linkedinStep?: boolean } = {}
 ): Promise<{ success: boolean; message: string; draft: OutreachMessageDraft }> {
   const user = await AuthService.verifySession();
   const start = startAt ? new Date(startAt) : new Date();
@@ -232,14 +233,23 @@ export async function scheduleOutreachSequenceAction(
       await db.outreachDraft.update({ where: { id: dbDraft.id }, data: { autoSend, stoppedReason: null } }).catch(() => undefined);
     }
 
+    // Multi-channel: an email sequence also gets its LinkedIn connection request (on by default).
+    let linkedinAdded = false;
+    if (draft.channel === 'EMAIL' && options.linkedinStep !== false) {
+      linkedinAdded = await scheduleLinkedInConnectStep({ draft, firstStep: sequenceSteps(draft)[0], postId: dbDraft.postId, dealId, start, senderName: user.name, ownerId: user.id }).catch((err) => {
+        logger.error(`LinkedIn step for sequence '${draft.id}' could not be scheduled`, err);
+        return false;
+      });
+    }
+
     safeRevalidatePath('/review');
-    safeRevalidatePath('/crm');
     safeRevalidatePath('/crm');
     safeRevalidatePath('/today');
 
     const updated: OutreachMessageDraft = { ...draft, status: 'SCHEDULED', scheduledStartAt: start.toISOString(), sequencePaused: false, updatedAt: new Date().toISOString() };
     const how = autoSend ? `They will be sent automatically to ${dbDraft.toEmail}.` : 'You will be reminded in Today when each one is due.';
-    return { success: true, message: `${toSchedule.length} stage(s) scheduled for ${draft.companyName}. ${how}`, draft: updated };
+    const li = linkedinAdded ? ' A LinkedIn connection request with a ready note is in Today too.' : '';
+    return { success: true, message: `${toSchedule.length} stage(s) scheduled for ${draft.companyName}. ${how}${li}`, draft: updated };
   } catch (err) {
     logger.error(`Failed to schedule outreach sequence '${draft.id}'`, { error: String(err) });
     throw new AppError('Could not save the sequence schedule. Please try again.', 500);

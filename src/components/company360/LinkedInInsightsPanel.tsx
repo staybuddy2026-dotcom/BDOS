@@ -7,6 +7,7 @@ import { getLinkedInCompanyInsightsAction, getLinkedInCompanyPeopleAction } from
 import type { LinkedInCompanyInsights } from '@/features/linkedin/actions';
 import type { LinkedInProfileResult } from '@/features/linkedin/types';
 import { addLinkedInProfileToCrm } from '@/features/crm/actions';
+import { usePageState } from '@/lib/usePageState';
 import s from '@/components/ui/ui.module.css';
 
 const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
@@ -16,11 +17,14 @@ const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(und
  * Loaded on demand (each lookup uses the LinkedIn scraper), never with sample data.
  */
 export function LinkedInInsightsPanel({ domain, companyName, linkedinUrl }: { domain: string; companyName: string; linkedinUrl?: string }) {
-  const [loading, setLoading] = useState(false);
-  const [insights, setInsights] = useState<LinkedInCompanyInsights | null>(null);
-  const [people, setPeople] = useState<LinkedInProfileResult[] | null>(null);
-  const [peopleLoading, setPeopleLoading] = useState(false);
-  const [peopleError, setPeopleError] = useState<string | null>(null);
+  // Kept per company for this browser tab: every lookup is a paid scraper run, so reopening the
+  // company (or coming back to the page) shows what was already loaded.
+  const key = `company360.linkedin.${(domain || companyName).toLowerCase()}`;
+  const [loading, setLoading] = usePageState(`${key}.loading`, false, { persist: false });
+  const [insights, setInsights] = usePageState<LinkedInCompanyInsights | null>(`${key}.insights`, null);
+  const [people, setPeople] = usePageState<LinkedInProfileResult[] | null>(`${key}.people`, null);
+  const [peopleLoading, setPeopleLoading] = usePageState(`${key}.peopleLoading`, false, { persist: false });
+  const [peopleError, setPeopleError] = usePageState<string | null>(`${key}.peopleError`, null);
   const [crmBusy, setCrmBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [crmMessage, setCrmMessage] = useState<string | null>(null);

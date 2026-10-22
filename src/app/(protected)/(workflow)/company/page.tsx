@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import blob from '@/assets/blob.png';
 import {
   Building,
@@ -19,7 +20,8 @@ import {
   getCompany360Profile,
   searchCompanies360,
   createCrmDealFromCompany360,
-  sendCompany360ToReviewQueue
+  sendCompany360ToReviewQueue,
+  removeCompanyProfileAction,
 } from '@/features/company360/actions';
 import { getShortlistAction, removeFromShortlistAction } from '@/features/prospecting/actions';
 import { importBrowserListsOnce } from '@/features/prospecting/browserImport';
@@ -53,14 +55,15 @@ interface MigratedLeadRecord {
 }
 
 export default function Company360WorkspacePage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Company360SearchResult[]>([]);
+  // Search and the open company are kept for this browser tab, so they are still there on return.
+  const [searchQuery, setSearchQuery] = usePageState('company360.searchQuery', '');
+  const [searchResults, setSearchResults] = usePageState<Company360SearchResult[]>('company360.searchResults', []);
   const [loading, setLoading] = useState(false);
 
   // Selected Profile for 360 Drawer
-  const [selectedProfile, setSelectedProfile] = useState<Company360Profile | null>(null);
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'overview' | 'decision-makers' | 'playbook' | 'linkedin' | 'timeline'>('overview');
+  const [selectedProfile, setSelectedProfile] = usePageState<Company360Profile | null>('company360.selectedProfile', null);
+  const [showDrawer, setShowDrawer] = usePageState('company360.showDrawer', false);
+  const [drawerTab, setDrawerTab] = usePageState<'overview' | 'decision-makers' | 'playbook' | 'linkedin' | 'timeline'>('company360.drawerTab', 'overview');
   const [profileLoading, setProfileLoading] = useState(false);
 
   // Notification Toast
@@ -97,12 +100,15 @@ export default function Company360WorkspacePage() {
   }, [loadShortlist]);
 
   const handleRemoveFromCompany360 = async (company: Company360SearchResult) => {
-    const res = await removeFromShortlistAction(company.domain || '', company.companyId || '');
-    if (res.error) {
-      triggerNotification('error', res.error);
+    const removed = await removeCompanyProfileAction(company.domain || '', company.companyId || '');
+    if (removed.error) {
+      triggerNotification('error', removed.error);
       return;
     }
-    applyShortlist(res);
+    const res = await removeFromShortlistAction(company.domain || '', company.companyId || '');
+    if (!res.error) applyShortlist(res);
+    const removedKey = (company.domain || company.companyId || '').toLowerCase().trim();
+    setSearchResults((prev) => prev.filter((c) => (c.domain || c.companyId).toLowerCase().trim() !== removedKey));
     triggerNotification('success', `Removed ${company.companyName} from Company 360.`);
     const companyId = (company.companyId || '').toLowerCase().trim();
     if (selectedProfile?.companyId === companyId || (company.domain && selectedProfile?.domain === company.domain)) {
@@ -122,7 +128,7 @@ export default function Company360WorkspacePage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, setSearchResults]);
 
   useEffect(() => {
     let active = true;
@@ -146,7 +152,7 @@ export default function Company360WorkspacePage() {
     } finally {
       setProfileLoading(false);
     }
-  }, []);
+  }, [setSelectedProfile, setShowDrawer]);
 
   useEffect(() => {
     let active = true;
@@ -263,12 +269,12 @@ export default function Company360WorkspacePage() {
       }
     });
 
-    // A built profile (opened in 360) has the real score and facts, so it replaces the shortlist entry.
+    // Every built profile (opened, searched, or scored for AI Priorities) is listed with its real score and
+    // facts, replacing its shortlist entry. (Listing only shortlisted companies hid every profile built from
+    // a search or from AI Priorities, so the page showed 0 companies.)
     searchResults.forEach((c) => {
       const key = (c.domain || c.companyId).toLowerCase().trim();
-      if (migratedCompanyIds.includes(key) || migratedCompanyIds.includes(c.companyId.toLowerCase())) {
-        map.set(key, c);
-      }
+      if (key) map.set(key, c);
     });
 
     let list = Array.from(map.values());
@@ -745,9 +751,7 @@ export default function Company360WorkspacePage() {
 
                       {/* Fused Provenance Pills */}
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
-                        <span style={{ fontSize: '0.64rem', background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>Apollo Executives</span>
-                        <span style={{ fontSize: '0.64rem', background: 'var(--accent-indigo-glow)', border: '1px solid var(--border-focus)', color: 'var(--accent-indigo)', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>GitHub Engineering</span>
-                        <span style={{ fontSize: '0.64rem', background: 'var(--color-success-bg)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--color-success)', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>AI Opportunity Engine</span>
+                        <span style={{ fontSize: '0.64rem', background: 'var(--accent-indigo-glow)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }} title="Company facts and decision makers come from Apollo">Apollo data</span>
                       </div>
                     </div>
 
@@ -873,7 +877,7 @@ export default function Company360WorkspacePage() {
                     ].map(tab => (
                       <button
                         key={tab.id}
-                        onClick={() => setDrawerTab(tab.id as any)}
+                        onClick={() => setDrawerTab(tab.id as typeof drawerTab)}
                         style={{
                           padding: '8px 16px',
                           borderRadius: '8px',
@@ -939,7 +943,8 @@ export default function Company360WorkspacePage() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {selectedProfile.timeline.map((event) => (
+                        {/* Once per event (older profiles stored "profile created" again on every refresh). */}
+                        {selectedProfile.timeline.filter((e, i, all) => all.findIndex((x) => x.id === e.id) === i).map((event) => (
                           <div key={event.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                               <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>{event.title}</div>
@@ -949,7 +954,9 @@ export default function Company360WorkspacePage() {
                               <span style={{ fontSize: '0.65rem', background: 'var(--accent-indigo-glow)', color: '#a5b4fc', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                                 {event.source}
                               </span>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>{event.timestamp}</div>
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                {/^\d{4}-\d{2}-\d{2}/.test(event.timestamp) ? new Date(event.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : event.timestamp}
+                              </div>
                             </div>
                           </div>
                         ))}

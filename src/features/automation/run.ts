@@ -3,11 +3,13 @@ import { logger } from '@/lib/logger';
 import { MailError, sendMail } from '@/lib/mailer';
 import { runDueFollowUps } from '@/features/outreach/sequence';
 import { dayBounds, getTodaySummary } from '@/features/today/service';
+import { runNightlyLinkedIn } from '@/features/linkedin/nightly';
+import type { NightlyLinkedInSummary } from '@/features/linkedin/nightly';
 import type { TodayData } from '@/features/today/service';
 
 /**
- * Background work the app does on its own: sending due outreach emails and the morning
- * summary. Run by the in-process scheduler (see scheduler.ts) and by POST /api/cron/run.
+ * Background work the app does on its own: sending due outreach emails, the morning
+ * summary and the overnight LinkedIn scan. Run by the in-process scheduler (see scheduler.ts) and by POST /api/cron/run.
  */
 
 /** Hour of the day (server time) from which the morning summary goes out. */
@@ -68,7 +70,7 @@ export async function runDailyDigests(now = new Date()): Promise<{ sent: number 
   return { sent };
 }
 
-export type AutomationResult = { followUps: { sent: number; failed: number; skipped: number }; digests: { sent: number }; skipped?: boolean };
+export type AutomationResult = { followUps: { sent: number; failed: number; skipped: number }; digests: { sent: number }; linkedin?: NightlyLinkedInSummary | null; skipped?: boolean };
 
 const state = globalThis as typeof globalThis & { __bdosAutomationRunning?: boolean };
 
@@ -79,7 +81,9 @@ export async function runAutomation(now = new Date()): Promise<AutomationResult>
   try {
     const followUps = await runDueFollowUps(now).catch((err) => { logger.error('Follow-up automation failed', err); return { sent: 0, failed: 0, skipped: 0 }; });
     const digests = await runDailyDigests(now).catch((err) => { logger.error('Morning summary job failed', err); return { sent: 0 }; });
-    return { followUps, digests };
+    // Once a night (from LINKEDIN_NIGHTLY_HOUR); returns null on every other pass.
+    const linkedin = await runNightlyLinkedIn(now).catch((err) => { logger.error('Nightly LinkedIn job failed', err); return null; });
+    return { followUps, digests, linkedin };
   } finally {
     state.__bdosAutomationRunning = false;
   }

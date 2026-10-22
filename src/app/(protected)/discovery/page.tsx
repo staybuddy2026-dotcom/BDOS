@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import { useRouter } from 'next/navigation';
 import blob from '@/assets/blob.png';
 import {
@@ -69,12 +70,15 @@ function getInitialProviders(): ProviderSelection {
 }
 
 export default function LeadDiscoveryPage() {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<LeadDiscoveryData | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [page, setPage] = useState(1);
+  // Search, page and results are kept for this browser tab, so coming back does not search again.
+  const [loading, setLoading] = usePageState('discovery.loading', false, { persist: false });
+  const [data, setData] = usePageState<LeadDiscoveryData | null>('discovery.data', null);
+  const [searchQuery, setSearchQuery] = usePageState('discovery.searchQuery', '');
+  const [page, setPage] = usePageState('discovery.page', 1);
   const perPage = 10;
-  const [activeTab, setActiveTab] = useState<'all' | 'migrated' | 'watchlist' | 'recent'>('all');
+  const [activeTab, setActiveTab] = usePageState<'all' | 'migrated' | 'watchlist' | 'recent'>('discovery.activeTab', 'all');
+  // Which search the results on screen belong to.
+  const [dataSig, setDataSig] = usePageState('discovery.dataSig', '');
   const router = useRouter();
   // The lead whose score breakdown is open.
   const [scoreLead, setScoreLead] = useState<DiscoveryLeadItem | null>(null);
@@ -242,6 +246,7 @@ export default function LeadDiscoveryPage() {
     try {
       const res = await getUniversalLeadDiscoveryDataAction(query, providerToggles, pageNum, perPage);
       setData(res);
+      setDataSig(JSON.stringify([query.trim(), pageNum, providerToggles]));
 
       if (res.apiError) {
         triggerNotification('error', res.apiError);
@@ -253,27 +258,29 @@ export default function LeadDiscoveryPage() {
     } finally {
       setLoading(false);
     }
-  }, [providerToggles, applyShortlist]);
+  }, [providerToggles, applyShortlist, setLoading, setData, setDataSig]);
 
   // Initial URL Parameter Reader (e.g. /discovery?q=SaaS from Home Dashboard Universal Search)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const q = params.get('q') || params.get('query') || params.get('search') || params.get('keywords');
+    // The search below runs it (searching here too made two calls for one link).
     if (q && q.trim()) {
-      const cleanQ = q.trim();
-      setSearchQuery(cleanQ);
-      loadDiscoveryData(cleanQ, 1);
+      setSearchQuery(q.trim());
+      setPage(1);
     }
-  }, [loadDiscoveryData]);
+  }, [setSearchQuery, setPage]);
 
-  // Live As-You-Type Debounced Search Handler
+  // As-you-type search. Waits for a pause in typing (each search uses Apollo's daily quota), and is
+  // skipped when the results on screen already belong to this search, e.g. when coming back to the page.
   useEffect(() => {
+    if (data && dataSig === JSON.stringify([searchQuery.trim(), page, providerToggles])) return;
     const timer = setTimeout(() => {
       loadDiscoveryData(searchQuery, page);
-    }, 300);
+    }, 700);
     return () => clearTimeout(timer);
-  }, [searchQuery, page, loadDiscoveryData]);
+  }, [searchQuery, page, providerToggles, data, dataSig, loadDiscoveryData]);
 
   const handleQueryChange = (val: string) => {
     setSearchQuery(val);
@@ -305,6 +312,7 @@ export default function LeadDiscoveryPage() {
   };
 
   const handleUnlockContact = async (company: DiscoveryLeadItem) => {
+    if (!window.confirm(`Look up ${company.recommendedContactName || 'this contact'} in Apollo? This uses 1 Apollo credit (more if personal email or phone reveal is turned on in Settings).`)) return;
     setEnrichingLeadId(company.companyId);
     try {
       const res = await enrichDiscoveryLeadContactAction(company);
@@ -985,7 +993,7 @@ export default function LeadDiscoveryPage() {
                           onMouseDown={(e) => { if (enrichingLeadId !== lead.companyId) { e.currentTarget.style.transform = 'translateY(1px)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.3)'; } }}
                           onMouseUp={(e) => { if (enrichingLeadId !== lead.companyId) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.4)'; } }}
                         >
-                          <Sparkles size={14} /> {enrichingLeadId === lead.companyId ? 'Enriching via Apollo REST API...' : '⚡ Unlock Live Verified Email & Direct Phone via Apollo API'}
+                          <Sparkles size={14} /> {enrichingLeadId === lead.companyId ? 'Enriching via Apollo REST API...' : '⚡ Unlock Email via Apollo (1 credit)'}
                         </button>
                       )}
                     </div>

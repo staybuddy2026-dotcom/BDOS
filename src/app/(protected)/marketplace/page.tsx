@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import { 
   Briefcase, 
   Filter, 
@@ -76,20 +77,20 @@ const PRESET_SEARCHES = [
 ];
 
 export default function ProjectMarketplacePage() {
-  const [activeTab, setActiveTab] = useState<'opportunities' | 'analytics' | 'history' | 'saved-searches'>('opportunities');
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('all');
+  const [activeTab, setActiveTab] = usePageState<'opportunities' | 'analytics' | 'history' | 'saved-searches'>('marketplace.activeTab', 'opportunities');
+  const [selectedProviderId, setSelectedProviderId] = usePageState<string>('marketplace.selectedProviderId', 'all');
   const [providersHealth, setProvidersHealth] = useState<ProviderHealthTelemetry[]>([]);
   
   // Dynamic Filters
-  const [keywords, setKeywords] = useState('');
-  const [technology, setTechnology] = useState('');
-  const [budgetType, setBudgetType] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('');
-  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [keywords, setKeywords] = usePageState('marketplace.keywords', '');
+  const [technology, setTechnology] = usePageState('marketplace.technology', '');
+  const [budgetType, setBudgetType] = usePageState('marketplace.budgetType', '');
+  const [experienceLevel, setExperienceLevel] = usePageState('marketplace.experienceLevel', '');
+  const [activePresetId, setActivePresetId] = usePageState<string | null>('marketplace.activePresetId', null);
 
   // Ingestion Results
-  const [opportunities, setOpportunities] = useState<UniversalOpportunity[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [opportunities, setOpportunities] = usePageState<UniversalOpportunity[]>('marketplace.opportunities', []);
+  const [totalCount, setTotalCount] = usePageState('marketplace.totalCount', 0);
   const [loading, setLoading] = useState(false);
   const [syncingProviderId, setSyncingProviderId] = useState<string | null>(null);
 
@@ -177,16 +178,12 @@ export default function ProjectMarketplacePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedProviderId, technology, keywords, budgetType, experienceLevel, notify]);
+  }, [selectedProviderId, technology, keywords, budgetType, experienceLevel, notify, setOpportunities, setTotalCount]);
 
+  // Waits for a pause in typing, so one search (and one history entry) runs per search, not per letter.
   useEffect(() => {
-    let active = true;
-    async function run() {
-      if (!active) return;
-      await runIngestionPipeline();
-    }
-    run();
-    return () => { active = false; };
+    const timer = setTimeout(() => { runIngestionPipeline(); }, 500);
+    return () => clearTimeout(timer);
   }, [runIngestionPipeline]);
 
   // Open AI Intelligence Report Drawer

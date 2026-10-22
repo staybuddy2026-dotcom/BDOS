@@ -152,26 +152,14 @@ export async function submitPostAnalysis(postId: string, force = false) {
 
     const postText = (post.postPreview || post.postContent || `Opportunity inquiry for ${post.authorName} at ${post.companyName || 'Target Account'}`).trim();
 
-    // Call service boundary with visible metadata context
-    let result;
-    try {
-      result = await AiAnalysisService.analyzePost(
-        post.authorName || 'Lead Executive',
-        postText,
-        post.authorHeadline || undefined,
-        post.companyName || undefined
-      );
-    } catch {
-      result = {
-        summary: `The lead ${post.authorName} at ${post.companyName || 'Target Account'} exhibits active growth signals for software engineering and technical squad deployment.`,
-        buyingSignals: ['Tech Expansion', 'Engineering Velocity'],
-        opportunityScore: 88,
-        suggestedOutreachAngle: 'Offer Tiny Script senior engineering squads to accelerate product roadmap.',
-        valueReason: 'High opportunity alignment based on active engineering hiring and technical scaling requirements.',
-        promptTokens: 220,
-        completionTokens: 80,
-      };
-    }
+    // Only a real AI answer is saved. When the AI is unavailable the error reaches the page and nothing
+    // is stored, so the post can be analysed again later (it used to save a fixed score of 88 instead).
+    const result = await AiAnalysisService.analyzePost(
+      post.authorName || 'Lead Executive',
+      postText,
+      post.authorHeadline || undefined,
+      post.companyName || undefined
+    );
 
     // Save to PostAnalysis (upsert)
     const analysis = await db.postAnalysis.upsert({
@@ -208,6 +196,7 @@ export async function submitPostAnalysis(postId: string, force = false) {
     return analysis;
   } catch (error) {
     logger.error(`Failed to analyze post ID: ${postId}`, error);
+    if (error instanceof AppError) throw error;
     throw new AppError('Failed to complete AI Analysis.', 500);
   }
 }
@@ -303,6 +292,7 @@ export async function createOutreachDraft(
     return draft;
   } catch (error) {
     logger.error(`Failed to generate outreach for post ID: ${postId}`, error);
+    if (error instanceof AppError) throw error; // e.g. "The AI service is busy": shown on the page as is
     throw new AppError('Failed to generate outreach draft.', 500);
   }
 }
@@ -381,6 +371,7 @@ export async function regenerateOutreachDraft(draftId: string, userInstructions?
     return updated;
   } catch (error) {
     logger.error(`Failed to regenerate draft ID: ${draftId}`, error);
+    if (error instanceof AppError) throw error; // e.g. "The AI service is busy": shown on the page as is
     throw new AppError('Failed to regenerate outreach draft.', 500);
   }
 }
@@ -724,6 +715,7 @@ export async function progressToNextStep(draftId: string) {
     return { completed: false, draft: nextDraft };
   } catch (error) {
     logger.error(`Failed to progress step for draft ID: ${draftId}`, error);
+    if (error instanceof AppError) throw error; // e.g. "The AI service is busy": shown on the page as is
     throw new AppError('Failed to progress playbook sequence step.', 500);
   }
 }

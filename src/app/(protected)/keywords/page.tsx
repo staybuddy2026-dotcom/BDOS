@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { usePageState } from '@/lib/usePageState';
 import { 
   Plus, 
   Trash2, 
@@ -60,11 +61,11 @@ export default function KeywordsPage() {
   };
 
   // Filters State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [favoriteFilter, setFavoriteFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = usePageState('keywords.searchQuery', '');
+  const [categoryFilter, setCategoryFilter] = usePageState('keywords.categoryFilter', '');
+  const [priorityFilter, setPriorityFilter] = usePageState('keywords.priorityFilter', '');
+  const [statusFilter, setStatusFilter] = usePageState('keywords.statusFilter', '');
+  const [favoriteFilter, setFavoriteFilter] = usePageState('keywords.favoriteFilter', 'all');
 
   // Bulk Actions
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
