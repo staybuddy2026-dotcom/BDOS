@@ -95,17 +95,17 @@ export function PriorityCard({
         background: isSelected ? 'var(--bg-primary)' : 'var(--bg-card)',
         border: isSelected ? `2px solid ${style.color}` : `1px solid ${style.border}`,
         borderRadius: '16px',
-        padding: isSelected ? '17px' : '18px',
+        padding: isSelected ? '15px' : '16px',
         cursor: 'pointer',
         transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '14px',
+        gap: '12px',
         boxShadow: isSelected ? `0 8px 32px ${style.glow}` : 'var(--glass-shadow)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: '0.78rem', fontWeight: 900, color: '#ffffff', background: 'linear-gradient(135deg, #6366f1, #3b82f6)', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             #{rank}
           </div>
@@ -118,7 +118,7 @@ export function PriorityCard({
                 ? <SourceBadge source="LinkedIn" label={`LinkedIn ${account.scoreBreakdown.linkedin.points}/${account.scoreBreakdown.linkedin.max}`} />
                 : <span title="No LinkedIn posts or people saved for this company yet" style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-muted)', border: '1px dashed var(--border-subtle)', borderRadius: 5, padding: '0 5px' }}>LinkedIn: no data yet</span>}
               {account.inCrm && (
-                <span style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--accent-indigo)', background: 'var(--accent-indigo-glow)', borderRadius: '6px', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <span style={{ fontSize: '0.66rem', fontWeight: 800, color: 'var(--accent-indigo)', background: 'var(--accent-indigo-glow)', borderRadius: '6px', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
                   <Kanban size={10} /> In CRM{account.inCrm.mine ? '' : ` · ${account.inCrm.ownerName || 'teammate'}`}
                 </span>
               )}
@@ -131,18 +131,10 @@ export function PriorityCard({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ textAlign: 'right' }} title={`Apollo company fit ${account.scoreBreakdown.apollo.fitScore}/100 → ${account.scoreBreakdown.apollo.points} of ${account.scoreBreakdown.apollo.max} points\nLinkedIn evidence → ${account.scoreBreakdown.linkedin.points} of ${account.scoreBreakdown.linkedin.max} points`}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.04em' }}>Combined fit</div>
-            <div style={{ fontSize: '1.35rem', fontWeight: 900, color: style.color, lineHeight: 1.1 }}>{account.buyingReadinessScore}<span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>/100</span></div>
-          </div>
-          <div onClick={(e) => e.stopPropagation()} style={{ minWidth: '170px' }}>
-            <CustomDropdown
-              value={account.tierOverride ? account.priorityTier : 'AUTO'}
-              onChange={(val) => onTierChange?.(account, val === 'AUTO' ? null : (val as PriorityTier))}
-              options={tierOptions(account)}
-            />
-          </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }} title={`Apollo company fit ${account.scoreBreakdown.apollo.fitScore}/100 → ${account.scoreBreakdown.apollo.points} of ${account.scoreBreakdown.apollo.max} points\nLinkedIn evidence → ${account.scoreBreakdown.linkedin.points} of ${account.scoreBreakdown.linkedin.max} points`}>
+          <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Combined fit</div>
+          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: style.color, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{account.buyingReadinessScore}<span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>/100</span></div>
+          <div style={{ fontSize: '0.64rem', fontWeight: 800, color: style.color, marginTop: 2 }}>{TIER_BANDS[account.priorityTier].label}</div>
         </div>
       </div>
 
@@ -194,15 +186,24 @@ export function PriorityCard({
         </div>
       </div>
 
-      {account.nextBestActions[0] && (
-        <div style={{ background: 'var(--accent-indigo-glow)', border: '1px solid var(--border-focus)', borderRadius: '10px', padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-          <div style={{ minWidth: 0 }}>
-            <span style={{ fontSize: '0.66rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Next step</span>
-            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>{account.nextBestActions[0].title}</div>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+        {account.nextBestActions[0] && (
+          <div style={{ flex: '1 1 220px', minWidth: 0, background: 'var(--accent-indigo-glow)', border: '1px solid var(--border-focus)', borderRadius: '10px', padding: '9px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ fontSize: '0.62rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Next step</span>
+              <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.nextBestActions[0].title}</div>
+            </div>
+            <ArrowRight size={16} style={{ color: 'var(--accent-indigo)', flexShrink: 0 }} />
           </div>
-          <ArrowRight size={16} style={{ color: 'var(--accent-indigo)', flexShrink: 0 }} />
+        )}
+        <div onClick={(e) => e.stopPropagation()} style={{ flex: '1 1 170px', minWidth: 0 }} title="Priority tier (a manual choice is saved for the team)">
+          <CustomDropdown
+            value={account.tierOverride ? account.priorityTier : 'AUTO'}
+            onChange={(val) => onTierChange?.(account, val === 'AUTO' ? null : (val as PriorityTier))}
+            options={tierOptions(account)}
+          />
         </div>
-      )}
+      </div>
     </div>
   );
 }

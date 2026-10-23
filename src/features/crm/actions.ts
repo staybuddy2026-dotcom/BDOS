@@ -1,5 +1,6 @@
 'use server';
 
+import { findCompanyWebsite } from '@/features/apollo/companyWebsite';
 import { Prisma, TaskPriority, TaskStatus } from '@prisma/client';
 import type { DealStage } from '@prisma/client';
 import { AuthService, UserSession } from '@/lib/auth';
@@ -10,6 +11,7 @@ import { safeRevalidatePath } from '@/lib/revalidate';
 import { db } from '@/lib/db';
 import { isValidEmail } from '@/lib/mailer';
 import { SettingsService } from '@/lib/settings';
+import { sanitizeMeetingUrl } from '@/lib/meeting-urls';
 import { apolloProvider, getLastApolloErrors } from '@/features/apollo/provider';
 import type { ApolloOrganizationMatch, ApolloPersonMatch } from '@/features/apollo/provider';
 import { getUniversalLeadDiscoveryDataAction } from '@/features/discovery/actions';
@@ -391,8 +393,10 @@ export async function addLinkedInProfileToCrm(profile: {
     return { created: false, error: 'A name and a LinkedIn profile URL are required.' };
   }
   try {
+    // LinkedIn gives the company name only; its website links the deal to Apollo, Company 360 and AI Priorities.
+    const site = await findCompanyWebsite(profile.companyName).catch(() => undefined);
     const result = await createLead({
-      company: { name: profile.companyName?.trim() || `${profile.fullName} (independent)`, location: profile.location },
+      company: { name: profile.companyName?.trim() || `${profile.fullName} (independent)`, location: profile.location, domain: site?.domain, linkedinUrl: site?.linkedinUrl },
       contact: { name: profile.fullName, title: profile.jobTitle || profile.headline, email: profile.email, linkedinUrl: profile.profileUrl },
       source: 'LINKEDIN_PEOPLE',
       ownerId: user.id,
@@ -603,11 +607,11 @@ export async function addDealMeetingAction(dealId: string, input: { title: strin
     const startTime = parseDate(input.startTime);
     if (!input.title?.trim()) return { error: 'Enter a meeting title.' };
     if (!startTime) return { error: 'Pick the meeting date and time.' };
-    if (input.meetingUrl?.trim() && !/^https?:\/\//i.test(input.meetingUrl.trim())) return { error: 'The meeting link must start with http:// or https://.' };
 
     const deal = await db.deal.findUnique({ where: { id: (await getAccessibleDeal(user, dealId)).id }, include: { company: true, primaryContact: true } });
     if (!deal) return { error: 'Deal not found.' };
     const upcoming = startTime.getTime() > Date.now();
+    const meetingUrl = sanitizeMeetingUrl(input.meetingUrl);
 
     await db.$transaction(async (tx) => {
       await tx.meeting.create({
@@ -617,7 +621,7 @@ export async function addDealMeetingAction(dealId: string, input: { title: strin
           clientName: deal.primaryContact?.name || deal.company.name,
           clientEmail: deal.primaryContact?.email,
           companyName: deal.company.name,
-          meetingUrl: input.meetingUrl?.trim() || null,
+          meetingUrl,
           status: upcoming ? 'SCHEDULED' : 'COMPLETED',
           notes: input.notes?.trim() || null,
           attendees: (input.attendees || []).map((a) => a.trim()).filter(Boolean),

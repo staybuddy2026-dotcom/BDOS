@@ -1,5 +1,6 @@
 'use server';
 
+import { findCompanyWebsite } from '@/features/apollo/companyWebsite';
 import { PostStatus } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
 import { db } from '@/lib/db';
@@ -226,8 +227,15 @@ export async function addLinkedInPostToCrmAction(
     // A company page has no person to contact; a personal post makes its author the contact.
     const isPerson = post.authorType === 'profile';
     const existingDeal = row ? await db.deal.findFirst({ where: { source: 'LINKEDIN_POST', sourceRef: row.id }, select: { id: true } }) : null;
+    const companyName = isPerson ? post.authorCompany?.trim() || `${post.authorName} (independent)` : post.authorName;
+    const site = await findCompanyWebsite(companyName).catch(() => undefined);
     const result = await createLead({
-      company: { name: isPerson ? post.authorCompany?.trim() || `${post.authorName} (independent)` : post.authorName },
+      company: {
+        name: companyName,
+        domain: site?.domain,
+        // A company's own post links its company page; otherwise Apollo's record of the page.
+        linkedinUrl: !isPerson && /linkedin\.com\/company\//i.test(post.authorProfileUrl || '') ? post.authorProfileUrl?.replace(/\/posts\/?$/, '') : site?.linkedinUrl,
+      },
       contact: isPerson ? { name: post.authorName, title: post.authorHeadline, linkedinUrl: post.authorProfileUrl, sourcePostUrl: post.url } : null,
       source: 'LINKEDIN_POST',
       // The Review Queue sync may already have made a deal for this post.

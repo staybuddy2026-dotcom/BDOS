@@ -32,8 +32,19 @@ export type TodayFollowUp = {
   status: FollowUpStatus;
   error: string | null;
 };
-export type TodayMeeting = { id: string; title: string; startTime: string; company: string; dealId: string | null; meetingUrl: string | null };
+export type TodayMeeting = {
+  id: string;
+  title: string;
+  startTime: string;
+  company: string;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  dealId: string | null;
+  meetingUrl: string | null;
+  notes?: string | null;
+};
 export type TodayStaleDeal = { dealId: string; company: string; stage: DealStage; lastActivityAt: string };
+export type TodayDealOption = { id: string; company: string; contactName: string | null; contactEmail: string | null };
 
 export type TodayData = {
   tasks: TodayTask[];
@@ -47,6 +58,8 @@ export type TodayData = {
   upcoming: { tasks: number; nextActions: number; followUps: number; meetings: number };
   /** Things that need the person to act: shown as the sidebar badge. */
   actionCount: number;
+  /** Deals available for scheduling or quick association. */
+  availableDeals: TodayDealOption[];
 };
 
 const DAY_MS = 86400000;
@@ -76,7 +89,37 @@ export async function getTodaySummary(user: UserSession, now = new Date()): Prom
   const { start, end, weekEnd } = dayBounds(now);
   const staleBefore = new Date(now.getTime() - STALE_AFTER_DAYS * DAY_MS);
 
-  const [tasks, nextActions, followUps, meetings, staleDeals, unassignedLeads, upTasks, upActions, upFollowUps, upMeetings] = await Promise.all([
+  const meetingWhere: Prisma.MeetingWhereInput = {
+    startTime: { gte: start, lte: end },
+    status: { not: 'CANCELLED' },
+    ...(user.role === 'ADMIN'
+      ? {}
+      : {
+          OR: [
+            { deal: { ownerId: user.id } },
+            { deal: { ownerId: null } },
+            { attendees: { has: user.email } },
+            { clientEmail: user.email },
+          ],
+        }),
+  };
+
+  const upMeetingWhere: Prisma.MeetingWhereInput = {
+    startTime: { gt: end, lte: weekEnd },
+    status: { not: 'CANCELLED' },
+    ...(user.role === 'ADMIN'
+      ? {}
+      : {
+          OR: [
+            { deal: { ownerId: user.id } },
+            { deal: { ownerId: null } },
+            { attendees: { has: user.email } },
+            { clientEmail: user.email },
+          ],
+        }),
+  };
+
+  const [tasks, nextActions, followUps, meetings, staleDeals, unassignedLeads, upTasks, upActions, upFollowUps, upMeetings, activeDeals] = await Promise.all([
     db.task.findMany({ where: openTask(user.id), orderBy: [{ dueDate: 'asc' }], take: 100, include: { deal: { select: { id: true, company: { select: { name: true } } } } } }),
     db.deal.findMany({ where: { ...openDeal(user.id), nextActionDate: { lte: end } }, orderBy: { nextActionDate: 'asc' }, take: 100, include: { company: { select: { name: true } } } }),
     db.followUp.findMany({
@@ -85,13 +128,27 @@ export async function getTodaySummary(user: UserSession, now = new Date()): Prom
       take: 100,
       include: { draft: { include: { post: { select: { companyName: true, authorName: true } }, deal: { select: { id: true, company: { select: { name: true } }, primaryContact: { select: { linkedinUrl: true } } } } } } },
     }),
-    db.meeting.findMany({ where: { deal: { ownerId: user.id }, startTime: { gte: start, lte: end }, status: { not: 'CANCELLED' } }, orderBy: { startTime: 'asc' }, include: { deal: { select: { id: true } } } }),
+    db.meeting.findMany({
+      where: meetingWhere,
+      orderBy: { startTime: 'asc' },
+      include: { deal: { select: { id: true, company: { select: { name: true } } } } },
+    }),
     db.deal.findMany({ where: { ...openDeal(user.id), lastActivityAt: { lt: staleBefore } }, orderBy: { lastActivityAt: 'asc' }, take: 15, include: { company: { select: { name: true } } } }),
     db.deal.count({ where: { ownerId: null, stage: { notIn: ['WON', 'LOST'] } } }),
     db.task.count({ where: { ...openTask(user.id), dueDate: { gt: end, lte: weekEnd } } }),
     db.deal.count({ where: { ...openDeal(user.id), nextActionDate: { gt: end, lte: weekEnd } } }),
     db.followUp.count({ where: { draft: draftScope(user), status: FollowUpStatus.PENDING, dueDate: { gt: end, lte: weekEnd } } }),
-    db.meeting.count({ where: { deal: { ownerId: user.id }, startTime: { gt: end, lte: weekEnd }, status: { not: 'CANCELLED' } } }),
+    db.meeting.count({ where: upMeetingWhere }),
+    db.deal.findMany({
+      where: openDeal(user.id),
+      select: {
+        id: true,
+        company: { select: { name: true } },
+        primaryContact: { select: { name: true, email: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 30,
+    }),
   ]);
 
   const data: TodayData = {
@@ -123,11 +180,27 @@ export async function getTodaySummary(user: UserSession, now = new Date()): Prom
         error: f.error,
       };
     }),
-    meetings: meetings.map((m) => ({ id: m.id, title: m.title, startTime: m.startTime.toISOString(), company: m.companyName, dealId: m.deal?.id ?? null, meetingUrl: m.meetingUrl })),
+    meetings: meetings.map((m) => ({
+      id: m.id,
+      title: m.title,
+      startTime: m.startTime.toISOString(),
+      company: m.companyName || m.deal?.company?.name || 'Client Meeting',
+      clientName: m.clientName || null,
+      clientEmail: m.clientEmail || null,
+      dealId: m.deal?.id ?? null,
+      meetingUrl: m.meetingUrl,
+      notes: m.notes,
+    })),
     staleDeals: staleDeals.map((d) => ({ dealId: d.id, company: d.company.name, stage: d.stage, lastActivityAt: d.lastActivityAt.toISOString() })),
     unassignedLeads,
     upcoming: { tasks: upTasks, nextActions: upActions, followUps: upFollowUps, meetings: upMeetings },
     actionCount: 0,
+    availableDeals: activeDeals.map((d) => ({
+      id: d.id,
+      company: d.company.name,
+      contactName: d.primaryContact?.name ?? null,
+      contactEmail: d.primaryContact?.email ?? null,
+    })),
   };
   // Automatic emails that are simply waiting for their time need nothing from the person.
   const dueTasksCount = tasks.filter((t) => t.dueDate <= end).length;

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { usePageState } from '@/lib/usePageState';
 import { 
   Plus, 
@@ -14,7 +15,17 @@ import {
   FileSpreadsheet,
   X,
   RefreshCw,
-  Search
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Zap,
+  HelpCircle,
+  Home,
+  ChevronRight,
+  RotateCcw,
+  Layers,
+  Tag,
+  Activity
 } from 'lucide-react';
 
 import { 
@@ -28,10 +39,45 @@ import {
 } from '@/features/keywords/actions';
 import { validateBooleanQuery } from '@/features/keywords/validation';
 import { Priority, KeywordStatus } from '@prisma/client';
-import { BreadcrumbHeader } from '@/components/navigation/BreadcrumbHeader';
 import { CustomDropdown } from '@/components/CustomDropdown';
 import blob from '@/assets/blob.png';
 import '@/styles/keywords.css';
+
+// Curated high-intent starter packs for B2B discovery
+const STARTER_PACKS = [
+  {
+    icon: '🚀',
+    name: 'B2B SaaS & Tech Intent',
+    category: 'Sales Intent',
+    priority: Priority.HIGH,
+    query: '("AI SaaS" OR "B2B Software") AND ("looking for" OR "recommendations")',
+    description: 'Catches LinkedIn posts asking for software recommendations and tools.'
+  },
+  {
+    icon: '💼',
+    name: 'Executive Decision Makers',
+    category: 'Leadership',
+    priority: Priority.HIGH,
+    query: '("VP of Sales" OR "Head of Growth" OR "Chief Revenue Officer") NOT "Intern"',
+    description: 'Finds key sales & growth executives announcing role transitions or team scale.'
+  },
+  {
+    icon: '📈',
+    name: 'Sales Hiring & Expansion',
+    category: 'Growth Signals',
+    priority: Priority.HIGH,
+    query: '("Expanding sales team" OR "Hiring BDE" OR "Outbound lead generation")',
+    description: 'Pinpoints companies actively building outbound infrastructure.'
+  },
+  {
+    icon: '🏥',
+    name: 'HealthTech & MedTech Niche',
+    category: 'Industry Niche',
+    priority: Priority.MEDIUM,
+    query: '("HealthTech" OR "Digital Health") AND ("Series A" OR "Seed funding")',
+    description: 'Monitors early-stage healthcare software rounds and scaling signals.'
+  }
+];
 
 export default function KeywordsPage() {
   // Database state
@@ -50,11 +96,11 @@ export default function KeywordsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Open modal for new creation
-  const handleOpenCreateModal = () => {
+  const handleOpenCreateModal = (initialQuery?: string, initialCat?: string, initialPriority?: Priority) => {
     setEditId(null);
-    setKeywordText('');
-    setCategoryText('');
-    setPriorityValue(Priority.MEDIUM);
+    setKeywordText(initialQuery || '');
+    setCategoryText(initialCat || '');
+    setPriorityValue(initialPriority || Priority.MEDIUM);
     setIsFavoriteCheck(false);
     setFormError(null);
     setShowCreateModal(true);
@@ -66,6 +112,23 @@ export default function KeywordsPage() {
   const [priorityFilter, setPriorityFilter] = usePageState('keywords.priorityFilter', '');
   const [statusFilter, setStatusFilter] = usePageState('keywords.statusFilter', '');
   const [favoriteFilter, setFavoriteFilter] = usePageState('keywords.favoriteFilter', 'all');
+
+  // Quick preset pills
+  const [quickFilter, setQuickFilter] = useState<'all' | 'active' | 'starred' | 'high'>('all');
+
+  // Search input ref & keyboard shortcut
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === '/' || (e.ctrlKey && e.key.toLowerCase() === 'k')) && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Bulk Actions
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -95,14 +158,13 @@ export default function KeywordsPage() {
       setDbError(null);
     } catch (err) {
       console.error(err);
-      setDbError('Database Connection Warning: Unable to connect to PostgreSQL. Run database migrations to initialize tables.');
+      setDbError('Database Connection Warning: Unable to connect to PostgreSQL.');
     } finally {
       setPageLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadKeywords();
   }, [loadKeywords]);
 
@@ -120,6 +182,21 @@ export default function KeywordsPage() {
     } else {
       setFormError(null);
     }
+  };
+
+  // Insert Boolean token into modal form input
+  const insertOperator = (op: string) => {
+    setKeywordText(prev => {
+      const trimmed = prev.trim();
+      const updated = trimmed ? `${trimmed} ${op} ` : `${op} `;
+      const check = validateBooleanQuery(updated.trim());
+      if (!check.isValid) {
+        setFormError(check.error || 'Invalid Boolean query.');
+      } else {
+        setFormError(null);
+      }
+      return updated;
+    });
   };
 
   // Submit form (Create / Update)
@@ -143,7 +220,6 @@ export default function KeywordsPage() {
     setIsSubmitting(true);
     try {
       if (editId) {
-        // Update
         await updateKeyword(editId, {
           keyword: keywordText,
           category: categoryText,
@@ -152,7 +228,6 @@ export default function KeywordsPage() {
         });
         triggerNotification('success', 'Keyword updated successfully.');
       } else {
-        // Create
         await addKeyword(keywordText, categoryText, priorityValue, isFavoriteCheck);
         triggerNotification('success', 'Keyword created successfully.');
       }
@@ -174,6 +249,18 @@ export default function KeywordsPage() {
       triggerNotification('error', message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Quick 1-click add starter term
+  const handleAddStarterTerm = async (pack: typeof STARTER_PACKS[0]) => {
+    try {
+      await addKeyword(pack.query, pack.category, pack.priority, true);
+      triggerNotification('success', `Added "${pack.name}" to keyword library!`);
+      const updated = await getKeywords();
+      setKeywords(updated);
+    } catch (err: any) {
+      triggerNotification('error', err.message || 'Could not add keyword.');
     }
   };
 
@@ -281,6 +368,49 @@ export default function KeywordsPage() {
     }
   };
 
+  // Reset all filters
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('');
+    setPriorityFilter('');
+    setStatusFilter('');
+    setFavoriteFilter('all');
+    setQuickFilter('all');
+  };
+
+  // Quick preset button click
+  const handleQuickPreset = (mode: 'all' | 'active' | 'starred' | 'high') => {
+    setQuickFilter(mode);
+    if (mode === 'all') {
+      setStatusFilter('');
+      setFavoriteFilter('all');
+      setPriorityFilter('');
+    } else if (mode === 'active') {
+      setStatusFilter(KeywordStatus.ACTIVE);
+      setFavoriteFilter('all');
+      setPriorityFilter('');
+    } else if (mode === 'starred') {
+      setFavoriteFilter('favorite');
+      setStatusFilter('');
+      setPriorityFilter('');
+    } else if (mode === 'high') {
+      setPriorityFilter(Priority.HIGH);
+      setStatusFilter('');
+      setFavoriteFilter('all');
+    }
+  };
+
+  // Active filter count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery.trim()) count++;
+    if (categoryFilter) count++;
+    if (priorityFilter) count++;
+    if (statusFilter) count++;
+    if (favoriteFilter !== 'all') count++;
+    return count;
+  }, [searchQuery, categoryFilter, priorityFilter, statusFilter, favoriteFilter]);
+
   // CSV Import handling
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -315,7 +445,6 @@ export default function KeywordsPage() {
       } else {
         setImportSuccess(`Import successful! Created: ${result.data.created}, Skipped duplicate: ${result.data.skipped}`);
         setCsvFile(null);
-        // Refresh keywords list
         const updated = await getKeywords();
         setKeywords(updated);
         triggerNotification('success', 'Keywords imported successfully.');
@@ -353,329 +482,504 @@ export default function KeywordsPage() {
   const favoriteCount = keywords.filter(k => k.isFavorite).length;
   const totalMatches = keywords.reduce((sum, k) => sum + k.matchesFound, 0);
 
+  // Helper to render Boolean tokens
+  const renderBooleanTokens = (text: string) => {
+    return text.split(/(\s+AND\s+|\s+OR\s+|\s+NOT\s+)/i).map((part, index) => {
+      const upperPart = part.toUpperCase();
+      if ([' AND ', ' OR ', ' NOT '].includes(upperPart)) {
+        const tokenType = upperPart.trim().toLowerCase();
+        return (
+          <span key={index} className={`boolean-token token-${tokenType}`}>
+            {part.trim()}
+          </span>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', boxSizing: 'border-box' }}>
-      {/* HEADER BANNER */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '14px',
-        borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
-        height: '68px',
-        flexShrink: 0,
-        padding: '0 28px',
-        background: 'rgba(255, 255, 255, 0.85)',
-        backdropFilter: 'blur(16px)',
-        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.02)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', padding: '9px', borderRadius: '12px', boxShadow: '0 4px 16px rgba(99, 102, 241, 0.28)' }}>
-            <Search size={20} style={{ color: '#ffffff' }} />
+      
+      {/* EXECUTIVE HEADER BANNER */}
+      <header className="kw-header">
+        <div className="kw-header-left">
+          <div className="kw-header-icon">
+            <Search size={20} />
           </div>
-          <div>
-            <h2 style={{ fontSize: '1.28rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
-              Keyword Library & Boolean Queries
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, letterSpacing: '0.01em', marginTop: '2px', margin: 0 }}>
-              Configure search keywords and Boolean queries to scan for buying signals
+          <div className="kw-header-title-box">
+            <div className="kw-header-title-row">
+              <h1 className="kw-header-title">Keyword Library & Boolean Queries</h1>
+              <span className="kw-header-badge">Signal Scanner</span>
+            </div>
+            <p className="kw-header-subtitle">
+              Configure Boolean search queries to continuously scan LinkedIn and Apollo for high-intent buyer signals
             </p>
           </div>
         </div>
 
         <div className="header-actions">
-          <button onClick={handleOpenCreateModal} className="btn-primary">
+          <button onClick={() => handleOpenCreateModal()} className="btn-primary">
             <Plus size={16} /> Create Search Term
           </button>
           <a href="/api/keywords/export" download className="btn-secondary">
-            <Download size={16} /> Export
+            <Download size={15} /> Export
           </a>
           <button onClick={() => { setShowCsvModal(true); setCsvFile(null); setCsvErrorList([]); setImportSuccess(null); }} className="btn-secondary">
-            <Upload size={16} /> Import CSV
+            <Upload size={15} /> Import CSV
           </button>
         </div>
-      </div>
+      </header>
 
+      {/* SCROLLABLE MAIN CONTENT */}
       <div
         className="dashboard-scrollable-content keywords-page"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '16px 28px 24px 28px',
-          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.6), rgba(248, 250, 252, 0.6)), url(${blob.src})`,
+          padding: '18px 28px 36px 28px',
+          backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.65), rgba(248, 250, 252, 0.65)), url(${blob.src})`,
           backgroundSize: 'cover',
           backgroundPosition: 'top right',
           backgroundRepeat: 'no-repeat',
           backgroundAttachment: 'fixed'
         }}
       >
-      {/* Notifications */}
-      {notification && (
-        <div className={`notification ${notification.type === 'success' ? 'success' : 'error'}`}>
-          {notification.type === 'success' ? <CheckCircle className="notif-icon" /> : <AlertCircle className="notif-icon" />}
-          <span>{notification.message}</span>
-          <style jsx>{`
-            .notification {
-              position: fixed;
-              top: 24px;
-              right: 24px;
-              display: flex;
-              align-items: center;
-              gap: 12px;
-              padding: 14px 20px;
-              border-radius: var(--radius-md);
-              box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-              z-index: 1000;
-              color: white;
-              font-size: 0.9rem;
-              animation: fadeIn 0.2s forwards;
-            }
-            .notification.success { background: var(--color-success); }
-            .notification.error { background: var(--color-danger); }
-            :global(.notif-icon) { width: 18px; height: 18px; }
-          `}</style>
-        </div>
-      )}
-
-      {/* Database Warning */}
-      {dbError && (
-        <div className="db-warning-banner card-glass">
-          <AlertCircle className="warning-icon" />
-          <div className="warning-content">
-            <h4>Database Connectivity Warning</h4>
-            <p>{dbError}</p>
+        {/* Floating Notifications */}
+        {notification && (
+          <div className={`notification ${notification.type === 'success' ? 'success' : 'error'}`}>
+            {notification.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+            <span>{notification.message}</span>
           </div>
-          <button onClick={loadKeywords} className="icon-btn">
-            <RefreshCw className="refresh-icon" />
-          </button>
-          <style jsx>{`
-            .db-warning-banner {
-              display: flex;
-              align-items: center;
-              gap: var(--space-md);
-              border-color: rgba(239, 68, 68, 0.2);
-              background: rgba(239, 68, 68, 0.05);
-            }
-            .warning-icon { color: var(--color-danger); width: 28px; height: 28px; }
-            .warning-content h4 { color: var(--color-danger); margin-bottom: 2px; }
-            .warning-content p { font-size: 0.85rem; color: var(--text-secondary); }
-            .refresh-icon { width: 16px; height: 16px; }
-          `}</style>
-        </div>
-      )}
+        )}
 
-      {/* Top Navigation & Breadcrumb */}
-      <BreadcrumbHeader
-        currentTitle="Keyword Library & Boolean Queries"
-        badge="Signal Filters"
-      />
+        {/* Database Warning */}
+        {dbError && (
+          <div className="error-text" style={{ padding: '14px 18px', borderRadius: '14px' }}>
+            <AlertCircle size={20} />
+            <div style={{ flex: 1 }}>
+              <strong style={{ display: 'block', fontSize: '0.88rem' }}>Database Connectivity Notice</strong>
+              <span style={{ fontSize: '0.82rem', opacity: 0.9 }}>{dbError}</span>
+            </div>
+            <button onClick={loadKeywords} className="icon-btn" title="Retry">
+              <RefreshCw size={14} />
+            </button>
+          </div>
+        )}
 
-      {/* Statistics Cards */}
-      <div className="stats-grid">
-        <div className="stat-card stat-total card-glass">
-          <div className="stat-content">
-            <div className="stat-info">
-              <span className="stat-label">Total Keywords</span>
-              <span className="stat-val">{pageLoading ? '...' : totalCount}</span>
-            </div>
-            <div className="stat-icon-wrapper">
-              <FileSpreadsheet className="stat-icon text-blue-600" />
-            </div>
+        {/* BREADCRUMB & STATUS STRIP */}
+        <div className="kw-breadcrumb-bar">
+          <div className="kw-breadcrumb-pill">
+            <Link href="/" className="kw-breadcrumb-link">
+              <Home size={13} /> Dashboard
+            </Link>
+            <ChevronRight size={13} className="kw-breadcrumb-sep" />
+            <span className="kw-breadcrumb-current">Keyword Library</span>
+          </div>
+
+          <div className="kw-engine-pill">
+            <span className="kw-engine-dot" />
+            <span>{activeCount} Active Discovery Scanners</span>
           </div>
         </div>
 
-        <div className="stat-card stat-active card-glass">
-          <div className="stat-content">
-            <div className="stat-info">
-              <span className="stat-label">Active (Discovery)</span>
-              <span className="stat-val">{pageLoading ? '...' : activeCount}</span>
+        {/* 4 KPI METRIC STAT CARDS */}
+        <div className="stats-grid">
+          <div className="stat-card stat-total">
+            <div className="stat-content">
+              <div className="stat-info">
+                <div className="stat-label-wrap">
+                  <span className="stat-label">Total Keywords</span>
+                </div>
+                <div className="stat-val">{pageLoading ? '...' : totalCount}</div>
+                <div className="stat-subtext">Library Index</div>
+              </div>
+              <div className="stat-icon-wrapper">
+                <FileSpreadsheet size={22} />
+              </div>
             </div>
-            <div className="stat-icon-wrapper">
-              <CheckCircle className="stat-icon text-emerald-600" />
+          </div>
+
+          <div className="stat-card stat-active">
+            <div className="stat-content">
+              <div className="stat-info">
+                <div className="stat-label-wrap">
+                  <span className="stat-label">Active (Discovery)</span>
+                </div>
+                <div className="stat-val">{pageLoading ? '...' : activeCount}</div>
+                <div className="stat-subtext">Automated Scans</div>
+              </div>
+              <div className="stat-icon-wrapper">
+                <CheckCircle size={22} />
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-card stat-favorite">
+            <div className="stat-content">
+              <div className="stat-info">
+                <div className="stat-label-wrap">
+                  <span className="stat-label">Starred Terms</span>
+                </div>
+                <div className="stat-val">{pageLoading ? '...' : favoriteCount}</div>
+                <div className="stat-subtext">Priority Watchlist</div>
+              </div>
+              <div className="stat-icon-wrapper">
+                <Star size={22} fill={favoriteCount > 0 ? '#f59e0b' : 'none'} />
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-card stat-matches">
+            <div className="stat-content">
+              <div className="stat-info">
+                <div className="stat-label-wrap">
+                  <span className="stat-label">Discovery Matches</span>
+                </div>
+                <div className="stat-val">{pageLoading ? '...' : totalMatches}</div>
+                <div className="stat-subtext">Signals Found</div>
+              </div>
+              <div className="stat-icon-wrapper">
+                <Search size={22} />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="stat-card fav-card stat-favorite card-glass">
-          <div className="stat-content">
-            <div className="stat-info">
-              <span className="stat-label">Starred Terms</span>
-              <span className="stat-val">{pageLoading ? '...' : favoriteCount}</span>
-            </div>
-            <div className="stat-icon-wrapper">
-              <Star className="stat-icon text-amber-500 fill-amber-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card stat-matches card-glass">
-          <div className="stat-content">
-            <div className="stat-info">
-              <span className="stat-label">Discovery Matches</span>
-              <span className="stat-val">{pageLoading ? '...' : totalMatches}</span>
-            </div>
-            <div className="stat-icon-wrapper">
-              <Search className="stat-icon text-sky-500" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Dashboard Workspace */}
-      <div className="table-workspace">
-        
-        {/* Filter Toolbar */}
-        <div className="filter-bar card-glass">
-          <div className="filter-left">
-            {/* Premium Search */}
-            <div style={{ position: 'relative', width: '100%', maxWidth: '420px' }}>
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
-                borderRadius: '12px',
-                padding: '7px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                border: '1.5px solid #cbd5e1',
-                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
-                transition: 'all 0.2s ease'
-              }}>
-                <Search size={17} style={{ color: '#6366f1', flexShrink: 0 }} />
+        {/* COMMAND & FILTER TOOLBAR */}
+        <div className="filter-bar">
+          <div className="filter-main-row">
+            {/* Enhanced Search Input */}
+            <div className="filter-search-box">
+              <div className="filter-search-input-wrap">
+                <div className="search-icon-badge">
+                  <Search size={14} />
+                </div>
                 <input 
+                  ref={searchInputRef}
                   type="text" 
                   placeholder="Search keywords or categories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#0f172a',
-                    fontSize: '0.88rem',
-                    fontWeight: 600,
-                    outline: 'none',
-                    padding: '4px 0'
-                  }}
+                  className="filter-search-input"
+                />
+                {searchQuery ? (
+                  <button 
+                    onClick={() => {
+                      setSearchQuery('');
+                      searchInputRef.current?.focus();
+                    }}
+                    className="filter-search-clear"
+                    title="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                ) : (
+                  <kbd className="search-kbd-chip" title="Press Ctrl+K or / to search">Ctrl + K</kbd>
+                )}
+              </div>
+            </div>
+
+            {/* Perfect Dropdowns */}
+            <div className="filter-dropdowns-row">
+              <div className="filter-dropdown-item">
+                <CustomDropdown
+                  buttonHeight={44}
+                  value={categoryFilter}
+                  onChange={(val) => setCategoryFilter(val)}
+                  options={[
+                    { value: '', label: 'All Categories', icon: <Layers size={14} className="text-slate-400" /> },
+                    ...categoriesList.map(cat => ({ 
+                      value: cat, 
+                      label: cat.toUpperCase(), 
+                      icon: <Tag size={13} className="text-indigo-500" /> 
+                    }))
+                  ]}
+                />
+              </div>
+
+              <div className="filter-dropdown-item">
+                <CustomDropdown
+                  buttonHeight={44}
+                  value={priorityFilter}
+                  onChange={(val) => setPriorityFilter(val)}
+                  options={[
+                    { value: '', label: 'All Priorities', icon: <SlidersHorizontal size={14} className="text-slate-400" /> },
+                    { 
+                      value: Priority.HIGH, 
+                      label: 'High Priority', 
+                      icon: <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#ef4444', boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)', display: 'inline-block' }} /> 
+                    },
+                    { 
+                      value: Priority.MEDIUM, 
+                      label: 'Medium Priority', 
+                      icon: <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#f59e0b', display: 'inline-block' }} /> 
+                    },
+                    { 
+                      value: Priority.LOW, 
+                      label: 'Low Priority', 
+                      icon: <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#94a3b8', display: 'inline-block' }} /> 
+                    }
+                  ]}
+                />
+              </div>
+
+              <div className="filter-dropdown-item">
+                <CustomDropdown
+                  buttonHeight={44}
+                  value={statusFilter}
+                  onChange={(val) => setStatusFilter(val)}
+                  options={[
+                    { value: '', label: 'All Statuses', icon: <Activity size={14} className="text-slate-400" /> },
+                    { 
+                      value: KeywordStatus.ACTIVE, 
+                      label: 'Active Scanners', 
+                      icon: <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#10b981', boxShadow: '0 0 6px rgba(16, 185, 129, 0.7)', display: 'inline-block' }} /> 
+                    },
+                    { 
+                      value: KeywordStatus.INACTIVE, 
+                      label: 'Inactive (Paused)', 
+                      icon: <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#94a3b8', display: 'inline-block' }} /> 
+                    }
+                  ]}
+                />
+              </div>
+
+              <div className="filter-dropdown-item">
+                <CustomDropdown
+                  buttonHeight={44}
+                  value={favoriteFilter}
+                  onChange={(val) => setFavoriteFilter(val)}
+                  options={[
+                    { value: 'all', label: 'All Stars', icon: <Star size={14} className="text-slate-400" /> },
+                    { 
+                      value: 'favorite', 
+                      label: 'Starred Watchlist', 
+                      icon: <Star size={14} fill="#f59e0b" className="text-amber-500" /> 
+                    },
+                    { 
+                      value: 'regular', 
+                      label: 'Regular Terms', 
+                      icon: <Star size={14} className="text-slate-400" /> 
+                    }
+                  ]}
                 />
               </div>
             </div>
           </div>
-          <div className="filter-right">
-            {/* Category Filter */}
-            <div style={{ minWidth: '160px' }}>
-              <CustomDropdown
-                value={categoryFilter}
-                onChange={(val) => setCategoryFilter(val)}
-                options={[
-                  { value: '', label: 'All Categories' },
-                  ...categoriesList.map(cat => ({ value: cat, label: cat.toUpperCase() }))
-                ]}
-              />
+
+          {/* Quick Filter Pills Row */}
+          <div className="filter-pills-row">
+            <div className="quick-pills-group">
+              <button 
+                onClick={() => handleQuickPreset('all')}
+                className={`quick-pill-btn ${quickFilter === 'all' && !activeFiltersCount ? 'active' : ''}`}
+              >
+                All Terms ({totalCount})
+              </button>
+              <button 
+                onClick={() => handleQuickPreset('active')}
+                className={`quick-pill-btn ${quickFilter === 'active' || statusFilter === KeywordStatus.ACTIVE ? 'active' : ''}`}
+              >
+                Active Only ({activeCount})
+              </button>
+              <button 
+                onClick={() => handleQuickPreset('starred')}
+                className={`quick-pill-btn ${quickFilter === 'starred' || favoriteFilter === 'favorite' ? 'active' : ''}`}
+              >
+                ★ Starred ({favoriteCount})
+              </button>
+              <button 
+                onClick={() => handleQuickPreset('high')}
+                className={`quick-pill-btn ${quickFilter === 'high' || priorityFilter === Priority.HIGH ? 'active' : ''}`}
+              >
+                🔥 High Priority
+              </button>
             </div>
 
-            {/* Priority Filter */}
-            <div style={{ minWidth: '160px' }}>
-              <CustomDropdown
-                value={priorityFilter}
-                onChange={(val) => setPriorityFilter(val)}
-                options={[
-                  { value: '', label: 'All Priorities' },
-                  { value: Priority.LOW, label: 'Low' },
-                  { value: Priority.MEDIUM, label: 'Medium' },
-                  { value: Priority.HIGH, label: 'High' }
-                ]}
-              />
-            </div>
-
-            {/* Status Filter */}
-            <div style={{ minWidth: '160px' }}>
-              <CustomDropdown
-                value={statusFilter}
-                onChange={(val) => setStatusFilter(val)}
-                options={[
-                  { value: '', label: 'All Statuses' },
-                  { value: KeywordStatus.ACTIVE, label: 'Active Only' },
-                  { value: KeywordStatus.INACTIVE, label: 'Inactive Only' }
-                ]}
-              />
-            </div>
-
-            {/* Starred Filter */}
-            <div style={{ minWidth: '160px' }}>
-              <CustomDropdown
-                value={favoriteFilter}
-                onChange={(val) => setFavoriteFilter(val)}
-                options={[
-                  { value: 'all', label: 'All Stars' },
-                  { value: 'favorite', label: 'Starred Only' },
-                  { value: 'regular', label: 'Regular Only' }
-                ]}
-              />
-            </div>
+            {activeFiltersCount > 0 && (
+              <button onClick={handleResetFilters} className="clear-filters-btn">
+                <RotateCcw size={12} /> Clear all filters ({activeFiltersCount})
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Table Container */}
-        <div className="table-card card-glass">
-          
-          {/* Bulk actions banner */}
-          {selectedIds.length > 0 && (
-            <div className="bulk-actions-banner">
-              <div className="bulk-left">
-                <span className="selected-count">{selectedIds.length} terms selected</span>
+        {/* MAIN BODY: EMPTY ONBOARDING HUB vs TABLE RESULTS */}
+        {pageLoading ? (
+          <div className="table-card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <RefreshCw size={28} className="animate-spin" style={{ color: '#6366f1', margin: '0 auto 12px auto' }} />
+            <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Loading keyword library...</p>
+          </div>
+        ) : totalCount === 0 ? (
+          /* ================================================================
+             EXECUTIVE EMPTY STATE ONBOARDING & STARTER PACKS HUB
+             ================================================================ */
+          <div className="empty-hub-container">
+            {/* Hero Card */}
+            <div className="empty-hero-card">
+              <div className="empty-radar-wrap">
+                <Sparkles size={32} />
               </div>
-              <div className="bulk-btns">
-                <button 
-                  onClick={() => handleBulkStatusChange(KeywordStatus.ACTIVE)} 
-                  className="btn-secondary" 
-                  style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-                >
-                  Activate Selected
+              <h2 className="empty-hero-title">Build Your High-Intent Discovery Radar</h2>
+              <p className="empty-hero-desc">
+                Define Boolean search queries with <code>AND</code>, <code>OR</code>, and <code>NOT</code> to automatically scan LinkedIn posts and Apollo for buyer triggers, hiring surges, and active software RFPs.
+              </p>
+              <div className="empty-hero-actions">
+                <button onClick={() => handleOpenCreateModal()} className="btn-primary" style={{ padding: '11px 24px', fontSize: '0.92rem' }}>
+                  <Plus size={17} /> Create Search Term
                 </button>
                 <button 
-                  onClick={() => handleBulkStatusChange(KeywordStatus.INACTIVE)} 
-                  className="btn-secondary" 
-                  style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                  onClick={() => { setShowCsvModal(true); setCsvFile(null); setCsvErrorList([]); setImportSuccess(null); }} 
+                  className="btn-secondary"
+                  style={{ padding: '10px 20px', fontSize: '0.9rem' }}
                 >
-                  Deactivate Selected
-                </button>
-                <button onClick={handleBulkDelete} className="btn-danger-outline">
-                  Delete Selected
+                  <Upload size={16} /> Import from CSV
                 </button>
               </div>
             </div>
-          )}
 
-          <div className="table-wrapper">
-            {pageLoading ? (
-              <div className="empty-state">
-                <RefreshCw className="empty-icon animate-spin text-indigo-500" />
-                <p>Loading keyword database...</p>
+            {/* Curated 1-Click Starter Packs */}
+            <div className="starter-packs-box">
+              <div className="starter-header">
+                <div>
+                  <div className="starter-header-left">
+                    <Zap size={18} style={{ color: '#f59e0b' }} />
+                    <h3 className="starter-header-title">Curated High-Yield Starter Packs</h3>
+                    <span className="starter-badge">1-Click Install</span>
+                  </div>
+                  <p className="starter-header-desc">
+                    Battle-tested Boolean templates designed to catch active commercial opportunities immediately.
+                  </p>
+                </div>
               </div>
-            ) : filteredKeywords.length === 0 ? (
-              <div className="empty-state">
-                <Search className="empty-icon" />
-                <h4>No search terms match</h4>
-                <p>Try resetting filters or creating a new search keyword.</p>
-                <button onClick={handleOpenCreateModal} className="btn-primary" style={{ marginTop: '14px' }}>
-                  <Plus size={16} /> Create Search Term
-                </button>
+
+              <div className="starter-cards-grid">
+                {STARTER_PACKS.map((pack, idx) => (
+                  <div key={idx} className="starter-card">
+                    <div>
+                      <div className="starter-card-top">
+                        <div className="starter-card-name-row">
+                          <span className="starter-card-icon">{pack.icon}</span>
+                          <span className="starter-card-name">{pack.name}</span>
+                        </div>
+                        <div className="starter-meta-pills">
+                          <span className="starter-meta-pill">{pack.category}</span>
+                          <span className={`starter-meta-pill ${pack.priority === Priority.HIGH ? 'high' : ''}`}>
+                            {pack.priority}
+                          </span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '6px 0 10px 0' }}>
+                        {pack.description}
+                      </p>
+                      <div className="starter-query-preview">
+                        {renderBooleanTokens(pack.query)}
+                      </div>
+                    </div>
+                    <div className="starter-card-bottom">
+                      <button 
+                        onClick={() => handleAddStarterTerm(pack)}
+                        className="starter-add-btn"
+                      >
+                        <Plus size={14} /> Add to Library
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : (
+            </div>
+
+            {/* Interactive Boolean Syntax Guide */}
+            <div className="boolean-guide-box">
+              <h4 className="boolean-guide-title">
+                <HelpCircle size={16} style={{ color: '#6366f1' }} /> Boolean Syntax Quick Cheatsheet
+              </h4>
+              <div className="boolean-guide-grid">
+                <div className="boolean-guide-card">
+                  <span className="boolean-guide-tag and">AND</span>
+                  <p className="boolean-guide-desc">Requires both signals to appear in the content.</p>
+                  <code className="boolean-guide-eg">"SaaS" AND "Hiring"</code>
+                </div>
+                <div className="boolean-guide-card">
+                  <span className="boolean-guide-tag or">OR</span>
+                  <p className="boolean-guide-desc">Matches if either signal or alternative is found.</p>
+                  <code className="boolean-guide-eg">"VP Sales" OR "CRO"</code>
+                </div>
+                <div className="boolean-guide-card">
+                  <span className="boolean-guide-tag not">NOT</span>
+                  <p className="boolean-guide-desc">Excludes noisy posts containing irrelevant terms.</p>
+                  <code className="boolean-guide-eg">"Sales" NOT "Intern"</code>
+                </div>
+                <div className="boolean-guide-card">
+                  <span className="boolean-guide-tag quotes">"QUOTES"</span>
+                  <p className="boolean-guide-desc">Matches the exact multi-word phrase in order.</p>
+                  <code className="boolean-guide-eg">"Looking for agency"</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : filteredKeywords.length === 0 ? (
+          /* When keywords exist in DB, but filter returns 0 */
+          <div className="table-card">
+            <div className="filter-empty-state">
+              <div className="filter-empty-icon">
+                <Search size={24} />
+              </div>
+              <h4>No search terms match your filters</h4>
+              <p>There are {totalCount} keywords in your library, but none match the active search or filters.</p>
+              <button onClick={handleResetFilters} className="btn-secondary" style={{ padding: '8px 18px' }}>
+                <RotateCcw size={14} /> Reset Filters
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ================================================================
+             KEYWORD TABLE VIEW
+             ================================================================ */
+          <div className="table-card">
+            {/* Bulk actions banner */}
+            {selectedIds.length > 0 && (
+              <div className="bulk-actions-banner">
+                <div className="selected-count">
+                  {selectedIds.length} terms selected
+                </div>
+                <div className="bulk-btns">
+                  <button 
+                    onClick={() => handleBulkStatusChange(KeywordStatus.ACTIVE)} 
+                    className="btn-secondary" 
+                    style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                  >
+                    Activate Selected
+                  </button>
+                  <button 
+                    onClick={() => handleBulkStatusChange(KeywordStatus.INACTIVE)} 
+                    className="btn-secondary" 
+                    style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                  >
+                    Deactivate Selected
+                  </button>
+                  <button onClick={handleBulkDelete} className="btn-danger-outline">
+                    Delete Selected
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="table-wrapper">
               <table className="custom-table">
                 <thead>
                   <tr>
                     <th className="td-checkbox">
                       <input 
                         type="checkbox" 
-                        checked={filteredKeywords.every(k => selectedIds.includes(k.id))}
+                        checked={filteredKeywords.length > 0 && filteredKeywords.every(k => selectedIds.includes(k.id))}
                         onChange={(e) => handleSelectAll(e, filteredKeywords)}
                         className="checkbox-glow"
                       />
                     </th>
                     <th style={{ width: '45px' }}>Starred</th>
-                    <th>Query Keyword</th>
+                    <th>Query Keyword / Boolean Syntax</th>
                     <th>Category</th>
                     <th>Priority</th>
                     <th>Status</th>
@@ -703,23 +1007,11 @@ export default function KeywordsPage() {
                             className={`star-btn ${kw.isFavorite ? 'active' : ''}`}
                             title={kw.isFavorite ? 'Remove from favorites' : 'Star this term'}
                           >
-                            <Star size={16} fill={kw.isFavorite ? '#fbbf24' : 'none'} />
+                            <Star size={16} fill={kw.isFavorite ? '#f59e0b' : 'none'} />
                           </button>
                         </td>
                         <td className="td-keyword">
-                          {/* Render logical operators with styling */}
-                          {kw.keyword.split(/(\s+AND\s+|\s+OR\s+|\s+NOT\s+)/i).map((part, index) => {
-                            const upperPart = part.toUpperCase();
-                            if ([' AND ', ' OR ', ' NOT '].includes(upperPart)) {
-                              const tokenType = upperPart.trim().toLowerCase();
-                              return (
-                                <span key={index} className={`boolean-token token-${tokenType}`}>
-                                  {part.trim()}
-                                </span>
-                              );
-                            }
-                            return <span key={index}>{part}</span>;
-                          })}
+                          {renderBooleanTokens(kw.keyword)}
                         </td>
                         <td>
                           <span className="badge badge-indigo">{kw.category}</span>
@@ -746,19 +1038,19 @@ export default function KeywordsPage() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             minWidth: '28px',
-                            padding: '3px 9px',
+                            padding: '3px 10px',
                             borderRadius: '9999px',
                             fontSize: '0.82rem',
                             fontWeight: 800,
                             fontVariantNumeric: 'tabular-nums',
-                            background: kw.matchesFound > 0 ? 'rgba(14, 165, 233, 0.1)' : 'transparent',
+                            background: kw.matchesFound > 0 ? 'rgba(14, 165, 233, 0.12)' : 'rgba(241, 245, 249, 0.8)',
                             color: kw.matchesFound > 0 ? '#0284c7' : '#94a3b8',
-                            border: kw.matchesFound > 0 ? '1px solid rgba(14, 165, 233, 0.25)' : 'none'
+                            border: kw.matchesFound > 0 ? '1px solid rgba(14, 165, 233, 0.25)' : '1px solid #e2e8f0'
                           }}>
                             {kw.matchesFound}
                           </span>
                         </td>
-                        <td style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
+                        <td style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
                           {kw.lastSearchedAt ? new Date(kw.lastSearchedAt).toLocaleDateString() : 'Never'}
                         </td>
                         <td>
@@ -776,18 +1068,19 @@ export default function KeywordsPage() {
                   })}
                 </tbody>
               </table>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
       </div>
 
-      {/* Create / Edit Search Term Modal */}
+      {/* CREATE / EDIT SEARCH TERM MODAL */}
       {showCreateModal && (
         <div className="modal-backdrop" onClick={handleCancelEdit}>
-          <div className="create-modal card-glass" onClick={(e) => e.stopPropagation()}>
+          <div className="create-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                <Plus size={18} /> {editId ? 'Edit Keyword' : 'Create Search Term'}
+                <Search size={18} style={{ color: '#6366f1' }} /> {editId ? 'Edit Search Term' : 'Create Search Term'}
               </h3>
               <button onClick={handleCancelEdit} className="icon-btn">
                 <X size={18} />
@@ -799,14 +1092,46 @@ export default function KeywordsPage() {
                 <label>Search Keyword / Boolean Query</label>
                 <input 
                   type="text" 
-                  placeholder='("AI Development" OR "Machine Learning") AND ("looking for" OR "need help")'
+                  placeholder='("AI Development" OR "Machine Learning") AND "looking for"'
                   value={keywordText}
                   onChange={handleKeywordChange}
-                  className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-800 text-[0.85rem] font-medium outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.18)] focus:bg-white"
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    color: '#0f172a',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}
                   autoFocus
                 />
-                <span className="helper-text">
-                  Supports boolean operators: <b>AND</b>, <b>OR</b>, <b>NOT</b>, and brackets.
+                
+                {/* Operator Insertion Chips */}
+                <div className="operator-chips-bar">
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>Quick insert:</span>
+                  <button type="button" onClick={() => insertOperator('AND')} className="operator-chip">+ AND</button>
+                  <button type="button" onClick={() => insertOperator('OR')} className="operator-chip">+ OR</button>
+                  <button type="button" onClick={() => insertOperator('NOT')} className="operator-chip">+ NOT</button>
+                  <button type="button" onClick={() => insertOperator('"Phrase"')} className="operator-chip">+ "" Quotes</button>
+                  <button type="button" onClick={() => insertOperator('( )')} className="operator-chip">+ ( )</button>
+                </div>
+
+                {/* Live Preview */}
+                {keywordText.trim() && (
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, marginBottom: '3px' }}>Syntax Preview:</div>
+                    <div className="query-preview-box">
+                      {renderBooleanTokens(keywordText)}
+                    </div>
+                  </div>
+                )}
+
+                <span className="helper-text" style={{ marginTop: '4px' }}>
+                  Combine keywords using <b>AND</b>, <b>OR</b>, <b>NOT</b>, parentheses and quotes.
                 </span>
               </div>
 
@@ -814,10 +1139,21 @@ export default function KeywordsPage() {
                 <label>Category</label>
                 <input 
                   type="text" 
-                  placeholder="e.g. Sales, Recruiting, HR"
+                  placeholder="e.g. Sales Intent, Hiring, Executives, Tech"
                   value={categoryText}
                   onChange={(e) => setCategoryText(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-800 text-[0.85rem] font-medium outline-none transition-all duration-200 w-full box-border placeholder:text-slate-400 focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.18)] focus:bg-white"
+                  style={{
+                    background: '#ffffff',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    color: '#0f172a',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}
                   list="existing-categories-modal"
                 />
                 <datalist id="existing-categories-modal">
@@ -848,13 +1184,14 @@ export default function KeywordsPage() {
                     onChange={(e) => setIsFavoriteCheck(e.target.checked)}
                     className="checkbox-glow"
                   />
-                  Mark as Starred / Favorite
+                  Mark as Starred / Favorite Watchlist
                 </label>
               </div>
 
               {formError && (
                 <div className="error-text">
-                  {formError}
+                  <AlertCircle size={16} />
+                  <span>{formError}</span>
                 </div>
               )}
 
@@ -879,13 +1216,13 @@ export default function KeywordsPage() {
         </div>
       )}
 
-      {/* CSV Import Modal */}
+      {/* CSV IMPORT MODAL */}
       {showCsvModal && (
         <div className="modal-backdrop" onClick={() => setShowCsvModal(false)}>
-          <div className="create-modal card-glass" onClick={(e) => e.stopPropagation()}>
+          <div className="create-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="flex items-center gap-2">
-                <Upload size={18} className="text-indigo-600" /> Import Keywords CSV
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Upload size={18} style={{ color: '#6366f1' }} /> Import Keywords from CSV
               </h3>
               <button onClick={() => setShowCsvModal(false)} className="icon-btn">
                 <X size={18} />
@@ -899,7 +1236,7 @@ export default function KeywordsPage() {
                   Click to browse CSV file
                 </div>
                 <div className="dropzone-sublabel">
-                  CSV headers should be: <b>keyword, category, priority, isFavorite</b>
+                  Expected CSV headers: <b>keyword, category, priority, isFavorite</b>
                 </div>
                 <input 
                   id="csv-file-input"
@@ -913,7 +1250,7 @@ export default function KeywordsPage() {
               {csvFile && (
                 <div className="selected-file-banner">
                   <div className="file-info">
-                    <FileSpreadsheet size={16} style={{ color: 'var(--color-success)' }} />
+                    <FileSpreadsheet size={16} style={{ color: '#10b981' }} />
                     <span>{csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)</span>
                   </div>
                   <button onClick={() => setCsvFile(null)} className="icon-btn delete">
@@ -957,7 +1294,5 @@ export default function KeywordsPage() {
       )}
 
     </div>
-    </div>
   );
 }
-

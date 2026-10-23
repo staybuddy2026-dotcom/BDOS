@@ -1,0 +1,18 @@
+/* AI Priorities layout: summary tiles, list + detail columns. Card and panel visuals stay inline. */
+
+.kpiGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+@media (max-width: 640px) {
+  .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  /* Five tiles: the last one spans the row instead of leaving a gap. */
+  .kpiGrid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .kpiGrid > * { padding: 12px !important; }
+}
+
+/* Desktop: list on the left, details on the right (sticky). Narrower: one column, details after the list. */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (min-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); } }
+
+.listHead { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; font-size: 0.86rem; font-weight: 900; color: var(--text-primary); }
+.listHint { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+
+.panelAnchor { scroll-margin-top: 72px; min-width: 0; }

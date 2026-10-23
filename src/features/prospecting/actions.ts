@@ -1,5 +1,6 @@
 'use server';
 
+import { findCompanyWebsite } from '@/features/apollo/companyWebsite';
 import { AuthService } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
@@ -58,6 +59,12 @@ export async function getSavedPeopleAction(): Promise<Record<string, ApolloPerso
 export async function savePersonAction(person: ApolloPersonMatch): Promise<{ error?: string }> {
   const user = await AuthService.verifySession();
   return guard('savePerson', {}, async () => {
+    // Apollo's free people search gives the company name only; add the website so the company reaches
+    // AI Priorities and Company 360 (exact name match, no credits).
+    if (person && !person.organizationDomain && person.organizationName) {
+      const site = await findCompanyWebsite(person.organizationName).catch(() => undefined);
+      if (site) person = { ...person, organizationDomain: site.domain, apolloOrganizationId: person.apolloOrganizationId || site.apolloOrganizationId };
+    }
     if (!(await savePeople(user.id, [person]))) return { error: 'This contact has no name, so it cannot be saved.' };
     return {};
   });

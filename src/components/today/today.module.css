@@ -7,33 +7,21 @@
 .hero {
   position: relative;
   overflow: hidden;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 28px;
-  align-items: center;
-  padding: 26px 30px;
-  border-radius: 20px;
-  border: 1px solid rgba(226, 232, 240, 0.85);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.92) 55%, rgba(241, 245, 249, 0.82) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 55%, rgba(241, 245, 249, 0.88) 100%);
   backdrop-filter: blur(20px);
-  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.04), 0 2px 8px -2px rgba(15, 23, 42, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.04), 0 2px 6px -2px rgba(15, 23, 42, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .hero:hover {
-  border-color: rgba(199, 210, 254, 0.8);
-  box-shadow: 0 14px 36px -6px rgba(79, 70, 229, 0.07), 0 2px 10px -2px rgba(15, 23, 42, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.98);
-}
-
-.hero::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #4f46e5 0%, #38bdf8 50%, #10b981 100%);
-  opacity: 0.95;
+  border-color: rgba(199, 210, 254, 0.85);
+  box-shadow: 0 12px 30px -6px rgba(79, 70, 229, 0.06), 0 2px 8px -2px rgba(15, 23, 42, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
 .hero::after {
@@ -41,54 +29,139 @@
   position: absolute;
   top: -80px;
   right: -80px;
-  width: 240px;
-  height: 240px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, rgba(56, 189, 248, 0.03) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, rgba(56, 189, 248, 0.03) 50%, transparent 70%);
   pointer-events: none;
 }
 
-@media (max-width: 680px) {
-  .hero {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 20px 18px;
-    gap: 20px;
-  }
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
+.greetingCol {
+  flex: 1;
+  min-width: 280px;
+}
+
+.heroStatusCol {
+  flex-shrink: 0;
+}
+
+/* Completion Badge in Hero Header */
+.completionPillBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.95) 0%, rgba(240, 253, 244, 0.8) 100%);
+  border: 1px solid rgba(167, 243, 208, 0.85);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.2s ease;
+}
+
+.completionPillBadge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.14);
+}
+
+.completionIconWrap {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  flex-shrink: 0;
+}
+
+.completionText {
+  display: flex;
+  flex-direction: column;
+}
+
+.completionTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: #065f46;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.completionSub {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #059669;
+}
+
+/* Compact Ring Widget when there ARE tasks */
+.compactRingWidget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.compactRingWidget .ring {
+  width: 44px;
+  height: 44px;
+}
+
+.compactRingWidget .ringNum {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.compactRingWidget .ringLabel {
+  display: none;
+}
+
+.compactRingText {
+  display: flex;
+  flex-direction: column;
+}
+
+.compactRingTitle {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.compactRingSub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+/* Base ring for when tasks exist */
 .ring {
   position: relative;
-  width: 108px;
-  height: 108px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.ringGlow {
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0) 70%);
-  pointer-events: none;
-  filter: blur(4px);
-}
-
-.ringDone .ringGlow {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, rgba(16, 185, 129, 0) 70%);
-}
-
 .ring svg {
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
-  filter: drop-shadow(0 3px 8px rgba(79, 70, 229, 0.18));
-  transition: filter 0.3s ease;
-}
-
-.ringDone svg {
-  filter: drop-shadow(0 3px 8px rgba(16, 185, 129, 0.22));
+  filter: drop-shadow(0 2px 6px rgba(79, 70, 229, 0.18));
 }
 
 .ringTrack {
@@ -102,68 +175,19 @@
   stroke: url(#ringGrad);
   stroke-width: 8;
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), stroke 0.3s;
-}
-
-.ringDone .ringValue {
-  stroke: url(#ringGradDone);
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .ringCenter {
   position: absolute;
-  inset: 12px;
+  inset: 4px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #ffffff, #f8fafc);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(15, 23, 42, 0.04);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.ring:hover .ringCenter {
-  transform: scale(1.03);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.95), 0 4px 12px rgba(99, 102, 241, 0.12);
-}
-
-.ringNum {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.ringLabel {
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-top: 3px;
-}
-
-.ringCheck {
-  color: #059669;
-}
-
-.ringDone .ringNum {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.heroBody {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
 }
 
 .greetingRow {
@@ -176,7 +200,7 @@
 .greetingIconBadge {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: 9px;
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.25) 100%);
   border: 1px solid rgba(245, 158, 11, 0.25);
   display: flex;
@@ -189,7 +213,7 @@
 
 .greeting {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: -0.025em;
   color: #0f172a;
@@ -213,15 +237,19 @@
   font-weight: 600;
   color: #475569;
   font-size: 12px;
-  padding: 3px 10px;
+  padding: 3px 11px;
   border-radius: 999px;
-  background: rgba(241, 245, 249, 0.85);
+  background: rgba(241, 245, 249, 0.9);
   border: 1px solid rgba(203, 213, 225, 0.8);
   font-variant-numeric: tabular-nums;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.clockDivider {
+  color: #cbd5e1;
 }
 
 .clockPulseDot {
@@ -234,20 +262,20 @@
   animation: pulse 2.5s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
-}
-
 .heroLine {
-  margin: 0;
+  margin: 4px 0 0;
   color: #475569;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .heroLine strong {
   color: #0f172a;
+  font-weight: 700;
+}
+
+.heroLineHighlight {
+  color: #047857;
   font-weight: 700;
 }
 
@@ -270,8 +298,10 @@
   font-size: 12px;
   color: #64748b;
   font-weight: 500;
+  margin-top: 4px;
 }
 
+/* ---------- Stat Cards (Full Width Grid) ---------- */
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -292,12 +322,12 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px 16px;
-  border-radius: 14px;
+  padding: 13px 15px;
+  border-radius: 13px;
   border: 1px solid rgba(226, 232, 240, 0.85);
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
   position: relative;
@@ -331,7 +361,7 @@
 }
 
 .statLabel {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #475569;
   letter-spacing: -0.01em;
@@ -352,13 +382,12 @@
   transform: scale(1.08);
 }
 
-/* Individual card semantic accents */
 .statTodo .statIconBadge {
   background: rgba(99, 102, 241, 0.1);
   color: #4f46e5;
 }
 .statTodo:hover {
-  border-color: rgba(165, 180, 252, 0.8);
+  border-color: rgba(165, 180, 252, 0.85);
 }
 
 .statMeetings .statIconBadge {
@@ -366,7 +395,7 @@
   color: #0284c7;
 }
 .statMeetings:hover {
-  border-color: rgba(186, 230, 253, 0.8);
+  border-color: rgba(186, 230, 253, 0.85);
 }
 
 .statAuto .statIconBadge {
@@ -374,7 +403,7 @@
   color: #059669;
 }
 .statAuto:hover {
-  border-color: rgba(167, 243, 208, 0.8);
+  border-color: rgba(167, 243, 208, 0.85);
 }
 
 .statUpcoming .statIconBadge {
@@ -382,13 +411,7 @@
   color: #7c3aed;
 }
 .statUpcoming:hover {
-  border-color: rgba(221, 214, 254, 0.8);
-}
-
-.statIconWrap {
-  color: #4f46e5;
-  display: inline-flex;
-  align-items: center;
+  border-color: rgba(221, 214, 254, 0.85);
 }
 
 .statValue {
@@ -398,11 +421,11 @@
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  margin: 2px 0 1px;
+  margin: 3px 0 2px;
 }
 
 .statFoot {
-  font-size: 11.5px;
+  font-size: 11px;
   color: #64748b;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -411,6 +434,14 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.statFootSuccess {
+  color: #059669;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .statAlert {
@@ -432,8 +463,8 @@
   padding: 6px 8px;
   border-radius: 14px;
   border: 1px solid rgba(226, 232, 240, 0.9);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(14px);
   scrollbar-width: none;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
 }
@@ -500,6 +531,249 @@
 .filterAlert .filterCount {
   background: #fff1f2;
   color: #e11d48;
+}
+
+/* ---------- Opportunity Hub (Zero Waste, High Impact) ---------- */
+.opportunityHub {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.92) 100%);
+  box-shadow: 0 6px 20px -4px rgba(15, 23, 42, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  animation: rise 0.35s var(--o-ease) both;
+}
+
+.hubHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hubTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hubTitle {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.hubBadge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #047857;
+  background: rgba(236, 253, 245, 0.95);
+  border: 1px solid rgba(167, 243, 208, 0.85);
+  padding: 2px 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hubSub {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 3px 0 0;
+  line-height: 1.45;
+}
+
+/* Opportunity Action Cards */
+.opportunityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.opportunityCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  background: #ffffff;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.02);
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+.opportunityCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(199, 210, 254, 0.9);
+  box-shadow: 0 10px 24px -4px rgba(79, 70, 229, 0.08), 0 2px 6px rgba(15, 23, 42, 0.02);
+}
+
+.oppTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.oppIconWrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.opportunityCard:hover .oppIconWrap {
+  transform: scale(1.08);
+}
+
+.oppIconApollo {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+}
+
+.oppIconLinkedin {
+  background: rgba(14, 165, 233, 0.1);
+  color: #0284c7;
+}
+
+.oppIconCrm {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.oppBadge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.oppTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 3px;
+  letter-spacing: -0.01em;
+}
+
+.oppDesc {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.oppAction {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4f46e5;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.oppArrow {
+  transition: transform 0.15s ease;
+}
+
+.opportunityCard:hover .oppArrow {
+  transform: translateX(3px);
+}
+
+.oppCardClaim {
+  border-color: rgba(167, 243, 208, 0.9);
+  background: linear-gradient(145deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.oppCardClaim:hover {
+  border-color: #10b981;
+  box-shadow: 0 10px 24px -4px rgba(16, 185, 129, 0.14);
+}
+
+.oppIconClaim {
+  background: rgba(16, 185, 129, 0.14);
+  color: #059669;
+}
+
+.oppBadgeClaim {
+  background: rgba(236, 253, 245, 0.95);
+  color: #059669;
+  border: 1px solid rgba(167, 243, 208, 0.8);
+}
+
+.oppActionClaim {
+  color: #059669;
+}
+
+/* Quick Add Task planner inside All Clear */
+.allClearQuickAdd {
+  width: 100%;
+  padding-top: 14px;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.allClearQuickAddTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Active filter back button when nothingToday */
+.filterResetBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.filterResetBtn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #ffffff;
+  border: 1px solid rgba(199, 210, 254, 0.9);
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filterResetBtn:hover {
+  background: #eef2ff;
 }
 
 /* ---------- Sections ---------- */
@@ -570,7 +844,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 22px;
+  padding: 16px 20px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -589,9 +863,9 @@
 }
 
 .sectionIcon {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -614,7 +888,7 @@
 
 .sectionTitle {
   margin: 0;
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
   display: flex;
@@ -624,8 +898,8 @@
 }
 
 .sectionSub {
-  margin: 3px 0 0;
-  font-size: 12.5px;
+  margin: 2px 0 0;
+  font-size: 12px;
   color: #64748b;
   line-height: 1.45;
 }
@@ -656,7 +930,6 @@
   transform: rotate(180deg);
 }
 
-/* Height animation without measuring: 0fr -> 1fr */
 .collapse {
   display: grid;
   grid-template-rows: 1fr;
@@ -729,11 +1002,6 @@
   opacity: 1;
 }
 
-.rowOverdue:hover {
-  border-color: rgba(253, 164, 175, 1);
-  box-shadow: 0 8px 24px -4px rgba(225, 29, 72, 0.08);
-}
-
 .itemOverdueBadge {
   display: inline-flex;
   align-items: center;
@@ -777,7 +1045,7 @@
 }
 
 .rowTitle {
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
   overflow-wrap: anywhere;
@@ -840,7 +1108,6 @@
   border: 1px solid #fecdd3;
 }
 
-/* Actions appear fully on hover/focus on pointer devices; always visible on touch. */
 .rowActions {
   display: flex;
   gap: 8px;
@@ -1312,51 +1579,6 @@
   color: #059669;
 }
 
-.allClear {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 44px 20px;
-  border-radius: 18px;
-  border: 1px solid #a7f3d0;
-  background: radial-gradient(80% 120% at 50% 0%, #ecfdf5 0%, #ffffff 70%);
-  color: #334155;
-  font-size: 13.5px;
-  animation: rise 0.4s var(--o-ease) both;
-  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.08);
-}
-
-.allClearIcon {
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  color: #fff;
-  animation: pop 0.5s var(--o-ease) both;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
-}
-
-.allClearTitle {
-  margin: 4px 0 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.01em;
-}
-
-.allClearActions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 8px;
-}
-
 @keyframes rise {
   from {
     opacity: 0;
@@ -1395,8 +1617,7 @@
 @media (prefers-reduced-motion: reduce) {
   .section,
   .row,
-  .allClear,
-  .allClearIcon,
+  .opportunityHub,
   .slotNow .slotDot {
     animation: none;
   }
@@ -1409,3 +1630,288 @@
     transition: none;
   }
 }
+
+/* ---------- Section Header Container with Far-Right Chevron ---------- */
+.sectionHeaderContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.sectionHeaderContainer .sectionHead {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 16px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.sectionHeaderContainer .sectionHead:hover {
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.sectionHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 18px;
+  flex-shrink: 0;
+}
+
+.chevronBtn {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.chevronBtn:hover {
+  background: rgba(241, 245, 249, 0.8);
+  color: #334155;
+}
+
+/* ---------- Meetings Empty State & Live Pulse ---------- */
+.meetingsEmptyCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ffffff 0%, rgba(248, 250, 252, 0.95) 100%);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.02);
+  flex-wrap: wrap;
+}
+
+.meetingsEmptyLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1 1 280px;
+}
+
+.meetingsEmptyIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+  border: 1px solid rgba(199, 210, 254, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.meetingsEmptyContent {
+  flex: 1;
+}
+
+.meetingsEmptyTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meetingsEmptyTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.calendarOpenBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid rgba(167, 243, 208, 0.8);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.meetingsEmptySub {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.livePulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #059669;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5);
+  animation: pulse 1.8s infinite;
+}
+
+/* ---------- Schedule Meeting Modal ---------- */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: rise 0.2s ease-out;
+}
+
+.modalCard {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: pop 0.22s var(--o-ease);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.modalTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modalIconWrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(79, 70, 229, 0.1);
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.modalCloseBtn {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.modalCloseBtn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.modalBody {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(85vh - 140px);
+  overflow-y: auto;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 500px) {
+  .fieldRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.fieldInput,
+.fieldSelect,
+.fieldTextarea {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 9px;
+  padding: 8px 12px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.fieldInput:focus,
+.fieldSelect:focus,
+.fieldTextarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.fieldTextarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+}
+

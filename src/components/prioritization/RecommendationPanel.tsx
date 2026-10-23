@@ -71,8 +71,8 @@ export function RecommendationPanel({
       {/* Contact + service */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><UserRound size={12} /> Decision maker</span>
+          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 5 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}><UserRound size={12} /> Decision maker</span>
             {contact && <SourceBadge source={contact.source} />}
           </div>
           {contact ? (
@@ -98,8 +98,8 @@ export function RecommendationPanel({
           )}
         </div>
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Briefcase size={12} /> {service?.matchedBy === 'focus' ? 'Likely service (from what they do)' : service?.matchedBy === 'linkedin' ? 'Service they asked for' : 'Matching service'}</span>
+          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 5 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}><Briefcase size={12} /> {service?.matchedBy === 'focus' ? 'Likely service (from what they do)' : service?.matchedBy === 'linkedin' ? 'Service they asked for' : 'Matching service'}</span>
             {service && <SourceBadge source={service.source} />}
           </div>
           {service ? (

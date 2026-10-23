@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
-import { Sidebar } from '@/components/Sidebar';
-import { CommandPalette } from '@/components/navigation/CommandPalette';
+import { AppShell } from '@/components/layout/AppShell';
 import { AuthService } from '@/lib/auth';
 import { getTodayCount } from '@/features/today/service';
 
@@ -19,14 +18,8 @@ export default async function ProtectedLayout({
   const todayCount = await getTodayCount(user).catch(() => 0);
 
   return (
-    <div className="app-shell">
-      <Sidebar user={user} todayCount={todayCount} />
-      <CommandPalette role={user.role} />
-      <main className="main-content">
-        <div className="page-container animate-fade-in">
-          {children}
-        </div>
-      </main>
-    </div>
+    <AppShell user={user} todayCount={todayCount}>
+      {children}
+    </AppShell>
   );
 }

@@ -47,9 +47,9 @@ export const navSections: NavSection[] = [
   {
     label: 'My day',
     items: [
+      { name: 'Dashboard', href: '/dashboard', icon: Home },
       { name: 'Today', href: '/today', icon: CalendarCheck },
       { name: 'AI Priorities', href: '/priorities', icon: Target },
-      { name: 'Dashboard', href: '/dashboard', icon: Home },
     ],
   },
   {

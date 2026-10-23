@@ -4,10 +4,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePageState } from '@/lib/usePageState';
 import Link from 'next/link';
 import {
-  AlertTriangle, ArrowRight, Calendar, CalendarClock, CalendarDays, Check, CheckCircle2, CheckSquare, ChevronDown, Clock, Copy, ExternalLink, Hand, Inbox, Loader2,
-  Mail, Moon, Plus, RotateCcw, Search, Send, Share2, Sparkles, Sun, Sunrise, Video, Zap,
+  AlertTriangle, ArrowRight, Building, Calendar, CalendarClock, CalendarDays, Check, CheckCircle2, CheckSquare, ChevronDown, Clock, Copy, ExternalLink, Globe, Hand, Inbox, Link2, Loader2,
+  Mail, Moon, Plus, RotateCcw, Search, Send, Share2, Sparkles, Sun, Sunrise, Trash2, User, Video, X, Zap,
 } from 'lucide-react';
-import { addMyTaskAction, getTodayAction, toggleTaskAction } from '@/features/today/actions';
+import { addMyTaskAction, addTodayMeetingAction, cancelTodayMeetingAction, getTodayAction, toggleTaskAction, updateTodayMeetingUrlAction } from '@/features/today/actions';
+import { sanitizeMeetingUrl, DEFAULT_MEET_URL } from '@/lib/meeting-urls';
 import type { TodayData, TodayFollowUp } from '@/features/today/service';
 import { completeNextActionAction } from '@/features/crm/actions';
 import { markFollowUpSentAction, sendFollowUpNowAction } from '@/features/outreach/actions';
@@ -38,6 +39,7 @@ const greetingIconFor = (d: Date) => {
   return <Moon size={20} className={t.timeIcon} />;
 };
 const clockText = (d: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(d);
+const dateText = (d: Date) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** "in 25 min", "in 2 h 10 min", "started 5 min ago" relative to `now`. */
@@ -53,19 +55,32 @@ type Filter = 'all' | 'fix' | 'send' | 'deals' | 'tasks' | 'meetings' | 'auto' |
 type Tone = 'accent' | 'danger' | 'warn' | 'success' | 'info';
 const TONE: Record<Tone, string> = { accent: '', danger: t.toneDanger, warn: t.toneWarn, success: t.toneSuccess, info: t.toneInfo };
 
-function Section({ tone = 'accent', icon, title, count, subtitle, open, onToggle, children }: {
-  tone?: Tone; icon: ReactNode; title: string; count?: number; subtitle?: string; open: boolean; onToggle: () => void; children: ReactNode;
+function Section({ tone = 'accent', icon, title, count, subtitle, open, onToggle, action, children }: {
+  tone?: Tone; icon: ReactNode; title: string; count?: number; subtitle?: string; open: boolean; onToggle: () => void; action?: ReactNode; children: ReactNode;
 }) {
   return (
     <section className={`${t.section} ${TONE[tone]}`} aria-label={title}>
-      <button type="button" className={t.sectionHead} onClick={onToggle} aria-expanded={open}>
-        <span className={t.sectionIcon}>{icon}</span>
-        <span className={t.sectionText}>
-          <span className={t.sectionTitle}>{title}{count !== undefined && <span className={t.count}>{count}</span>}</span>
-          {subtitle && <span className={t.sectionSub} style={{ display: 'block' }}>{subtitle}</span>}
-        </span>
-        <ChevronDown size={18} className={`${t.chevron} ${open ? t.chevronOpen : ''}`} />
-      </button>
+      <div className={t.sectionHeaderContainer}>
+        <button type="button" className={t.sectionHead} onClick={onToggle} aria-expanded={open}>
+          <span className={t.sectionIcon}>{icon}</span>
+          <span className={t.sectionText}>
+            <span className={t.sectionTitle}>{title}{count !== undefined && <span className={t.count}>{count}</span>}</span>
+            {subtitle && <span className={t.sectionSub} style={{ display: 'block' }}>{subtitle}</span>}
+          </span>
+        </button>
+        <div className={t.sectionHeaderRight}>
+          {action && <div className={t.sectionActionSlot}>{action}</div>}
+          <button
+            type="button"
+            className={t.chevronBtn}
+            onClick={onToggle}
+            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+            aria-expanded={open}
+          >
+            <ChevronDown size={18} className={`${t.chevron} ${open ? t.chevronOpen : ''}`} />
+          </button>
+        </div>
+      </div>
       <div className={`${t.collapse} ${open ? '' : t.collapsed}`}>
         <div className={t.collapseInner}><div className={t.sectionBody}>{children}</div></div>
       </div>
@@ -112,6 +127,22 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
   const [taskDateFilter, setTaskDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'overdue' | string>('all');
   const [customTaskDate, setCustomTaskDate] = useState<string>('');
 
+  // Schedule meeting modal state
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [meetingForm, setMeetingForm] = useState({
+    title: 'Discovery Call',
+    companyName: '',
+    clientName: '',
+    clientEmail: '',
+    startTime: '',
+    meetingUrl: DEFAULT_MEET_URL,
+    dealId: '',
+    notes: '',
+  });
+
+  // Edit meeting link modal state
+  const [editLinkModal, setEditLinkModal] = useState<{ id: string; title: string; url: string } | null>(null);
+
   const { toast, notify } = useToast();
 
   useEffect(() => {
@@ -146,6 +177,92 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+
+  const openScheduleMeeting = (dealId?: string) => {
+    const d = new Date();
+    d.setMinutes(0, 0, 0);
+    d.setHours(d.getHours() + 1);
+    const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+    let comp = '';
+    let cName = '';
+    let cEmail = '';
+    let mTitle = 'Discovery Call';
+
+    if (dealId && data.availableDeals) {
+      const match = data.availableDeals.find((x) => x.id === dealId);
+      if (match) {
+        comp = match.company;
+        cName = match.contactName || '';
+        cEmail = match.contactEmail || '';
+        mTitle = `Discovery Call with ${match.company}`;
+      }
+    }
+
+    setMeetingForm({
+      title: mTitle,
+      companyName: comp,
+      clientName: cName,
+      clientEmail: cEmail,
+      startTime: localIso,
+      meetingUrl: DEFAULT_MEET_URL,
+      dealId: dealId || '',
+      notes: '',
+    });
+    setScheduleModalOpen(true);
+  };
+
+  const onSelectDeal = (selectedDealId: string) => {
+    if (!selectedDealId) {
+      setMeetingForm((prev) => ({ ...prev, dealId: '' }));
+      return;
+    }
+    const match = (data.availableDeals || []).find((d) => d.id === selectedDealId);
+    if (match) {
+      setMeetingForm((prev) => ({
+        ...prev,
+        dealId: selectedDealId,
+        companyName: match.company,
+        clientName: match.contactName || prev.clientName || '',
+        clientEmail: match.contactEmail || prev.clientEmail || '',
+        title: prev.title === 'Discovery Call' ? `Discovery Call with ${match.company}` : prev.title,
+      }));
+    }
+  };
+
+  const submitScheduleMeeting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!meetingForm.title.trim()) {
+      notify('Enter a meeting title.', true);
+      return;
+    }
+    if (!meetingForm.companyName.trim()) {
+      notify('Enter a company name.', true);
+      return;
+    }
+    if (!meetingForm.startTime) {
+      notify('Pick a meeting date and time.', true);
+      return;
+    }
+
+    const ok = await run('meeting-schedule', () => addTodayMeetingAction(meetingForm), 'Meeting scheduled.');
+    if (ok) {
+      setScheduleModalOpen(false);
+    }
+  };
+
+  const submitUpdateMeetingUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editLinkModal) return;
+    const ok = await run(
+      `edit-meeting-url-${editLinkModal.id}`,
+      () => updateTodayMeetingUrlAction(editLinkModal.id, editLinkModal.url),
+      'Meeting link updated.'
+    );
+    if (ok) {
+      setEditLinkModal(null);
+    }
+  };
 
   const failed = data.followUps.filter((f) => f.status === 'FAILED');
   const manual = data.followUps.filter((f) => f.mode === 'MANUAL' && f.status !== 'FAILED');
@@ -284,34 +401,10 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
     <div className={s.root}>
       {toast}
 
-      {/* Hero: greeting, progress and the day at a glance */}
+      {/* Hero: Greeting, Status Pill, and 4 KPI Cards */}
       <div className={t.hero}>
-        <div className={`${t.ring} ${data.actionCount === 0 ? t.ringDone : ''}`} role="img" aria-label={data.actionCount === 0 ? 'Nothing left to do' : `${data.actionCount} left to do`}>
-          <div className={t.ringGlow} />
-          <svg viewBox="0 0 112 112" aria-hidden>
-            <defs>
-              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#6366f1" />
-                <stop offset="60%" stopColor="#818cf8" />
-                <stop offset="100%" stopColor="#38bdf8" />
-              </linearGradient>
-              <linearGradient id="ringGradDone" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#059669" />
-              </linearGradient>
-            </defs>
-            <circle className={t.ringTrack} cx="56" cy="56" r={R} />
-            <circle className={t.ringValue} cx="56" cy="56" r={R} strokeDasharray={C} strokeDashoffset={C * (1 - progress)} />
-          </svg>
-          <div className={t.ringCenter}>
-            {data.actionCount === 0
-              ? <><Check size={28} strokeWidth={3} className={t.ringCheck} /><span className={t.ringLabel}>All done</span></>
-              : <><span className={t.ringNum}>{data.actionCount}</span><span className={t.ringLabel}>left to do</span></>}
-          </div>
-        </div>
-
-        <div className={t.heroBody}>
-          <div>
+        <div className={t.heroTop}>
+          <div className={t.greetingCol}>
             <div className={t.greetingRow}>
               {now && (
                 <div className={t.greetingIconBadge}>
@@ -325,69 +418,214 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
                 <span className={t.clockPill}>
                   <span className={t.clockPulseDot} />
                   <Clock size={11} /> {clockText(now)}
+                  <span className={t.clockDivider}>·</span>
+                  <span>{dateText(now)}</span>
                 </span>
               )}
             </div>
             <p className={t.heroLine}>
-              {data.actionCount === 0
-                ? <>Nothing is waiting on you right now.</>
-                : <>You have <strong>{plural(data.actionCount, 'thing')} to do</strong> today{overdue > 0 && <span className={t.overduePill}><AlertTriangle size={11} /> {overdue} overdue</span>}.</>}
-              {' '}
-              {nextMeeting && now
-                ? <>Next meeting: <strong>{nextMeeting.title}</strong> {relative(nextMeeting.startTime, now).label}.</>
-                : data.meetings.length === 0 ? <>No meetings today.</> : null}
+              {data.actionCount === 0 ? (
+                <>
+                  <span className={t.heroLineHighlight}>Zero pending actions.</span> No outreach, deal tasks, or meetings waiting for today.
+                </>
+              ) : (
+                <>
+                  You have <strong>{plural(data.actionCount, 'action item')} to do</strong> today
+                  {overdue > 0 && <span className={t.overduePill}><AlertTriangle size={11} /> {overdue} overdue</span>}.
+                  {' '}
+                  {nextMeeting && now ? (
+                    <>Next meeting: <strong>{nextMeeting.title}</strong> {relative(nextMeeting.startTime, now).label}.</>
+                  ) : data.meetings.length === 0 ? (
+                    <>Calendar is open today.</>
+                  ) : null}
+                </>
+              )}
             </p>
             {cleared > 0 && <div className={t.progressNote}>{plural(cleared, 'item')} cleared since you opened this page.</div>}
           </div>
 
-          <div className={t.stats}>
-            {stat('all', 'To do today', data.actionCount, data.actionCount ? 'Tasks, actions, follow-ups' : 'Nothing waiting on you', <Inbox size={14} />, 'statTodo')}
-            {stat('meetings', 'Meetings', data.meetings.length, data.meetings[0] ? <>First: <Time iso={data.meetings[0].startTime} mode="datetime" /></> : 'None scheduled', <Video size={14} />, 'statMeetings')}
-            {stat('auto', 'Automatic', automatic.length, failed.length ? <span className={t.statAlert}><AlertTriangle size={11} /> {failed.length} failed</span> : 'Emails sent for you', <Zap size={14} />, 'statAuto')}
-            <div className={`${t.stat} ${t.statUpcoming}`} style={{ cursor: 'default' }}>
-              <div className={t.statTop}>
-                <span className={t.statLabel}>Next 7 days</span>
-                <span className={t.statIconBadge}><CalendarDays size={14} /></span>
+          <div className={t.heroStatusCol}>
+            {data.actionCount === 0 ? (
+              <div className={t.completionPillBadge}>
+                <div className={t.completionIconWrap}>
+                  <CheckCircle2 size={16} strokeWidth={2.5} />
+                </div>
+                <div className={t.completionText}>
+                  <span className={t.completionTitle}>All Caught Up</span>
+                  <span className={t.completionSub}>100% Cleared</span>
+                </div>
               </div>
-              <span className={t.statValue}>{upcoming}</span>
-              <span className={t.statFoot} title={`${data.upcoming.followUps} follow-ups · ${data.upcoming.tasks + data.upcoming.nextActions} to-dos · ${data.upcoming.meetings} meetings`}>
-                {data.upcoming.followUps} follow-ups · {data.upcoming.tasks + data.upcoming.nextActions} to-dos · {data.upcoming.meetings} meetings
-              </span>
+            ) : (
+              <div className={t.compactRingWidget}>
+                <div className={t.ring} role="img" aria-label={`${data.actionCount} left to do`}>
+                  <svg viewBox="0 0 112 112" aria-hidden>
+                    <defs>
+                      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#6366f1" />
+                        <stop offset="50%" stopColor="#818cf8" />
+                        <stop offset="100%" stopColor="#06b6d4" />
+                      </linearGradient>
+                    </defs>
+                    <circle className={t.ringTrack} cx="56" cy="56" r={R} />
+                    <circle className={t.ringValue} cx="56" cy="56" r={R} strokeDasharray={C} strokeDashoffset={C * (1 - progress)} />
+                  </svg>
+                  <div className={t.ringCenter}>
+                    <span className={t.ringNum}>{data.actionCount}</span>
+                  </div>
+                </div>
+                <div className={t.compactRingText}>
+                  <span className={t.compactRingTitle}>{data.actionCount} Actions Due</span>
+                  <span className={t.compactRingSub}>{cleared} completed today</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 4 Full-Width Stat Cards */}
+        <div className={t.stats}>
+          {stat(
+            'all',
+            'To do today',
+            data.actionCount,
+            data.actionCount ? 'Tasks & follow-ups' : <span className={t.statFootSuccess}><CheckCircle2 size={11} /> All clear</span>,
+            <Inbox size={14} />,
+            'statTodo'
+          )}
+          {stat(
+            'meetings',
+            'Meetings',
+            data.meetings.length,
+            data.meetings[0] ? <>First: <Time iso={data.meetings[0].startTime} mode="datetime" /></> : 'None scheduled',
+            <Video size={14} />,
+            'statMeetings'
+          )}
+          {stat(
+            'auto',
+            'Automatic',
+            automatic.length,
+            failed.length ? (
+              <span className={t.statAlert}><AlertTriangle size={11} /> {failed.length} failed</span>
+            ) : automatic.length > 0 ? (
+              'Emails scheduled'
+            ) : (
+              'Sequences ready'
+            ),
+            <Zap size={14} />,
+            'statAuto'
+          )}
+          <div className={`${t.stat} ${t.statUpcoming}`} style={{ cursor: 'default' }}>
+            <div className={t.statTop}>
+              <span className={t.statLabel}>Next 7 days</span>
+              <span className={t.statIconBadge}><CalendarDays size={14} /></span>
             </div>
+            <span className={t.statValue}>{upcoming}</span>
+            <span
+              className={t.statFoot}
+              title={`${data.upcoming.followUps} follow-ups · ${data.upcoming.tasks + data.upcoming.nextActions} to-dos · ${data.upcoming.meetings} meetings`}
+            >
+              {data.upcoming.followUps} follow-ups · {data.upcoming.tasks + data.upcoming.nextActions} to-dos · {data.upcoming.meetings} meetings
+            </span>
           </div>
         </div>
       </div>
 
-      {nothingToday ? (
-        <div className={t.allClear}>
-          <span className={t.allClearIcon}><Sparkles size={24} /></span>
-          <h3 className={t.allClearTitle}>You are all caught up, {firstName}</h3>
-          <div>
-            {data.unassignedLeads > 0
-              ? <>There {data.unassignedLeads === 1 ? 'is 1 unassigned lead' : `are ${data.unassignedLeads} unassigned leads`} in the CRM you could claim.</>
-              : <>A good moment to find new prospects.</>}
+      {nothingToday && filter === 'all' && (
+        <div className={t.opportunityHub}>
+          <div className={t.hubHeader}>
+            <div className={t.hubTitleRow}>
+              <h3 className={t.hubTitle}>Recommended Next Actions</h3>
+              <span className={t.hubBadge}><Sparkles size={11} /> High Momentum</span>
+            </div>
+            <p className={t.hubSub}>
+              Your daily queue is clear. Use this time to find verified leads, connect on LinkedIn, and prep CRM deals.
+            </p>
           </div>
-          <div className={t.allClearActions}>
-            {data.unassignedLeads > 0 && <Link className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`} href="/crm"><Hand size={13} /> Claim leads</Link>}
-            <Link className={`${s.btn} ${data.unassignedLeads > 0 ? s.btnSecondary : s.btnPrimary} ${s.btnSm}`} href="/apollo-search"><Search size={13} /> Search Apollo</Link>
-            <Link className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`} href="/linkedin"><Share2 size={13} /> Scan LinkedIn</Link>
+
+          <div className={t.opportunityGrid}>
+            {data.unassignedLeads > 0 && (
+              <Link href="/crm" className={`${t.opportunityCard} ${t.oppCardClaim}`}>
+                <div className={t.oppTop}>
+                  <div className={`${t.oppIconWrap} ${t.oppIconClaim}`}><Hand size={18} /></div>
+                  <span className={`${t.oppBadge} ${t.oppBadgeClaim}`}>{plural(data.unassignedLeads, 'Lead')}</span>
+                </div>
+                <div>
+                  <h4 className={t.oppTitle}>Claim Inbound Leads</h4>
+                  <p className={t.oppDesc}>Fresh unassigned leads in the CRM waiting for owner assignment.</p>
+                </div>
+                <div className={`${t.oppAction} ${t.oppActionClaim}`}>
+                  Claim leads <ArrowRight size={13} className={t.oppArrow} />
+                </div>
+              </Link>
+            )}
+
+            <Link href="/apollo-search" className={t.opportunityCard}>
+              <div className={t.oppTop}>
+                <div className={`${t.oppIconWrap} ${t.oppIconApollo}`}><Search size={18} /></div>
+                <span className={t.oppBadge}>Prospecting</span>
+              </div>
+              <div>
+                <h4 className={t.oppTitle}>Find Verified Leads</h4>
+                <p className={t.oppDesc}>Search 275M+ B2B decision-makers filtered by ICP and company size.</p>
+              </div>
+              <div className={t.oppAction}>
+                Search Apollo <ArrowRight size={13} className={t.oppArrow} />
+              </div>
+            </Link>
+
+            <Link href="/linkedin" className={t.opportunityCard}>
+              <div className={t.oppTop}>
+                <div className={`${t.oppIconWrap} ${t.oppIconLinkedin}`}><Share2 size={18} /></div>
+                <span className={t.oppBadge}>Outreach</span>
+              </div>
+              <div>
+                <h4 className={t.oppTitle}>Scan LinkedIn Network</h4>
+                <p className={t.oppDesc}>Find executive buyers and warm connections in target companies.</p>
+              </div>
+              <div className={t.oppAction}>
+                Scan Network <ArrowRight size={13} className={t.oppArrow} />
+              </div>
+            </Link>
+
+            <Link href="/crm" className={t.opportunityCard}>
+              <div className={t.oppTop}>
+                <div className={`${t.oppIconWrap} ${t.oppIconCrm}`}><CalendarClock size={18} /></div>
+                <span className={t.oppBadge}>Pipeline</span>
+              </div>
+              <div>
+                <h4 className={t.oppTitle}>Review CRM Pipeline</h4>
+                <p className={t.oppDesc}>Audit deal stages, check last activity dates, and plan next actions.</p>
+              </div>
+              <div className={t.oppAction}>
+                Open CRM <ArrowRight size={13} className={t.oppArrow} />
+              </div>
+            </Link>
           </div>
         </div>
-      ) : (
-        <nav className={t.filterBar} aria-label="Show">
-          {filters.filter((f) => !f.hidden).map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              className={`${t.filter} ${filter === f.key ? t.filterActive : ''} ${f.alert ? t.filterAlert : ''}`}
-              onClick={() => setFilter(f.key)}
-              aria-pressed={filter === f.key}
-            >
-              {f.icon} {f.label} <span className={t.filterCount}>{f.count}</span>
-            </button>
-          ))}
-        </nav>
       )}
+
+      {filter !== 'all' && (
+        <div className={t.filterResetBar}>
+          <span>Filtering by: <strong>{filters.find((f) => f.key === filter)?.label || filter}</strong></span>
+          <button type="button" className={t.filterResetBtn} onClick={() => setFilter('all')}>
+            ← Show All Sections
+          </button>
+        </div>
+      )}
+
+      <nav className={t.filterBar} aria-label="Show">
+        {filters.filter((f) => !f.hidden).map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            className={`${t.filter} ${filter === f.key ? t.filterActive : ''} ${f.alert ? t.filterAlert : ''}`}
+            onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
+          >
+            {f.icon} {f.label} <span className={t.filterCount}>{f.count}</span>
+          </button>
+        ))}
+      </nav>
 
       {failed.length > 0 && show('fix') && (
         <Section open={!collapsed.has('fix')} onToggle={() => toggleSection('fix')} tone="danger" icon={<AlertTriangle size={17} />} title="Emails that could not be sent" count={failed.length}
@@ -426,7 +664,17 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
                             <span className={`${t.metaDot} ${a.overdue ? t.overdueText : ''}`}>{a.overdue ? 'Overdue since ' : 'Due '}<Time iso={a.dueDate} /></span>
                           </div>
                         </div>
-                        <Link className={`${s.btn} ${s.btnGhost} ${s.btnSm} ${t.rowActionsQuiet}`} href={dealHref(a.dealId)} aria-label={`Open deal ${a.company}`}><ExternalLink size={13} /> Deal</Link>
+                        <div className={t.rowActions}>
+                          <button
+                            type="button"
+                            className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+                            title="Schedule a meeting for this deal"
+                            onClick={() => openScheduleMeeting(a.dealId)}
+                          >
+                            <Video size={13} /> Book Call
+                          </button>
+                          <Link className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} href={dealHref(a.dealId)} aria-label={`Open deal ${a.company}`}><ExternalLink size={13} /> Deal</Link>
+                        </div>
                       </div>
                     );
                   })}
@@ -599,8 +847,56 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
       {(show('meetings') || show('auto')) && (
         <div className={t.columns}>
           {show('meetings') && (
-            <Section open={!collapsed.has('meetings')} onToggle={() => toggleSection('meetings')} tone="info" icon={<Video size={17} />} title="Meetings today" count={data.meetings.length}>
-              {data.meetings.length === 0 ? <Empty>No meetings today.</Empty> : (
+            <Section
+              open={!collapsed.has('meetings')}
+              onToggle={() => toggleSection('meetings')}
+              tone="info"
+              icon={<Video size={17} />}
+              title="Meetings today"
+              count={data.meetings.length}
+              subtitle="Scheduled discovery calls, demos and client reviews for today."
+              action={
+                data.meetings.length > 0 ? (
+                  <button
+                    type="button"
+                    className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`}
+                    style={{ height: 30, fontSize: 12, padding: '0 12px' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openScheduleMeeting();
+                    }}
+                  >
+                    <Plus size={13} /> Schedule Meeting
+                  </button>
+                ) : undefined
+              }
+            >
+              {data.meetings.length === 0 ? (
+                <div className={t.meetingsEmptyCard}>
+                  <div className={t.meetingsEmptyLeft}>
+                    <div className={t.meetingsEmptyIcon}>
+                      <Video size={19} />
+                    </div>
+                    <div className={t.meetingsEmptyContent}>
+                      <div className={t.meetingsEmptyTitleRow}>
+                        <h4 className={t.meetingsEmptyTitle}>No meetings scheduled for today</h4>
+                        <span className={t.calendarOpenBadge}>
+                          <span className={t.livePulseDot} /> Calendar Open
+                        </span>
+                      </div>
+                      <p className={t.meetingsEmptySub}>Your schedule is clear. Book a discovery call, demo, or review with your leads.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`}
+                    style={{ height: 32, padding: '0 14px', borderRadius: 9, fontWeight: 600, gap: 6 }}
+                    onClick={() => openScheduleMeeting()}
+                  >
+                    <Plus size={14} /> Schedule Meeting
+                  </button>
+                </div>
+              ) : (
                 <div className={t.timeline}>
                   {data.meetings.map((m) => {
                     const rel = now ? relative(m.startTime, now) : null;
@@ -614,12 +910,71 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
                             <div className={t.rowMain}>
                               <div className={t.rowTitle}>{m.title}</div>
                               <div className={t.rowMeta}>
-                                <span>{m.company}</span>
-                                {rel && <span className={`${t.when} ${rel.state === 'now' ? t.whenNow : rel.state === 'soon' ? t.whenSoon : ''}`}>{rel.label}</span>}
+                                <strong>{m.company}</strong>
+                                {m.clientName && <span> · {m.clientName}</span>}
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    color: '#4f46e5',
+                                    background: 'rgba(99, 102, 241, 0.08)',
+                                    padding: '1px 8px',
+                                    borderRadius: 6,
+                                    border: '1px solid rgba(99, 102, 241, 0.18)',
+                                  }}
+                                  title={sanitizeMeetingUrl(m.meetingUrl)}
+                                >
+                                  <Video size={11} />
+                                  {sanitizeMeetingUrl(m.meetingUrl).includes('meet.google.com') ? 'Google Meet' : sanitizeMeetingUrl(m.meetingUrl).includes('zoom.us') ? 'Zoom' : 'Video Call'}
+                                </span>
+                                {rel && (
+                                  <span className={`${t.when} ${rel.state === 'now' ? t.whenNow : rel.state === 'soon' ? t.whenSoon : ''}`}>
+                                    {rel.state === 'now' && <span className={t.livePulseDot} style={{ marginRight: 4 }} />}
+                                    {rel.label}
+                                  </span>
+                                )}
                               </div>
                             </div>
-                            {m.meetingUrl && <a className={`${s.btn} ${rel?.state === 'past' ? s.btnSecondary : s.btnPrimary} ${s.btnSm}`} href={m.meetingUrl} target="_blank" rel="noopener noreferrer"><Video size={13} /> Join</a>}
-                            {m.dealId && <Link className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} href={dealHref(m.dealId)} aria-label={`Open deal ${m.company}`}><ExternalLink size={13} /></Link>}
+                            <div className={t.rowActions}>
+                              <a
+                                className={`${s.btn} ${rel?.state === 'past' ? s.btnSecondary : s.btnPrimary} ${s.btnSm}`}
+                                href={sanitizeMeetingUrl(m.meetingUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Join Call: ${sanitizeMeetingUrl(m.meetingUrl)}`}
+                              >
+                                <Video size={13} /> Join Call
+                              </a>
+                              <button
+                                type="button"
+                                className={`${s.btn} ${s.btnGhost} ${s.btnSm}`}
+                                title="Change or view meeting link"
+                                onClick={() => setEditLinkModal({ id: m.id, title: m.title, url: sanitizeMeetingUrl(m.meetingUrl) })}
+                              >
+                                <Link2 size={13} /> Link
+                              </button>
+                              {m.dealId && (
+                                <Link className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} href={dealHref(m.dealId)} aria-label={`Open deal ${m.company}`}>
+                                  <ExternalLink size={13} /> Deal
+                                </Link>
+                              )}
+                              <button
+                                type="button"
+                                className={`${s.btn} ${s.btnGhost} ${s.btnSm}`}
+                                title="Cancel meeting"
+                                disabled={busy !== null}
+                                onClick={() => {
+                                  if (window.confirm(`Cancel meeting "${m.title}"?`)) {
+                                    run(`cancel-meeting-${m.id}`, () => cancelTodayMeetingAction(m.id), 'Meeting cancelled.');
+                                  }
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -666,6 +1021,236 @@ export function TodayWorkspace({ initialData, name }: { initialData: TodayData; 
             </div>
           )}
         </Section>
+      )}
+
+      {/* Schedule Meeting Modal */}
+      {scheduleModalOpen && (
+        <div className={t.modalOverlay} onClick={() => setScheduleModalOpen(false)}>
+          <div className={t.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div className={t.modalHeader}>
+              <div className={t.modalTitleWrap}>
+                <div className={t.modalIconWrap}><Video size={18} /></div>
+                <h3 className={t.modalTitle}>Schedule a Meeting</h3>
+              </div>
+              <button type="button" className={t.modalCloseBtn} onClick={() => setScheduleModalOpen(false)} aria-label="Close modal">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={submitScheduleMeeting}>
+              <div className={t.modalBody}>
+                {data.availableDeals && data.availableDeals.length > 0 && (
+                  <div className={t.fieldGroup}>
+                    <label className={t.fieldLabel}><Building size={12} /> Link to CRM Deal (Optional)</label>
+                    <select
+                      className={t.fieldSelect}
+                      value={meetingForm.dealId}
+                      onChange={(e) => onSelectDeal(e.target.value)}
+                    >
+                      <option value="">-- No deal link (Standalone meeting) --</option>
+                      {data.availableDeals.map((d) => (
+                        <option key={d.id} value={d.id}>{d.company} {d.contactName ? `(${d.contactName})` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className={t.fieldGroup}>
+                  <label className={t.fieldLabel}>Meeting Title *</label>
+                  <input
+                    className={t.fieldInput}
+                    placeholder="e.g. Discovery Call, Technical Demo, Contract Review"
+                    required
+                    value={meetingForm.title}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
+                  />
+                </div>
+
+                <div className={t.fieldRow}>
+                  <div className={t.fieldGroup}>
+                    <label className={t.fieldLabel}><Building size={12} /> Company Name *</label>
+                    <input
+                      className={t.fieldInput}
+                      placeholder="e.g. Acme Corp"
+                      required
+                      value={meetingForm.companyName}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, companyName: e.target.value })}
+                    />
+                  </div>
+                  <div className={t.fieldGroup}>
+                    <label className={t.fieldLabel}><User size={12} /> Contact / Client Name</label>
+                    <input
+                      className={t.fieldInput}
+                      placeholder="e.g. John Doe"
+                      value={meetingForm.clientName}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, clientName: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className={t.fieldRow}>
+                  <div className={t.fieldGroup}>
+                    <label className={t.fieldLabel}><Mail size={12} /> Contact Email</label>
+                    <input
+                      type="email"
+                      className={t.fieldInput}
+                      placeholder="john@example.com"
+                      value={meetingForm.clientEmail}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, clientEmail: e.target.value })}
+                    />
+                  </div>
+                  <div className={t.fieldGroup}>
+                    <label className={t.fieldLabel}><Calendar size={12} /> Date & Time *</label>
+                    <input
+                      type="datetime-local"
+                      className={t.fieldInput}
+                      required
+                      value={meetingForm.startTime}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, startTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className={t.fieldGroup}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <label className={t.fieldLabel} style={{ marginBottom: 0 }}><Globe size={12} /> Meeting Link (Google Meet / Zoom / Teams)</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          background: 'rgba(99, 102, 241, 0.1)',
+                          color: '#6366f1',
+                          border: '1px solid rgba(99, 102, 241, 0.25)',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        onClick={() => setMeetingForm({ ...meetingForm, meetingUrl: DEFAULT_MEET_URL })}
+                      >
+                        <Zap size={11} /> Google Meet
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          background: 'rgba(148, 163, 184, 0.1)',
+                          color: '#64748b',
+                          border: '1px solid rgba(148, 163, 184, 0.25)',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                        }}
+                        onClick={() => setMeetingForm({ ...meetingForm, meetingUrl: '' })}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="url"
+                    className={t.fieldInput}
+                    placeholder="https://meet.google.com/new"
+                    value={meetingForm.meetingUrl}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, meetingUrl: e.target.value })}
+                  />
+                  <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
+                    Pre-filled with Google Meet (<code style={{ color: '#475569' }}>meet.google.com/new</code>) which instantly opens a live call room.
+                  </span>
+                </div>
+
+                <div className={t.fieldGroup}>
+                  <label className={t.fieldLabel}>Agenda / Notes (Optional)</label>
+                  <textarea
+                    className={t.fieldTextarea}
+                    placeholder="Discussion points, prospect background, tech requirements..."
+                    value={meetingForm.notes}
+                    onChange={(e) => setMeetingForm({ ...meetingForm, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className={t.modalFooter}>
+                <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={() => setScheduleModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`} disabled={busy !== null}>
+                  {busy === 'meeting-schedule' ? <Loader2 size={13} className={s.spin} /> : <Plus size={13} />} Schedule Meeting
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editLinkModal && (
+        <div className={t.modalOverlay} onClick={() => setEditLinkModal(null)}>
+          <div className={t.modalCard} style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className={t.modalHeader}>
+              <div className={t.modalTitleWrap}>
+                <div className={t.modalIconWrap}><Link2 size={18} /></div>
+                <h3 className={t.modalTitle}>Edit Meeting Link</h3>
+              </div>
+              <button type="button" className={t.modalCloseBtn} onClick={() => setEditLinkModal(null)} aria-label="Close modal">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={submitUpdateMeetingUrl}>
+              <div className={t.modalBody}>
+                <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+                  Update the call link for <strong>{editLinkModal.title}</strong>:
+                </p>
+                <div className={t.fieldGroup}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <label className={t.fieldLabel} style={{ marginBottom: 0 }}><Globe size={12} /> Call URL</label>
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: 11,
+                        padding: '2px 8px',
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        color: '#6366f1',
+                        border: '1px solid rgba(99, 102, 241, 0.25)',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                      onClick={() => setEditLinkModal({ ...editLinkModal, url: DEFAULT_MEET_URL })}
+                    >
+                      <Zap size={11} /> Instant Google Meet
+                    </button>
+                  </div>
+                  <input
+                    type="url"
+                    className={t.fieldInput}
+                    required
+                    value={editLinkModal.url}
+                    onChange={(e) => setEditLinkModal({ ...editLinkModal, url: e.target.value })}
+                    placeholder="https://meet.google.com/new"
+                  />
+                  <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
+                    Supports Google Meet, Zoom, Microsoft Teams, or any web conference link.
+                  </span>
+                </div>
+              </div>
+              <div className={t.modalFooter}>
+                <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={() => setEditLinkModal(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`} disabled={busy !== null}>
+                  {busy?.startsWith('edit-meeting-url-') ? <Loader2 size={13} className={s.spin} /> : <Check size={13} />} Save Link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -23,6 +23,7 @@ import {
 import { sendDealEmailAction } from '@/features/email/actions';
 import { markFollowUpSentAction, sendFollowUpNowAction, setSequencePausedAction } from '@/features/outreach/actions';
 import type { MailboxStatus } from '@/features/email/actions';
+import { sanitizeMeetingUrl, DEFAULT_MEET_URL } from '@/lib/meeting-urls';
 import { DEAL_STAGES, LINKEDIN_STATUS_LABELS, SOURCE_LABELS, formatUsd } from '@/features/crm/types';
 import type { CrmActivityType, CrmAiBriefing, CrmContact, CrmUser, DealDetail, DealStage } from '@/features/crm/types';
 import { LinkedInContactActions } from './LinkedInContactActions';
@@ -132,7 +133,7 @@ function DealPanel({ deal, me, team, canSeeAll, mailbox, onClose, onChanged, onM
 
   const [note, setNote] = useState('');
   const [task, setTask] = useState({ title: '', dueDate: '', priority: 'NORMAL' as 'HIGH' | 'NORMAL' | 'LOW' });
-  const [meeting, setMeeting] = useState({ title: '', startTime: '', attendees: '', meetingUrl: '', notes: '' });
+  const [meeting, setMeeting] = useState({ title: '', startTime: '', attendees: '', meetingUrl: DEFAULT_MEET_URL, notes: '' });
   const [proposal, setProposal] = useState({ title: '', amount: '', validUntil: '' });
   const [contactForm, setContactForm] = useState<{ id: string | null; values: typeof emptyContact } | null>(null);
   const [email, setEmail] = useState<{ contact: CrmContact; subject: string; body: string } | null>(null);
@@ -523,7 +524,7 @@ function DealPanel({ deal, me, team, canSeeAll, mailbox, onClose, onChanged, onM
                   <form className={c.inlineForm} onSubmit={async (e) => {
                     e.preventDefault();
                     const ok = await run('meeting', () => addDealMeetingAction(deal.id, { ...meeting, startTime: meeting.startTime ? new Date(meeting.startTime).toISOString() : '', attendees: meeting.attendees.split(',') }), 'Meeting saved.');
-                    if (ok) setMeeting({ title: '', startTime: '', attendees: '', meetingUrl: '', notes: '' });
+                    if (ok) setMeeting({ title: '', startTime: '', attendees: '', meetingUrl: DEFAULT_MEET_URL, notes: '' });
                   }}>
                     <div className={c.formRow}>
                       <input className={`${s.input} ${c.inputSm} ${c.grow}`} placeholder="Meeting title, e.g. Discovery call" aria-label="Meeting title" required disabled={locked} value={meeting.title} onChange={(e) => setMeeting({ ...meeting, title: e.target.value })} />
@@ -548,7 +549,7 @@ function DealPanel({ deal, me, team, canSeeAll, mailbox, onClose, onChanged, onM
                         </div>
                         {m.attendees.length > 0 && <div className={s.cellSub}>Attendees: {m.attendees.join(', ')}</div>}
                         {m.notes && <p className={c.itemText}>{m.notes}</p>}
-                        {m.meetingUrl && <a className={s.link} style={{ fontSize: 13 }} href={m.meetingUrl} target="_blank" rel="noopener noreferrer"><Video size={13} style={{ verticalAlign: -2 }} /> Open meeting link</a>}
+                        {m.meetingUrl && <a className={s.link} style={{ fontSize: 13 }} href={sanitizeMeetingUrl(m.meetingUrl)} target="_blank" rel="noopener noreferrer"><Video size={13} style={{ verticalAlign: -2 }} /> Open meeting link</a>}
                       </div>
                     ))}
                   </div>

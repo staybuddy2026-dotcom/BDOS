@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { Flame, Filter, CheckCircle2, AlertTriangle, Target, UserRound, IndianRupee, Info, Sparkles, Link2, Loader2, X, Share2 } from 'lucide-react';
 import { addLinkedInAccountAction, lookUpTechAndFundingAction, setPriorityTierAction } from '@/features/prioritization/actions';
 import { BuyingReadinessDetails, PrioritiesResult, PrioritizationSummary, PriorityTier, TIER_BANDS } from '@/features/prioritization/types';
 import { generateNextBestActions } from '@/features/prioritization/recommendations';
+import layout from './priorities.module.css';
 import { PriorityCard } from './PriorityCard';
 import { RecommendationPanel } from './RecommendationPanel';
 
@@ -36,6 +37,7 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
   const [notFoundDomains, setNotFoundDomains] = useState<string[]>(initial.notFoundDomains);
   const [selectedFilter, setSelectedFilter] = useState<PriorityTier | 'ALL'>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(initial.accounts[0]?.companyId ?? null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
 
   // Paste LinkedIn URL state
@@ -368,7 +370,7 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
       {renderAddLinkedInBar()}
 
       {/* Totals, all counted from the accounts below */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '16px' }}>
+      <div className={layout.kpiGrid}>
         <div style={kpiCard('var(--accent-indigo)')}>
           <div style={kpiLabel}>Contact today</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--accent-indigo)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -461,11 +463,11 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
       </div>
 
       {/* List and detail */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ fontSize: '0.86rem', fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className={layout.layout}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
+          <div className={layout.listHead}>
             <span>Ranked accounts ({filteredAccounts.length})</span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Score = Apollo fit (70) + LinkedIn evidence (30)</span>
+            <span className={layout.listHint}>Score = Apollo fit (70) + LinkedIn evidence (30)</span>
           </div>
 
           {filteredAccounts.length === 0 ? (
@@ -479,14 +481,20 @@ export function PriorityDashboard({ initial }: { initial: PrioritiesResult }) {
                 account={acc}
                 rank={idx + 1}
                 isSelected={selectedAccount?.companyId === acc.companyId}
-                onSelect={(a) => setSelectedId(a.companyId)}
+                onSelect={(a) => {
+                  setSelectedId(a.companyId);
+                  // One-column layout: the details are below the list, so bring them into view.
+                  if (window.matchMedia('(max-width: 1099px)').matches) {
+                    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                  }
+                }}
                 onTierChange={handleTierChange}
               />
             ))
           )}
         </div>
 
-        <div>
+        <div ref={panelRef} className={layout.panelAnchor}>
           {selectedAccount ? (
             <RecommendationPanel
               account={selectedAccount}

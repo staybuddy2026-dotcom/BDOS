@@ -161,6 +161,8 @@ export interface ApolloProvider {
   getContact(params: { contactId: string }): Promise<ApolloPersonMatch | null>;
   getUsage(): Promise<ApolloUsageEndpoint[] | null>;
   checkHealth(): Promise<{ ok: boolean; message: string }>;
+  /** The Apollo company whose name is exactly this one (case and punctuation aside), or null. No credits. */
+  findCompanyByExactName(name: string): Promise<ApolloOrganizationMatch | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -668,6 +670,29 @@ export class DefaultApolloProvider implements ApolloProvider {
     } catch (err) {
       if (!(err instanceof ApolloApiError)) logger.error('Apollo searchPeopleAdvanced failed', err);
       return emptyPeople({ ...params, perPage }, toErrorInfo(err, 'mixed_people/api_search'));
+    }
+  }
+
+  /**
+   * Exact-name match only, never Apollo's "best guess": used to fill in a company website where the user did
+   * not choose the company themselves (a saved contact, a LinkedIn lead). Errors and no match give null.
+   */
+  async findCompanyByExactName(name: string): Promise<ApolloOrganizationMatch | null> {
+    const wanted = name.trim();
+    if (wanted.length < 2) return null;
+    try {
+      const data = await apolloRequest<{ organizations?: Record<string, unknown>[]; accounts?: Record<string, unknown>[] }>(
+        'organizations/search', { body: { q_organization_name: wanted, page: 1, per_page: 5 }, ttl: TTL.search }
+      );
+      const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const found = [...(data.organizations || []), ...(data.accounts || [])].map(mapOrganization)
+        .filter((o) => !o.apolloOrganizationId.startsWith('apollo-org-') && norm(o.name) === norm(wanted));
+      // Two different companies with this exact name: picking one would be a guess.
+      const domains = new Set(found.map((o) => o.domain).filter(Boolean));
+      return found.length && domains.size <= 1 ? found[0] : null;
+    } catch (err) {
+      if (!(err instanceof ApolloApiError)) logger.warn('Apollo company lookup by name failed', { error: String(err) });
+      return null;
     }
   }
 
